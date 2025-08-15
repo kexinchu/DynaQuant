@@ -1,0 +1,14 @@
+
+# install sgl-kernel
+pip uninstall -y sgl-kernel
+rm -rf ~/.cache/torch_extensions
+
+# 1) Clone the repo
+git clone https://github.com/sgl-project/sglang.git
+cd sglang/python/sgl-kernel   # repo layout has this subdir
+
+# 2) Make ABI match Torch (yours is 0) and build
+export CXXFLAGS="${CXXFLAGS} -D_GLIBCXX_USE_CXX11_ABI=$(python3 -c 'import torch;print(int(torch._C._GLIBCXX_USE_CXX11_ABI))')"
+# Optional: target your GPUs
+# export TORCH_CUDA_ARCH_LIST="8.0;8.6;9.0"
+pip install -v .
