@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 
 # 默认配置
 DEFAULT_HOST="127.0.0.1"
-DEFAULT_PORT="8080"
+DEFAULT_PORT="8081"
 DEFAULT_WORKERS="4"
 DEFAULT_CONFIG="config/model_config.yaml"
 
@@ -131,7 +131,7 @@ setup_environment() {
     print_step "6" "设置环境变量..."
     
     # 设置CUDA相关环境变量
-    export CUDA_VISIBLE_DEVICES=0
+    export CUDA_VISIBLE_DEVICES=4,5,6,7
     
     # 设置Python路径
     export PYTHONPATH="${PYTHONPATH}:$(pwd)"
@@ -170,15 +170,24 @@ start_server() {
     print_success "服务器已启动，PID: $SERVER_PID"
     print_success "日志文件: logs/server.log"
     
-    # 等待服务器启动
-    sleep 5
-    
-    # 检查服务器是否正常启动
-    if curl -s "http://$host:$port/health" > /dev/null; then
-        print_success "服务器启动成功，健康检查通过"
-    else
-        print_warning "服务器可能未完全启动，请检查日志"
-    fi
+    # 仅当健康检查通过后才退出，否则每10s重试
+    print_step "等待服务器健康检查(/health)通过..."
+    while true; do
+        # 健康检查（加超时，避免 curl 挂死）
+        if curl -fsS --connect-timeout 2 --max-time 50 "http://$host:$port/health" > /dev/null; then
+            print_success "服务器启动成功，健康检查通过"
+            break
+        fi
+
+        # 若进程已退出，立即报错返回
+        if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+            print_warning "服务器进程已退出（PID: $SERVER_PID）。请检查 logs/server.log"
+            return 1
+        fi
+
+        # 未就绪则等待 10s 后重试
+        sleep 60
+    done
 }
 
 run_tests() {
@@ -190,13 +199,13 @@ run_tests() {
     # 运行基本功能测试
     if [ -f "examples/test_client.py" ]; then
         print_success "运行基本功能测试..."
-        python3 examples/test_client.py
+        python3 examples/test_client.py 8081
     fi
     
     # 运行专家激活跟踪测试
     if [ -f "examples/test_expert_tracking.py" ]; then
         print_success "运行专家激活跟踪测试..."
-        python3 examples/test_expert_tracking.py
+        python3 examples/test_expert_tracking.py 8081
     fi
     
     print_success "测试完成"
@@ -207,7 +216,7 @@ generate_visualization() {
     
     if [ -f "examples/visualize_expert_stats.py" ]; then
         print_success "生成可视化图表..."
-        python3 examples/visualize_expert_stats.py
+        python3 examples/visualize_expert_stats.py 8081
         
         if [ -d "expert_stats_plots" ]; then
             print_success "可视化图表已保存到 expert_stats_plots/ 目录"
@@ -304,7 +313,7 @@ main() {
     check_cuda
     
     # 安装依赖
-    install_dependencies
+    # install_dependencies
     
     # 检查配置文件
     check_config

@@ -69,18 +69,10 @@ class MixedPrecisionWeightLoader:
             weight_file = self._find_weight_from_index(weight_name, index_file, precision_path)
             if weight_file:
                 return weight_file
-        
-        # 尝试不同的文件扩展名
-        possible_files = [
-            f"{precision_path}/{weight_name}.safetensors",
-            f"{precision_path}/{weight_name}.bin",
-            f"{precision_path}/pytorch_model.bin",
-            f"{precision_path}/model.safetensors"
-        ]
-        
-        for file_path in possible_files:
-            if os.path.exists(file_path):
-                return file_path
+        # may not exist model.safetensors.index.json; in Qwen3-30B-A3B
+        weight_file = os.path.join(precision_path, "model.safetensors")
+        if os.path.exists(weight_file):
+            return weight_file
         
         return None
     
@@ -102,7 +94,7 @@ class MixedPrecisionWeightLoader:
             print(f"Warning: Failed to read index file {index_file}: {e}")
             return None
     
-    def load_weight(self, weight_name: str) -> Optional[torch.Tensor]:
+    def load_weight(self, weight_name: str, precision: str) -> Optional[torch.Tensor]:
         """
         根据配置加载指定权重
         
@@ -111,13 +103,7 @@ class MixedPrecisionWeightLoader:
             
         Returns:
             加载的权重张量
-        """
-        if weight_name not in self.weight_mapping:
-            # 默认使用FP16
-            precision = 'fp16'
-        else:
-            precision = self.weight_mapping[weight_name]
-        
+        """        
         # 查找权重文件
         weight_file = self._find_weight_file(weight_name, precision)
         if weight_file is None:
@@ -130,6 +116,8 @@ class MixedPrecisionWeightLoader:
         else:
             weights = self._load_pytorch_file(weight_file)
         
+        print(f"weight_name: {weight_name}; weight: {weights}")
+
         # 提取指定权重
         if weight_name in weights:
             weight = weights[weight_name]
@@ -182,8 +170,15 @@ class MixedPrecisionWeightLoader:
         
         # 遍历模型权重
         for name, param in model.named_parameters():
+            if not "expert" in name:
+                continue
             if name in state_dict:
-                weight = self.load_weight(name)
+                if name not in self.weight_mapping:
+                    # 默认量化粒度-跳过
+                    continue
+                else:
+                    precision = self.weight_mapping[name]
+                weight = self.load_weight(name, precision)
                 if weight is not None:
                     # 确保权重形状匹配
                     if weight.shape == param.shape:

@@ -159,7 +159,7 @@ def wrap_moe_modules(model: nn.Module) -> nn.Module:
                 # 包装MoE模块
                 wrapped_child = MoEModuleWrapper(child, layer_id)
                 setattr(module, name, wrapped_child)
-                print(f"Wrapped MoE module at layer {layer_id}: {name}")
+                # print(f"Wrapped MoE module at layer {layer_id}: {name}")
             
             # 递归处理子模块
             if hasattr(child, 'named_children'):
@@ -181,13 +181,7 @@ def _is_moe_module(module: nn.Module) -> bool:
     """
     # 检查常见的MoE模块特征
     moe_indicators = [
-        hasattr(module, 'experts'),
-        hasattr(module, 'gate'),
-        hasattr(module, 'gate_proj'),
-        hasattr(module, 'num_experts'),
-        hasattr(module, 'num_experts_per_tok'),
-        'moe' in module.__class__.__name__.lower(),
-        'mixture' in module.__class__.__name__.lower()
+        hasattr(module, 'experts')
     ]
     
     return any(moe_indicators)

@@ -2,7 +2,7 @@
 """
 测试专家激活跟踪功能
 """
-
+import sys
 import requests
 import json
 import time
@@ -64,13 +64,13 @@ class ExpertTrackingClient:
         return response.json()
 
 
-def test_expert_tracking():
+def test_expert_tracking(port):
     """测试专家激活跟踪"""
     print("=" * 60)
     print("专家激活跟踪测试")
     print("=" * 60)
     
-    client = ExpertTrackingClient()
+    client = ExpertTrackingClient("http://127.0.0.1:" + str(port))
     
     # 重置统计
     print("1. 重置专家激活统计...")
@@ -161,13 +161,13 @@ def test_expert_tracking():
     print("=" * 60)
 
 
-def test_batch_generation():
+def test_batch_generation(port):
     """测试批量生成"""
     print("\n" + "=" * 60)
     print("批量生成测试")
     print("=" * 60)
     
-    client = ExpertTrackingClient()
+    client = ExpertTrackingClient(port)
     
     # 重置统计
     client.reset_expert_stats()
@@ -215,16 +215,17 @@ def test_batch_generation():
     print(f"  平均token/请求: {summary['total_tokens'] / max(summary['total_requests'], 1):.2f}")
 
 
-def main():
+def main(port):
     """主函数"""
     print("专家激活跟踪功能测试")
     
     # 测试基本功能
-    test_expert_tracking()
+    test_expert_tracking(port)
     
     # 测试批量生成
-    test_batch_generation()
+    test_batch_generation(port)
 
 
 if __name__ == "__main__":
-    main()
+    port = sys.argv[1]
+    main(port)

@@ -2,7 +2,7 @@
 """
 专家激活统计可视化工具
 """
-
+import sys
 import requests
 import json
 import matplotlib.pyplot as plt
@@ -247,12 +247,12 @@ class ExpertStatsVisualizer:
         print(f"仪表板已保存到目录: {save_dir}")
 
 
-def main():
+def main(port):
     """主函数"""
     print("专家激活统计可视化工具")
     print("=" * 50)
     
-    visualizer = ExpertStatsVisualizer()
+    visualizer = ExpertStatsVisualizer("http://127.0.0.1:" + str(port))
     
     try:
         # 创建完整仪表板
@@ -264,4 +264,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    port = sys.argv[1]
+    main(port)

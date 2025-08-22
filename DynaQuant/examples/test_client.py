@@ -3,7 +3,7 @@
 测试客户端示例
 演示如何使用混合精度Transformer模型API
 """
-
+import sys
 import requests
 import json
 import time
@@ -221,13 +221,13 @@ def test_weight_mapping_update(client: MixedPrecisionAPIClient):
         print(f"权重映射更新失败: {e}")
 
 
-def main():
+def main(port):
     """主函数"""
     print("混合精度Transformer模型API测试客户端")
     print("=" * 60)
     
     # 创建客户端
-    client = MixedPrecisionAPIClient()
+    client = MixedPrecisionAPIClient("http://127.0.0.1:" + str(port))
     
     # 运行测试
     test_health_check(client)
@@ -242,4 +242,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    port = sys.argv[1]
+    main(port)

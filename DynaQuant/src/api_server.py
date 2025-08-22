@@ -110,14 +110,14 @@ class MixedPrecisionAPIServer:
     
     def _initialize_model(self):
         """初始化模型"""
-        try:
-            logger.info("Initializing mixed precision model...")
-            self.model = MixedPrecisionTransformerModel("config/model_config.yaml")
-            self.model_loaded = True
-            logger.info("Model initialized successfully!")
-        except Exception as e:
-            logger.error(f"Failed to initialize model: {e}")
-            self.model_loaded = False
+        # try:
+        logger.info("Initializing mixed precision model...")
+        self.model = MixedPrecisionTransformerModel("config/model_config.yaml")
+        self.model_loaded = True
+        logger.info("Model initialized successfully!")
+        # except Exception as e:
+        #     logger.error(f"Failed to initialize model: {e}")
+        #     self.model_loaded = False
     
     def _register_routes(self):
         """注册API路由"""
@@ -202,6 +202,22 @@ class MixedPrecisionAPIServer:
                 logger.error(f"Batch generation error: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
         
+        @self.app.get("/health", response_model=HealthResponse)
+        async def health():
+            """健康检查（用于启动脚本探活）"""
+            payload = HealthResponse(
+                status="healthy" if self.model_loaded else "unhealthy",
+                model_loaded=self.model_loaded,
+                device=str(self.model.device) if self.model else "unknown",
+                timestamp=time.time()
+            )
+            if self.model_loaded:
+                # 模型加载完成 -> 200
+                return payload
+            # 模型未加载完成 -> 503，方便外部重试
+            return JSONResponse(status_code=503, content=payload.dict())
+
+
         @self.app.get("/model_info", response_model=ModelInfoResponse)
         async def get_model_info():
             """获取模型信息"""
