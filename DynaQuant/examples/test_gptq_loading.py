@@ -80,8 +80,17 @@ def test_gptq_weight_loading():
                     
                     # 尝试加载文件头信息
                     try:
-                        import safetensors
-                        metadata = safetensors.safe_open(safetensors_file, framework="pt").metadata()
+                        # 兼容性导入safetensors
+                        try:
+                            from safetensors.torch import safe_open
+                        except ImportError:
+                            try:
+                                from safetensors import safe_open
+                            except ImportError:
+                                import safetensors
+                                safe_open = safetensors.safe_open
+                        
+                        metadata = safe_open(safetensors_file, framework="pt").metadata()
                         print(f"   ✓ 文件元数据: {len(metadata)} 个键")
                         
                         # 显示前几个键
@@ -98,6 +107,7 @@ def test_gptq_weight_loading():
                             
                     except Exception as e:
                         print(f"   ✗ 读取文件失败: {e}")
+                        print(f"   错误详情: {type(e).__name__}: {e}")
                 else:
                     print(f"   ⚠ 未找到safetensors文件")
             else:
@@ -154,8 +164,17 @@ def test_gptq_components():
             print(f"\n检查文件: {safetensors_file}")
             
             try:
-                import safetensors
-                with safetensors.safe_open(safetensors_file, framework="pt") as f:
+                # 兼容性导入safetensors
+                try:
+                    from safetensors.torch import safe_open
+                except ImportError:
+                    try:
+                        from safetensors import safe_open
+                    except ImportError:
+                        import safetensors
+                        safe_open = safetensors.safe_open
+                
+                with safe_open(safetensors_file, framework="pt") as f:
                     # 检查GPTQ组件是否存在
                     components = {
                         'qweight': qweight_name in f.keys(),
@@ -196,6 +215,7 @@ def test_gptq_components():
                         
             except Exception as e:
                 print(f"读取文件失败: {e}")
+                print(f"错误详情: {type(e).__name__}: {e}")
         else:
             print(f"文件不存在: {safetensors_file}")
         

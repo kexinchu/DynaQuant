@@ -5,9 +5,19 @@ import yaml
 import json
 from typing import Dict, Any, Optional, Tuple
 from pathlib import Path
-import safetensors
 from transformers import AutoConfig
 import bitsandbytes as bnb
+
+# 兼容性处理safetensors导入
+try:
+    from safetensors.torch import load_file, safe_open
+except ImportError:
+    try:
+        from safetensors import load_file, safe_open
+    except ImportError:
+        import safetensors
+        load_file = safetensors.load_file
+        safe_open = safetensors.safe_open
 
 
 class MixedPrecisionWeightLoader:
@@ -42,7 +52,7 @@ class MixedPrecisionWeightLoader:
             return self.weight_cache[file_path]
         
         if os.path.exists(file_path):
-            weights = safetensors.torch.load_file(file_path)
+            weights = load_file(file_path)
             self.weight_cache[file_path] = weights
             return weights
         else:
