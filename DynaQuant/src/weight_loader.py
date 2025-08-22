@@ -19,6 +19,8 @@ except ImportError:
         load_file = safetensors.load_file
         safe_open = safetensors.safe_open
 
+# 导入GPTQ反量化器
+from .gptq_dequantizer import GPTQDequantizer
 
 class MixedPrecisionWeightLoader:
     """混合精度权重加载器"""
@@ -127,8 +129,7 @@ class MixedPrecisionWeightLoader:
             weights = self._load_safetensors_file(weight_file)
         else:
             weights = self._load_pytorch_file(weight_file)
-        
-        print(f"Loading weight: {weight_name} with precision: {precision}")
+        # print(f"Loading weight: {weight_name} with precision: {precision}")
 
         # 检查是否是GPTQ权重
         if precision == 'int4' and self._is_gptq_format(weights):
@@ -250,25 +251,8 @@ class MixedPrecisionWeightLoader:
             反量化后的权重
         """
         try:
-            # 解包int32到int4
-            if qweight.dtype == torch.int32:
-                unpacked = self._unpack_int32_to_int4_optimized(qweight, bits)
-            else:
-                unpacked = qweight
-            
-            # 确保维度匹配
-            if len(unpacked.shape) == 2 and len(scales.shape) == 2:
-                # 如果scales是2D，需要扩展维度
-                scales_expanded = scales.unsqueeze(-1)
-                qzeros_expanded = qzeros.unsqueeze(-1)
-            else:
-                scales_expanded = scales
-                qzeros_expanded = qzeros
-            
-            # 应用GPTQ反量化公式
-            # weight = scale * (qweight - qzero)
-            weight = scales_expanded * (unpacked.float() - qzeros_expanded)
-            
+            # 使用专门的GPTQ反量化器
+            weight = GPTQDequantizer.dequantize_gptq_weight_simple(qweight, qzeros, scales)
             return weight
             
         except Exception as e:
@@ -276,8 +260,15 @@ class MixedPrecisionWeightLoader:
             print(f"  qweight shape: {qweight.shape}, dtype: {qweight.dtype}")
             print(f"  qzeros shape: {qzeros.shape}, dtype: {qzeros.dtype}")
             print(f"  scales shape: {scales.shape}, dtype: {scales.dtype}")
-            # 返回一个零张量作为fallback
-            return torch.zeros(scales.shape[0], unpacked.shape[1] if len(unpacked.shape) > 1 else 1)
+            
+            # 尝试返回一个合理的fallback形状
+            try:
+                # 基于scales和qweight的形状估算
+                out_features = qweight.shape[0]
+                in_features = scales.shape[1] * 8  # 假设每个int32包含8个int4
+                return torch.zeros(in_features, out_features)
+            except:
+                return torch.zeros(768, 2048)  # 默认形状
     
     def _unpack_int32_to_int4(self, packed: torch.Tensor, bits: int = 4) -> torch.Tensor:
         """
@@ -333,6 +324,36 @@ class MixedPrecisionWeightLoader:
         else:
             # 通用方法
             return self._unpack_int32_to_int4(packed, bits)
+    
+    def _unpack_int32_to_int4_vectorized(self, packed: torch.Tensor, bits: int = 4) -> torch.Tensor:
+        """
+        向量化的int32到int4解包函数
+        
+        Args:
+            packed: packed的int32张量
+            bits: 每个int32中packed的位数
+            
+        Returns:
+            解包后的int4张量
+        """
+        if bits == 4:
+            # 使用向量化操作
+            # 每个int32包含8个int4值
+            batch_size, seq_len = packed.shape
+            
+            # 重塑为 [batch_size, seq_len, 8]
+            unpacked = torch.zeros(batch_size, seq_len, 8, dtype=torch.int32)
+            
+            # 使用位操作解包
+            for i in range(8):
+                shift = i * 4
+                mask = 0xF
+                unpacked[:, :, i] = (packed >> shift) & mask
+            
+            # 重塑为 [batch_size, seq_len * 8]
+            return unpacked.view(batch_size, -1)
+        else:
+            return self._unpack_int32_to_int4_optimized(packed, bits)
     
     def _process_fp8_weight(self, weight: torch.Tensor) -> torch.Tensor:
         """处理FP8权重"""

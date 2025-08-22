@@ -344,6 +344,9 @@ python examples/test_expert_tracking.py
 
 # GPTQ权重加载测试
 python examples/test_gptq_loading.py
+
+# GPTQ修复测试
+python examples/test_gptq_fix.py
 ```
 
 ### 统计数据分析
