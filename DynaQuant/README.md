@@ -31,6 +31,11 @@
 - 提供详细的统计信息和可视化
 - 支持统计数据的导出和分析
 
+### 6. GPTQ量化支持
+- 支持GPTQ-Int4量化模型格式
+- 自动检测和反量化GPTQ权重
+- 兼容qweight、qzeros、scales等GPTQ组件
+
 ## 项目结构
 
 ```
@@ -45,7 +50,8 @@
 │   └── moe_tracker.py             # MoE跟踪器
 ├── examples/
 │   ├── test_client.py             # 测试客户端
-│   └── test_expert_tracking.py    # 专家激活跟踪测试
+│   ├── test_expert_tracking.py    # 专家激活跟踪测试
+│   └── test_gptq_loading.py       # GPTQ权重加载测试
 ├── main.py                        # 主程序入口
 ├── requirements.txt               # 依赖包列表
 └── README.md                      # 项目说明
@@ -96,6 +102,22 @@ python3 src/safetensors_index_analyzer.py \
 ```
 
 这将自动分析模型结构并生成合适的权重映射配置。
+
+#### 方法三：GPTQ量化模型配置
+
+对于GPTQ-Int4量化模型，系统会自动检测和反量化权重：
+
+```yaml
+model:
+  mixed_precision:
+    int4_path: "/path/to/gptq-model"  # GPTQ模型路径
+    weight_mapping:
+      "model.layers.0.mlp.experts.0.down_proj.weight": "int4"
+      "model.layers.0.mlp.experts.0.gate_proj.weight": "int4"
+      "model.layers.0.mlp.experts.0.up_proj.weight": "int4"
+```
+
+系统会自动查找对应的 `qweight`、`qzeros`、`scales` 组件并进行反量化。
 
 ### 3. 启动服务器
 
@@ -317,7 +339,11 @@ print(f"总激活次数: {stats['summary']['total_activations']}")
 #### 3. 运行专门的测试
 
 ```bash
+# 专家激活跟踪测试
 python examples/test_expert_tracking.py
+
+# GPTQ权重加载测试
+python examples/test_gptq_loading.py
 ```
 
 ### 统计数据分析
