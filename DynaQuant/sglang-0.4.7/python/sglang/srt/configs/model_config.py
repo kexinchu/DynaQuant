@@ -60,12 +60,14 @@ class ModelConfig:
         override_config_file: Optional[str] = None,
         is_draft_model: bool = False,
         impl: Union[str, ModelImpl] = ModelImpl.AUTO,
+        mixed_precision_config: Optional[str] = None,
     ) -> None:
 
         self.model_path = model_path
         self.revision = revision
         self.quantization = quantization
         self.impl = impl
+        self.mixed_precision_config = mixed_precision_config
 
         # Parse args
         self.maybe_pull_model_tokenizer_from_remote()

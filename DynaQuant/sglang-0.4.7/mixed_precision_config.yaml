@@ -1,0 +1,49 @@
+# SGLang混合精度配置文件
+# 用于配置不同精度权重的加载路径和映射关系
+
+mixed_precision:
+  # FP16权重文件路径 (原始模型路径)
+  fp16_path: "/dcar-vepfs-trans-models/Qwen3-235B-A22B"
+  
+  # FP8权重文件路径
+  fp8_path: "/dcar-vepfs-trans-models/Qwen3-235B-A22B-FP8"
+  
+  # Int4权重文件路径
+  int4_path: "/dcar-vepfs-trans-models/Qwen3-235B-A22B-GPTQ-Int4"
+  
+  # 权重映射配置 - 指定哪些层使用哪种精度
+  weight_mapping:
+    # 注意力层使用FP16
+    "model.layers.0.self_attn.q_proj.weight": "fp16"
+    "model.layers.0.self_attn.k_proj.weight": "fp16"
+    "model.layers.0.self_attn.v_proj.weight": "fp16"
+    "model.layers.0.self_attn.o_proj.weight": "fp16"
+    
+    # MLP层使用FP8
+    "model.layers.0.mlp.gate_proj.weight": "fp8"
+    "model.layers.0.mlp.up_proj.weight": "fp8"
+    "model.layers.0.mlp.down_proj.weight": "fp8"
+    
+    # 专家层使用Int4
+    "model.layers.0.mlp.experts.0.gate_proj.weight": "int4"
+    "model.layers.0.mlp.experts.0.up_proj.weight": "int4"
+    "model.layers.0.mlp.experts.0.down_proj.weight": "int4"
+    "model.layers.0.mlp.experts.1.gate_proj.weight": "int4"
+    "model.layers.0.mlp.experts.1.up_proj.weight": "int4"
+    "model.layers.0.mlp.experts.1.down_proj.weight": "int4"
+    
+    # 其他层使用FP16
+    "model.layers.0.input_layernorm.weight": "fp16"
+    "model.layers.0.post_attention_layernorm.weight": "fp16"
+    "model.embed_tokens.weight": "fp16"
+    "model.norm.weight": "fp16"
+    "lm_head.weight": "fp16"
+
+# 推理配置
+inference:
+  max_seq_length: 4096
+  max_batch_size: 32
+  dtype: "bfloat16"
+  device_map: "auto"
+  load_in_8bit: false
+  load_in_4bit: false

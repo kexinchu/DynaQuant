@@ -1,20 +1,27 @@
+# Adapted from the original weight loader with mixed precision support
+
 import os
 import torch
 import yaml
-import json
-from typing import Dict, Any, Optional
+import logging
+from typing import Dict, Any, Optional, List, Tuple
 from pathlib import Path
 import safetensors
 from transformers import AutoConfig
 import bitsandbytes as bnb
 
+from sglang.srt.model_loader.weight_utils import default_weight_loader
+from sglang.srt.utils import get_bool_env_var
+
+logger = logging.getLogger(__name__)
+
 
 class MixedPrecisionWeightLoader:
-    """混合精度权重加载器"""
+    """混合精度权重加载器 - 基于sglang架构"""
     
     def __init__(self, config_path: str):
         """
-        初始化权重加载器
+        初始化混合精度权重加载器
         
         Args:
             config_path: 配置文件路径
@@ -22,19 +29,21 @@ class MixedPrecisionWeightLoader:
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
         
-        self.mixed_precision_config = self.config['model']['mixed_precision']
-        self.weight_mapping = self.mixed_precision_config['weight_mapping']
+        self.mixed_precision_config = self.config.get('mixed_precision', {})
+        self.weight_mapping = self.mixed_precision_config.get('weight_mapping', {})
         
         # 精度路径映射
         self.precision_paths = {
-            'fp16': self.mixed_precision_config['fp16_path'],
-            'fp8': self.mixed_precision_config['fp8_path'],
-            'int4': self.mixed_precision_config['int4_path']
+            'fp16': self.mixed_precision_config.get('fp16_path', ''),
+            'fp8': self.mixed_precision_config.get('fp8_path', ''),
+            'int4': self.mixed_precision_config.get('int4_path', '')
         }
         
         # 缓存已加载的权重文件
         self.weight_cache = {}
         
+        logger.info(f"Mixed precision loader initialized with {len(self.weight_mapping)} weight mappings")
+    
     def _load_safetensors_file(self, file_path: str) -> Dict[str, torch.Tensor]:
         """加载safetensors文件"""
         if file_path in self.weight_cache:
@@ -43,6 +52,7 @@ class MixedPrecisionWeightLoader:
         if os.path.exists(file_path):
             weights = safetensors.torch.load_file(file_path)
             self.weight_cache[file_path] = weights
+            logger.debug(f"Loaded safetensors file: {file_path}")
             return weights
         else:
             raise FileNotFoundError(f"Weight file not found: {file_path}")
@@ -55,6 +65,7 @@ class MixedPrecisionWeightLoader:
         if os.path.exists(file_path):
             weights = torch.load(file_path, map_location='cpu')
             self.weight_cache[file_path] = weights
+            logger.debug(f"Loaded PyTorch file: {file_path}")
             return weights
         else:
             raise FileNotFoundError(f"Weight file not found: {file_path}")
@@ -62,6 +73,8 @@ class MixedPrecisionWeightLoader:
     def _find_weight_file(self, weight_name: str, precision: str) -> Optional[str]:
         """查找权重文件路径"""
         precision_path = self.precision_paths[precision]
+        if not precision_path:
+            return None
         
         # 首先尝试使用safetensors索引文件
         index_file = os.path.join(precision_path, "model.safetensors.index.json")
@@ -70,12 +83,14 @@ class MixedPrecisionWeightLoader:
             if weight_file:
                 return weight_file
         
-        # 尝试不同的文件扩展名
+        # 尝试不同的文件扩展名和路径
         possible_files = [
             f"{precision_path}/{weight_name}.safetensors",
             f"{precision_path}/{weight_name}.bin",
             f"{precision_path}/pytorch_model.bin",
-            f"{precision_path}/model.safetensors"
+            f"{precision_path}/model.safetensors",
+            f"{precision_path}/pytorch_model-00001-of-00001.bin",
+            f"{precision_path}/model-00001-of-00001.safetensors"
         ]
         
         for file_path in possible_files:
@@ -95,11 +110,12 @@ class MixedPrecisionWeightLoader:
                 weight_file = index_data["weight_map"][weight_name]
                 full_path = os.path.join(precision_path, weight_file)
                 if os.path.exists(full_path):
+                    logger.debug(f"Found weight {weight_name} in {full_path}")
                     return full_path
             
             return None
         except Exception as e:
-            print(f"Warning: Failed to read index file {index_file}: {e}")
+            logger.warning(f"Failed to read index file {index_file}: {e}")
             return None
     
     def load_weight(self, weight_name: str) -> Optional[torch.Tensor]:
@@ -121,7 +137,7 @@ class MixedPrecisionWeightLoader:
         # 查找权重文件
         weight_file = self._find_weight_file(weight_name, precision)
         if weight_file is None:
-            print(f"Warning: Weight file not found for {weight_name} with precision {precision}")
+            logger.warning(f"Weight file not found for {weight_name} with precision {precision}")
             return None
         
         # 加载权重文件
@@ -136,63 +152,79 @@ class MixedPrecisionWeightLoader:
             
             # 根据精度进行相应的处理
             if precision == 'int4':
-                # Int4权重需要特殊处理
                 weight = self._process_int4_weight(weight)
             elif precision == 'fp8':
-                # FP8权重处理
                 weight = self._process_fp8_weight(weight)
             elif precision == 'fp16':
-                # FP16权重处理
-                weight = weight.half()
+                weight = self._process_fp16_weight(weight)
             
+            logger.debug(f"Loaded {weight_name} with precision {precision}, shape: {weight.shape}")
             return weight
         else:
-            print(f"Warning: Weight {weight_name} not found in file {weight_file}")
+            logger.warning(f"Weight {weight_name} not found in file {weight_file}")
             return None
     
-    def _process_int4_weight(self, weight: torch.Tensor) -> torch.Tensor:
-        """处理Int4权重"""
-        # 这里可以根据具体的Int4格式进行调整
-        # 假设权重已经是正确的Int4格式
+    def _process_fp16_weight(self, weight: torch.Tensor) -> torch.Tensor:
+        """处理FP16权重"""
+        if weight.dtype in [torch.float32, torch.float64]:
+            return weight.half()
         return weight
     
     def _process_fp8_weight(self, weight: torch.Tensor) -> torch.Tensor:
         """处理FP8权重"""
-        # 转换为FP8格式
-        if weight.dtype == torch.float16:
-            # 从FP16转换为FP8
-            return weight.to(torch.float8_e4m3fn)
-        elif weight.dtype == torch.float32:
-            # 从FP32转换为FP8
-            return weight.to(torch.float8_e4m3fn)
-        else:
-            return weight
+        if weight.dtype in [torch.float32, torch.float64, torch.float16]:
+            # 转换为FP8格式
+            if hasattr(torch, 'float8_e4m3fn'):
+                return weight.to(torch.float8_e4m3fn)
+            else:
+                # 如果没有FP8支持，使用FP16
+                logger.warning("FP8 not supported, falling back to FP16")
+                return weight.half()
+        return weight
     
-    def load_model_weights(self, model) -> None:
+    def _process_int4_weight(self, weight: torch.Tensor) -> torch.Tensor:
+        """处理Int4权重"""
+        if weight.dtype in [torch.float32, torch.float64, torch.float16]:
+            try:
+                # 使用bitsandbytes进行4位量化
+                int4_weight = bnb.nn.Int4Params.from_pretrained(
+                    weight, 
+                    requires_grad=False
+                )
+                return int4_weight
+            except Exception as e:
+                logger.warning(f"Int4 conversion failed: {e}, falling back to FP16")
+                return weight.half()
+        return weight
+    
+    def load_model_weights(self, model: torch.nn.Module) -> None:
         """
         为模型加载混合精度权重
         
         Args:
             model: 要加载权重的模型
         """
-        print("Loading mixed precision weights...")
+        logger.info("Loading mixed precision weights...")
         
-        # 获取模型状态字典
-        state_dict = model.state_dict()
+        loaded_count = 0
+        failed_count = 0
         
         # 遍历模型权重
         for name, param in model.named_parameters():
-            if name in state_dict:
-                weight = self.load_weight(name)
-                if weight is not None:
-                    # 确保权重形状匹配
-                    if weight.shape == param.shape:
-                        param.data = weight.to(param.device)
-                        print(f"Loaded {name} with shape {weight.shape}")
-                    else:
-                        print(f"Warning: Shape mismatch for {name}: expected {param.shape}, got {weight.shape}")
+            weight = self.load_weight(name)
+            if weight is not None:
+                # 确保权重形状匹配
+                if weight.shape == param.shape:
+                    param.data = weight.to(param.device)
+                    loaded_count += 1
+                    logger.debug(f"Loaded {name} with shape {weight.shape}")
+                else:
+                    logger.warning(f"Shape mismatch for {name}: expected {param.shape}, got {weight.shape}")
+                    failed_count += 1
+            else:
+                failed_count += 1
         
-        print("Mixed precision weights loading completed!")
+        logger.info(f"Mixed precision weights loading completed: {loaded_count} loaded, {failed_count} failed")
     
     def get_weight_info(self) -> Dict[str, Any]:
         """获取权重信息"""
@@ -202,3 +234,47 @@ class MixedPrecisionWeightLoader:
             'cached_files': list(self.weight_cache.keys())
         }
         return info
+
+
+def create_mixed_precision_loader(config_path: str) -> Optional[MixedPrecisionWeightLoader]:
+    """
+    创建混合精度权重加载器
+    
+    Args:
+        config_path: 配置文件路径
+        
+    Returns:
+        混合精度权重加载器实例，如果配置不存在则返回None
+    """
+    if not os.path.exists(config_path):
+        logger.info(f"Mixed precision config not found: {config_path}")
+        return None
+    
+    try:
+        return MixedPrecisionWeightLoader(config_path)
+    except Exception as e:
+        logger.error(f"Failed to create mixed precision loader: {e}")
+        return None
+
+
+def load_mixed_precision_weights(model: torch.nn.Module, config_path: str) -> bool:
+    """
+    加载混合精度权重到模型
+    
+    Args:
+        model: 要加载权重的模型
+        config_path: 配置文件路径
+        
+    Returns:
+        是否成功加载
+    """
+    loader = create_mixed_precision_loader(config_path)
+    if loader is None:
+        return False
+    
+    try:
+        loader.load_model_weights(model)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to load mixed precision weights: {e}")
+        return False

@@ -378,9 +378,27 @@ class DefaultModelLoader(BaseModelLoader):
                     self.load_config,
                 )
             print(model_config)
-            self.load_weights_and_postprocess(
-                model, self._get_all_weights(model_config, model), target_device
-            )
+            
+            # Try to load mixed precision weights first
+            mixed_precision_loaded = False
+            try:
+                from .mixed_precision_loader import load_mixed_precision_weights
+                config_path = getattr(model_config, 'mixed_precision_config', None)
+                if config_path and os.path.exists(config_path):
+                    logger.info(f"Attempting to load mixed precision weights from {config_path}")
+                    mixed_precision_loaded = load_mixed_precision_weights(model, config_path)
+                    if mixed_precision_loaded:
+                        logger.info("Mixed precision weights loaded successfully")
+                    else:
+                        logger.warning("Failed to load mixed precision weights, falling back to standard loading")
+            except Exception as e:
+                logger.warning(f"Mixed precision loading failed: {e}, falling back to standard loading")
+            
+            # If mixed precision loading failed, use standard loading
+            if not mixed_precision_loaded:
+                self.load_weights_and_postprocess(
+                    model, self._get_all_weights(model_config, model), target_device
+                )
 
         return model.eval()
 

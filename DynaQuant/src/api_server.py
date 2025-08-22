@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 import logging
 
 from .mixed_precision_model import MixedPrecisionTransformerModel
+from .expert_activation_tracker import get_global_tracker
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,10 @@ class BatchGenerationRequest(BaseModel):
 
 class WeightMappingRequest(BaseModel):
     weight_mapping: Dict[str, str] = Field(..., description="权重映射配置")
+
+class ExpertStatsRequest(BaseModel):
+    top_k: int = Field(default=10, description="返回前k个激活最多的专家")
+    minutes: int = Field(default=5, description="最近几分钟的激活记录")
 
 # 响应模型
 class GenerationResponse(BaseModel):
@@ -245,6 +250,84 @@ class MixedPrecisionAPIServer:
                 
             except Exception as e:
                 logger.error(f"Reload weights error: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.get("/expert_stats")
+        async def get_expert_stats():
+            """获取专家激活统计"""
+            if not self.model_loaded:
+                raise HTTPException(status_code=503, detail="Model not loaded")
+            
+            try:
+                tracker = get_global_tracker()
+                
+                stats = {
+                    "summary": tracker.get_summary_stats(),
+                    "layer_stats": tracker.get_layer_stats(),
+                    "top_experts": tracker.get_top_experts(10),
+                    "all_experts": tracker.get_all_expert_info()
+                }
+                
+                return stats
+                
+            except Exception as e:
+                logger.error(f"Get expert stats error: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/expert_stats")
+        async def get_expert_stats_with_params(request: ExpertStatsRequest):
+            """获取专家激活统计（带参数）"""
+            if not self.model_loaded:
+                raise HTTPException(status_code=503, detail="Model not loaded")
+            
+            try:
+                tracker = get_global_tracker()
+                
+                stats = {
+                    "summary": tracker.get_summary_stats(),
+                    "layer_stats": tracker.get_layer_stats(),
+                    "top_experts": tracker.get_top_experts(request.top_k),
+                    "recent_activations": tracker.get_recent_activations(request.minutes),
+                    "all_experts": tracker.get_all_expert_info()
+                }
+                
+                return stats
+                
+            except Exception as e:
+                logger.error(f"Get expert stats error: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/reset_expert_stats")
+        async def reset_expert_stats():
+            """重置专家激活统计"""
+            if not self.model_loaded:
+                raise HTTPException(status_code=503, detail="Model not loaded")
+            
+            try:
+                tracker = get_global_tracker()
+                tracker.reset()
+                
+                return {"message": "Expert statistics reset successfully"}
+                
+            except Exception as e:
+                logger.error(f"Reset expert stats error: {e}")
+                raise HTTPException(status_code=500, detail=str(e))
+        
+        @self.app.post("/export_expert_stats")
+        async def export_expert_stats():
+            """导出专家激活统计"""
+            if not self.model_loaded:
+                raise HTTPException(status_code=503, detail="Model not loaded")
+            
+            try:
+                tracker = get_global_tracker()
+                file_path = f"expert_stats_{int(time.time())}.json"
+                tracker.export_stats(file_path)
+                
+                return {"message": f"Expert statistics exported to {file_path}"}
+                
+            except Exception as e:
+                logger.error(f"Export expert stats error: {e}")
                 raise HTTPException(status_code=500, detail=str(e))
     
     def run(self):

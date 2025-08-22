@@ -1,6 +1,6 @@
 # 混合精度Transformer模型部署系统
 
-这是一个基于Transformer的模型部署系统，支持混合精度推理和选择性权重加载。系统可以根据配置文件从不同精度的权重文件中选择性加载参数，支持FP16、FP8、Int4等不同精度的混合使用。
+这是一个基于Transformer的模型部署系统，支持混合精度推理和选择性权重加载。系统可以根据配置文件从不同精度的权重文件中选择性加载参数，支持FP16、FP8、Int4等不同精度的混合使用，并提供专家激活统计功能。
 
 ## 主要特性
 
@@ -26,6 +26,11 @@
 - 支持权重的动态重载
 - 提供模型和权重信息查询接口
 
+### 5. 专家激活统计
+- 实时跟踪每个expert的激活次数
+- 提供详细的统计信息和可视化
+- 支持统计数据的导出和分析
+
 ## 项目结构
 
 ```
@@ -35,9 +40,12 @@
 │   ├── __init__.py
 │   ├── weight_loader.py           # 权重加载器
 │   ├── mixed_precision_model.py   # 混合精度模型
-│   └── api_server.py              # API服务器
+│   ├── api_server.py              # API服务器
+│   ├── expert_activation_tracker.py # 专家激活统计器
+│   └── moe_tracker.py             # MoE跟踪器
 ├── examples/
-│   └── test_client.py             # 测试客户端
+│   ├── test_client.py             # 测试客户端
+│   └── test_expert_tracking.py    # 专家激活跟踪测试
 ├── main.py                        # 主程序入口
 ├── requirements.txt               # 依赖包列表
 └── README.md                      # 项目说明
@@ -52,6 +60,8 @@ pip install -r requirements.txt
 ```
 
 ### 2. 配置模型
+
+#### 方法一：手动配置
 
 编辑 `config/model_config.yaml` 文件，配置模型路径和权重映射：
 
@@ -70,6 +80,22 @@ model:
       "model.layers.0.mlp.experts.0.down_proj.weight": "int4"
       # ... 更多权重映射
 ```
+
+#### 方法二：使用Safetensors索引文件自动生成配置
+
+如果您的模型包含 `model.safetensors.index.json` 文件，可以使用分析工具自动生成配置：
+
+```bash
+# 分析模型并生成混合精度配置
+python3 src/safetensors_index_analyzer.py \
+    --model_path /path/to/your/model \
+    --export_config config/mixed_precision_config.yaml \
+    --attention_precision fp16 \
+    --mlp_precision fp8 \
+    --expert_precision int4
+```
+
+这将自动分析模型结构并生成合适的权重映射配置。
 
 ### 3. 启动服务器
 
@@ -136,6 +162,32 @@ Content-Type: application/json
 POST /reload_weights
 ```
 
+### 7. 获取专家激活统计
+```
+GET /expert_stats
+```
+
+### 8. 获取专家激活统计（带参数）
+```
+POST /expert_stats
+Content-Type: application/json
+
+{
+  "top_k": 10,
+  "minutes": 5
+}
+```
+
+### 9. 重置专家激活统计
+```
+POST /reset_expert_stats
+```
+
+### 10. 导出专家激活统计
+```
+POST /export_expert_stats
+```
+
 ## 使用示例
 
 ### 1. 使用Python客户端
@@ -164,6 +216,16 @@ results = client.batch_generate(prompts=prompts, max_new_tokens=150)
 for prompt, text in zip(results['prompts'], results['generated_texts']):
     print(f"输入: {prompt}")
     print(f"输出: {text}")
+
+# 获取专家激活统计
+stats = client.get_expert_stats()
+print(f"总激活次数: {stats['summary']['total_activations']}")
+print(f"总专家数: {stats['summary']['total_experts']}")
+
+# 获取前10个激活最多的专家
+top_experts = stats['top_experts']
+for expert in top_experts[:5]:
+    print(f"Layer {expert['layer_id']}, Expert {expert['expert_id']}: {expert['activation_count']} 次激活")
 ```
 
 ### 2. 使用curl命令
@@ -183,7 +245,103 @@ curl -X POST http://127.0.0.1:8080/generate \
 
 # 获取模型信息
 curl http://127.0.0.1:8080/model_info
+
+# 获取专家激活统计
+curl http://127.0.0.1:8080/expert_stats
+
+# 获取专家激活统计（带参数）
+curl -X POST http://127.0.0.1:8080/expert_stats \
+  -H "Content-Type: application/json" \
+  -d '{"top_k": 10, "minutes": 5}'
+
+# 重置专家激活统计
+curl -X POST http://127.0.0.1:8080/reset_expert_stats
+
+# 导出专家激活统计
+curl -X POST http://127.0.0.1:8080/export_expert_stats
 ```
+
+## 专家激活统计功能
+
+### 功能概述
+
+专家激活统计功能可以实时跟踪MoE（Mixture of Experts）模型中每个expert的激活情况，帮助分析模型的行为和性能。
+
+### 统计信息
+
+系统提供以下统计信息：
+
+1. **摘要统计**
+   - 总激活次数
+   - 总token数
+   - 总请求数
+   - 总层数和专家数
+   - 运行时间和性能指标
+
+2. **层统计**
+   - 每层的总激活次数
+   - 每层的专家数量
+   - 每层的平均激活率
+
+3. **专家统计**
+   - 每个专家的激活次数
+   - 每个专家的激活率
+   - 每个专家的最后激活时间
+
+4. **实时监控**
+   - 最近的激活记录
+   - 激活最多的专家排名
+   - 实时性能指标
+
+### 使用方法
+
+#### 1. 启动服务器时启用专家跟踪
+
+专家激活跟踪会在模型加载时自动启用，无需额外配置。
+
+#### 2. 发送请求并查看统计
+
+```python
+from examples.test_client import MixedPrecisionAPIClient
+
+client = MixedPrecisionAPIClient("http://127.0.0.1:8080")
+
+# 生成一些文本
+client.generate_text("请介绍一下人工智能：", max_new_tokens=100)
+
+# 获取专家统计
+stats = client.get_expert_stats()
+print(f"总激活次数: {stats['summary']['total_activations']}")
+```
+
+#### 3. 运行专门的测试
+
+```bash
+python examples/test_expert_tracking.py
+```
+
+### 统计数据分析
+
+#### 1. 专家利用率分析
+
+通过分析专家激活统计，可以了解：
+- 哪些专家被频繁使用
+- 哪些专家很少被激活
+- 不同层的专家使用模式
+
+#### 2. 性能优化
+
+基于统计信息可以：
+- 识别热点专家，进行负载均衡
+- 优化专家分配策略
+- 调整模型架构
+
+#### 3. 模型行为分析
+
+统计信息有助于：
+- 理解模型对不同任务的处理方式
+- 分析专家专业化程度
+- 评估模型效率
 
 ## 配置说明
 

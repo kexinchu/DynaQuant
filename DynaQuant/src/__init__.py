@@ -6,5 +6,10 @@ __all__ = [
     'MixedPrecisionTransformerModel',
     'MixedPrecisionWeightLoader', 
     'MixedPrecisionAPIServer',
-    'create_app'
+    'create_app',
+    'ExpertActivationTracker',
+    'record_expert_activation',
+    'record_request',
+    'get_global_tracker',
+    'reset_global_tracker'
 ]

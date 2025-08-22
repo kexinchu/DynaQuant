@@ -5,6 +5,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, AutoConfig
 from typing import Dict, Any, Optional, List
 import yaml
 from .weight_loader import MixedPrecisionWeightLoader
+from .expert_activation_tracker import record_expert_activation, record_request, get_global_tracker
 
 
 class MixedPrecisionTransformerModel:
@@ -70,6 +71,10 @@ class MixedPrecisionTransformerModel:
         # 加载混合精度权重
         self.weight_loader.load_model_weights(self.model)
         
+        # 启用专家激活跟踪
+        from .moe_tracker import track_expert_activations_in_model
+        self.model = track_expert_activations_in_model(self.model)
+        
         # 设置设备
         if torch.cuda.is_available():
             self.device = torch.device('cuda')
@@ -109,7 +114,8 @@ class MixedPrecisionTransformerModel:
         top_k: int = 50,
         do_sample: bool = True,
         pad_token_id: Optional[int] = None,
-        eos_token_id: Optional[int] = None
+        eos_token_id: Optional[int] = None,
+        track_expert_activations: bool = True
     ) -> str:
         """
         生成文本
@@ -123,12 +129,17 @@ class MixedPrecisionTransformerModel:
             do_sample: 是否使用采样
             pad_token_id: 填充token ID
             eos_token_id: 结束token ID
+            track_expert_activations: 是否跟踪专家激活
             
         Returns:
             生成的文本
         """
         # 准备输入
         inputs = self._prepare_inputs(prompt)
+        
+        # 记录请求
+        if track_expert_activations:
+            record_request(len(inputs['input_ids'][0]))
         
         # 设置生成参数
         generation_config = {
