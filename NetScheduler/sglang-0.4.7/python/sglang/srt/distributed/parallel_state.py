@@ -1294,6 +1294,20 @@ def get_tensor_model_parallel_rank():
     return get_tp_group().rank_in_group
 
 
+def get_moe_expert_parallel_world_size():
+    """Return world size for the MoE expert parallel group."""
+    # For now, we use the tensor parallel world size as the expert parallel world size
+    # This can be extended later to support separate expert parallel groups
+    return get_tensor_model_parallel_world_size()
+
+
+def get_moe_expert_parallel_rank():
+    """Return my rank for the MoE expert parallel group."""
+    # For now, we use the tensor parallel rank as the expert parallel rank
+    # This can be extended later to support separate expert parallel groups
+    return get_tensor_model_parallel_rank()
+
+
 def destroy_model_parallel():
     """Set the groups to none and destroy them."""
     global _TP

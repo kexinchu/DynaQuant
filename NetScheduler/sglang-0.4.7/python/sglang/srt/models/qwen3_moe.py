@@ -734,6 +734,18 @@ class Qwen3MoeModel(Qwen2MoeModel):
             decoder_layer_type=Qwen3MoeDecoderLayer,
             alt_stream=alt_stream,
         )
+        # Add tensor parallel plan support
+        self.supports_tp_plan = True
+        self._tp_plan = {
+            "embed_tokens": "rowwise",
+            "lm_head": "colwise_rep",
+            ".*attention.*q_proj": "colwise",
+            ".*attention.*k_proj": "colwise", 
+            ".*attention.*v_proj": "colwise",
+            ".*attention.*o_proj": "rowwise",
+            ".*mlp.*gate_up_proj": "colwise",
+            ".*mlp.*down_proj": "rowwise",
+        }
 
 
 class Qwen3MoeForCausalLM(nn.Module):
