@@ -273,22 +273,22 @@ class MixedPrecisionAPIServer:
             """获取专家激活统计"""
             if not self.model_loaded:
                 raise HTTPException(status_code=503, detail="Model not loaded")
+            print("called get_expert_stats")
+            # try:
+            tracker = get_global_tracker()
             
-            try:
-                tracker = get_global_tracker()
+            stats = {
+                "summary": tracker.get_summary_stats(),
+                "layer_stats": tracker.get_layer_stats(),
+                "top_experts": tracker.get_top_experts(10),
+                "all_experts": tracker.get_all_expert_info()
+            }
+            
+            return stats
                 
-                stats = {
-                    "summary": tracker.get_summary_stats(),
-                    "layer_stats": tracker.get_layer_stats(),
-                    "top_experts": tracker.get_top_experts(10),
-                    "all_experts": tracker.get_all_expert_info()
-                }
-                
-                return stats
-                
-            except Exception as e:
-                logger.error(f"Get expert stats error: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+            # except Exception as e:
+            #     logger.error(f"Get expert stats error: {e}")
+            #     raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.post("/expert_stats")
         async def get_expert_stats_with_params(request: ExpertStatsRequest):
@@ -296,22 +296,22 @@ class MixedPrecisionAPIServer:
             if not self.model_loaded:
                 raise HTTPException(status_code=503, detail="Model not loaded")
             
-            try:
-                tracker = get_global_tracker()
+            # try:
+            tracker = get_global_tracker()
+            
+            stats = {
+                "summary": tracker.get_summary_stats(),
+                "layer_stats": tracker.get_layer_stats(),
+                "top_experts": tracker.get_top_experts(request.top_k),
+                "recent_activations": tracker.get_recent_activations(request.minutes),
+                "all_experts": tracker.get_all_expert_info()
+            }
+            
+            return stats
                 
-                stats = {
-                    "summary": tracker.get_summary_stats(),
-                    "layer_stats": tracker.get_layer_stats(),
-                    "top_experts": tracker.get_top_experts(request.top_k),
-                    "recent_activations": tracker.get_recent_activations(request.minutes),
-                    "all_experts": tracker.get_all_expert_info()
-                }
-                
-                return stats
-                
-            except Exception as e:
-                logger.error(f"Get expert stats error: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+            # except Exception as e:
+            #     logger.error(f"Get expert stats error: {e}")
+            #     raise HTTPException(status_code=500, detail=str(e))
         
         @self.app.post("/reset_expert_stats")
         async def reset_expert_stats():

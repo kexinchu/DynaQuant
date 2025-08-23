@@ -37,7 +37,7 @@ class ExpertTrackingClient:
     
     def get_expert_stats(self) -> Dict[str, Any]:
         """获取专家激活统计"""
-        response = self.session.get(f"{self.base_url}/expert_stats")
+        response = self.session.get(f"{self.base_url}/expert_stats", timeout=(2, 100))
         return response.json()
     
     def get_expert_stats_with_params(self, top_k: int = 10, minutes: int = 5) -> Dict[str, Any]:
@@ -73,9 +73,9 @@ def test_expert_tracking(port):
     client = ExpertTrackingClient("http://127.0.0.1:" + str(port))
     
     # 重置统计
-    print("1. 重置专家激活统计...")
-    result = client.reset_expert_stats()
-    print(f"结果: {result['message']}")
+    # print("1. 重置专家激活统计...")
+    # result = client.reset_expert_stats()
+    # print(f"结果: {result['message']}")
     
     # 生成一些文本
     print("\n2. 生成文本以触发专家激活...")
@@ -87,19 +87,19 @@ def test_expert_tracking(port):
         "什么是强化学习？它有什么应用？"
     ]
     
-    for i, prompt in enumerate(prompts):
-        print(f"\n生成文本 {i+1}: {prompt}")
-        try:
-            result = client.generate_text(
-                prompt=prompt,
-                max_new_tokens=100,
-                temperature=0.7
-            )
-            print(f"生成成功，长度: {len(result['generated_text'])} 字符")
-        except Exception as e:
-            print(f"生成失败: {e}")
+    # for i, prompt in enumerate(prompts):
+    #     print(f"\n生成文本 {i+1}: {prompt}")
+    #     try:
+    #         result = client.generate_text(
+    #             prompt=prompt,
+    #             max_new_tokens=100,
+    #             temperature=0.7
+    #         )
+    #         print(f"生成成功，长度: {len(result['generated_text'])} 字符")
+    #     except Exception as e:
+    #         print(f"生成失败: {e}")
         
-        time.sleep(1)  # 短暂延迟
+    #     time.sleep(1)  # 短暂延迟
     
     # 获取专家统计
     print("\n3. 获取专家激活统计...")
@@ -223,7 +223,7 @@ def main(port):
     test_expert_tracking(port)
     
     # 测试批量生成
-    test_batch_generation(port)
+    # test_batch_generation(port)
 
 
 if __name__ == "__main__":

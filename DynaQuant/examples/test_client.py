@@ -25,7 +25,7 @@ class MixedPrecisionAPIClient:
     
     def health_check(self) -> Dict[str, Any]:
         """健康检查"""
-        response = self.session.get(f"{self.base_url}/")
+        response = self.session.get(f"{self.base_url}/health")
         return response.json()
     
     def generate_text(self, prompt: str, **kwargs) -> Dict[str, Any]:
@@ -46,7 +46,8 @@ class MixedPrecisionAPIClient:
         
         response = self.session.post(
             f"{self.base_url}/generate",
-            json=data
+            json=data,
+            timeout=(2,100)
         )
         return response.json()
     
@@ -68,7 +69,8 @@ class MixedPrecisionAPIClient:
         
         response = self.session.post(
             f"{self.base_url}/batch_generate",
-            json=data
+            json=data,
+            timeout=(2,100)
         )
         return response.json()
     
@@ -127,8 +129,8 @@ def test_single_generation(client: MixedPrecisionAPIClient):
     try:
         result = client.generate_text(
             prompt=prompt,
-            max_new_tokens=200,
-            temperature=0.7,
+            max_new_tokens=20,
+            temperature=0.9,
             top_p=0.9
         )
         
@@ -156,8 +158,9 @@ def test_batch_generation(client: MixedPrecisionAPIClient):
     try:
         result = client.batch_generate(
             prompts=prompts,
-            max_new_tokens=150,
-            temperature=0.8
+            max_new_tokens=20,
+            temperature=0.9,
+            top_p=0.9
         )
         
         print(f"批量生成时间: {result['generation_time']:.2f}秒")

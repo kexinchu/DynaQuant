@@ -20,7 +20,11 @@ except ImportError:
         safe_open = safetensors.safe_open
 
 # 导入GPTQ反量化器
-from .gptq_dequantizer import GPTQDequantizer
+try:
+    from .gptq_dequantizer import GPTQDequantizer
+except ImportError:
+    # 如果相对导入失败，尝试绝对导入
+    from gptq_dequantizer import GPTQDequantizer
 
 class MixedPrecisionWeightLoader:
     """混合精度权重加载器"""
@@ -252,7 +256,7 @@ class MixedPrecisionWeightLoader:
         """
         try:
             # 使用专门的GPTQ反量化器
-            weight = GPTQDequantizer.dequantize_gptq_weight_simple(qweight, qzeros, scales)
+            weight = GPTQDequantizer.dequantize_gptq_weight_simple(qweight, qzeros, scales, bits)
             return weight
             
         except Exception as e:
