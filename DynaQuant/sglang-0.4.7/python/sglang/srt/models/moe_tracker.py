@@ -52,7 +52,7 @@ class MoEModuleWrapper(nn.Module):
             return output
             
         except Exception as e:
-            logger.warning(f"Error in tracked forward pass for {self.module_name}: {e}")
+            # logger.warning(f"Error in tracked forward pass for {self.module_name}: {e}")
             # 如果跟踪失败，仍然返回原始输出
             return self.original_forward(*args, **kwargs)
     
@@ -90,13 +90,13 @@ class MoEModuleWrapper(nn.Module):
                             record_expert_activation(self.layer_id, expert_id)
             
             # 尝试从输入参数中提取
-            elif len(args) > 0 and isinstance(args[0], torch.Tensor):
-                # 尝试从输入张量的形状推断处理的token数量
-                input_tensor = args[0]
-                if len(input_tensor.shape) >= 2:
-                    tokens_processed = input_tensor.shape[1]  # 序列长度
-                    # 假设每个token激活一个专家
-                    record_expert_activation(self.layer_id, 0, tokens_processed)
+            # elif len(args) > 0 and isinstance(args[0], torch.Tensor):
+            #     # 尝试从输入张量的形状推断处理的token数量
+            #     input_tensor = args[0]
+            #     if len(input_tensor.shape) >= 2:
+            #         tokens_processed = input_tensor.shape[1]  # 序列长度
+            #         # 假设每个token激活一个专家
+            #         record_expert_activation(self.layer_id, 0, tokens_processed)
             
         except Exception as e:
             logger.debug(f"Could not extract expert activations from {self.module_name}: {e}")

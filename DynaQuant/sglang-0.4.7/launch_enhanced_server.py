@@ -83,12 +83,12 @@ class EnhancedSGLangServer:
             )
             
             # 2.5. 修复设备问题
-            try:
-                from fix_device_issues import comprehensive_device_fix
-                device_fix_results = comprehensive_device_fix(self.model, self.tokenizer, str(self.model.device))
-                logger.info(f"Device fix results: {device_fix_results}")
-            except ImportError:
-                logger.warning("Device fix module not available, skipping device fixes")
+            # try:
+            #     from fix_device_issues import comprehensive_device_fix
+            #     device_fix_results = comprehensive_device_fix(self.model, self.tokenizer, str(self.model.device))
+            #     logger.info(f"Device fix results: {device_fix_results}")
+            # except ImportError:
+            #     logger.warning("Device fix module not available, skipping device fixes")
             
             # 3. 使用增强功能加载权重
             logger.info("Loading weights with enhanced mixed precision...")
