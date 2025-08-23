@@ -1,0 +1,24 @@
+inference:
+  device_map: auto
+  dtype: bfloat16
+  max_batch_size: 32
+  max_seq_length: 4096
+mixed_precision:
+  fp16_path: /path/to/fp16/weights
+  fp8_path: /path/to/fp8/weights
+  int4_path: /path/to/int4/weights
+  weight_mapping:
+    model.layers.0.mlp.down_proj.weight: fp8
+    model.layers.0.mlp.experts.0.down_proj.weight: int4
+    model.layers.0.mlp.experts.0.gate_proj.weight: int4
+    model.layers.0.mlp.experts.0.up_proj.weight: int4
+    model.layers.0.mlp.gate_proj.weight: fp8
+    model.layers.0.mlp.up_proj.weight: fp8
+    model.layers.0.self_attn.k_proj.weight: fp16
+    model.layers.0.self_attn.o_proj.weight: fp16
+    model.layers.0.self_attn.q_proj.weight: fp16
+    model.layers.0.self_attn.v_proj.weight: fp16
+server:
+  host: 127.0.0.1
+  max_workers: 4
+  port: 8080
