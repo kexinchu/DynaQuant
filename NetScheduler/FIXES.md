@@ -154,7 +154,7 @@ ValueError: <class 'transformers.models.qwen3_moe.modeling_qwen3_moe.Qwen3MoeMod
 
 ### 修复内容
 
-#### 1. 添加tp_plan支持
+#### 1. 为Qwen3MoeModel添加完整的tensor parallel支持
 在`sglang-0.4.7/python/sglang/srt/models/qwen3_moe.py`中为`Qwen3MoeModel`添加：
 
 ```python
@@ -174,6 +174,131 @@ class Qwen3MoeModel(Qwen2MoeModel):
             ".*mlp.*gate_up_proj": "colwise",
             ".*mlp.*down_proj": "rowwise",
         }
+
+    def tensor_parallel(self, tp_size: int):
+        """
+        Apply tensor parallelization to the model.
+        This method applies tensor parallelization to all linear layers in the model.
+        """
+        if tp_size <= 1:
+            return
+
+        import re
+        from sglang.srt.model_parallel import replace_linear_class
+
+        def _tensor_parallel(module: nn.Module, prefix: str = ""):
+            for child_name, child_module in module.named_children():
+                qual_name = f"{prefix}.{child_name}" if prefix else child_name
+                
+                # Apply tensor parallelization based on the tp_plan
+                for pattern, style in self._tp_plan.items():
+                    if re.match(pattern, qual_name) and isinstance(child_module, nn.Linear):
+                        new_module = replace_linear_class(child_module, style, self.quant_config)
+                        setattr(module, child_name, new_module)
+                        break
+                
+                # Recursively apply to child modules
+                _tensor_parallel(child_module, qual_name)
+
+        _tensor_parallel(self)
+```
+
+#### 2. 为Qwen3MoeForCausalLM添加tensor parallel支持
+```python
+class Qwen3MoeForCausalLM(nn.Module):
+    def __init__(self, config, quant_config=None, prefix=""):
+        # ... 现有代码 ...
+
+    def tensor_parallel(self, tp_size: int):
+        """
+        Apply tensor parallelization to the model.
+        This method applies tensor parallelization to the underlying model and lm_head.
+        """
+        if tp_size <= 1:
+            return
+
+        # Apply tensor parallelization to the model
+        if hasattr(self.model, 'tensor_parallel'):
+            self.model.tensor_parallel(tp_size)
+        else:
+            # If model doesn't have tensor_parallel method, apply it manually
+            self._apply_tensor_parallel_to_model(tp_size)
+
+        # Apply tensor parallelization to lm_head if needed
+        if hasattr(self.lm_head, 'tensor_parallel'):
+            self.lm_head.tensor_parallel(tp_size)
+
+    def _apply_tensor_parallel_to_model(self, tp_size: int):
+        """
+        Manually apply tensor parallelization to the model components.
+        """
+        import re
+        from sglang.srt.model_parallel import replace_linear_class
+
+        def _tensor_parallel(module: nn.Module, prefix: str = ""):
+            for child_name, child_module in module.named_children():
+                qual_name = f"{prefix}.{child_name}" if prefix else child_name
+                
+                # Apply tensor parallelization based on the model's tp_plan
+                if hasattr(self.model, '_tp_plan'):
+                    tp_plan = self.model._tp_plan
+                    for pattern, style in tp_plan.items():
+                        if re.match(pattern, qual_name) and isinstance(child_module, nn.Linear):
+                            new_module = replace_linear_class(child_module, style, self.quant_config)
+                            setattr(module, child_name, new_module)
+                            break
+                
+                # Recursively apply to child modules
+                _tensor_parallel(child_module, qual_name)
+
+        _tensor_parallel(self.model)
+```
+
+#### 3. 修改transformers.py中的tensor_parallel方法
+在`sglang-0.4.7/python/sglang/srt/models/transformers.py`中修改：
+
+```python
+def tensor_parallel(self, tp_size: int):
+    """
+    Apply the model's tensor parallelization plan.
+    Currently only supports linear layers.
+    """
+    # Check if the model supports tensor parallel
+    if not hasattr(self.model, 'supports_tp_plan') or not self.model.supports_tp_plan:
+        if tp_size <= 1:
+            return
+
+        raise ValueError(
+            f"{type(self.model)} does not support tensor parallel yet!"
+        )
+
+    # Check if the model has a tp_plan
+    if not hasattr(self.model, '_tp_plan'):
+        if tp_size <= 1:
+            return
+
+        raise ValueError(
+            f"{type(self.model)} does not have a tensor parallel plan!"
+        )
+
+    tp_plan = self.model._tp_plan
+
+    def _tensor_parallel(module: nn.Module, prefix: str = ""):
+        for child_name, child_module in module.named_children():
+            qual_name = maybe_prefix(prefix, child_name)
+            for pattern, style in tp_plan.items():
+                if re.match(pattern, qual_name) and isinstance(
+                    child_module, nn.Linear
+                ):
+                    new_module = replace_linear_class(
+                        child_module, style, self.quant_config
+                    )
+                    setattr(module, child_name, new_module)
+                    self.log_replacement(qual_name, child_module, new_module)
+            else:
+                _tensor_parallel(child_module, prefix=qual_name)
+
+    _tensor_parallel(self.model)
 ```
 
 ## 问题5: 简化测试配置
@@ -211,8 +336,14 @@ class Qwen3MoeModel(Qwen2MoeModel):
    - 添加了`get_moe_expert_parallel_rank`函数
 
 3. `sglang-0.4.7/python/sglang/srt/models/qwen3_moe.py`
-   - 为`Qwen3MoeModel`添加了tp_plan支持
-   - 添加了tensor parallel配置
+   - 为`Qwen3MoeModel`添加了完整的tensor parallel支持
+   - 为`Qwen3MoeForCausalLM`添加了tensor parallel支持
+   - 添加了`supports_tp_plan`和`_tp_plan`配置
+   - 实现了`tensor_parallel`方法
+
+4. `sglang-0.4.7/python/sglang/srt/models/transformers.py`
+   - 改进了`tensor_parallel`方法的错误检查
+   - 添加了对模型属性的安全检查
 
 ### 测试脚本修改
 1. `test_single_expert_ep.py`
@@ -227,19 +358,25 @@ class Qwen3MoeModel(Qwen2MoeModel):
    - 添加了环境变量配置
    - 改进了配置管理
 
-4. `test_simple_ep.py` (新增)
-   - 简化的测试配置
-   - 基本的推理功能测试
+4. `test_tp_support.py` (新增)
+   - 专门测试tensor parallel支持
+   - 验证TP=8配置是否正常工作
 
 ## 测试验证
 
-### 1. 简化测试 (推荐)
+### 1. Tensor Parallel支持测试 (推荐)
+```bash
+# 测试Tensor Parallel支持
+python3 test_tp_support.py
+```
+
+### 2. 简化测试
 ```bash
 # 使用简化的配置进行测试
 python3 test_simple_ep.py
 ```
 
-### 2. 基础测试
+### 3. 基础测试
 ```bash
 # 测试Expert Parallel
 python3 test_single_expert_ep.py
@@ -248,13 +385,13 @@ python3 test_single_expert_ep.py
 python3 test_single_expert_tp.py
 ```
 
-### 3. 混合测试
+### 4. 混合测试
 ```bash
 # 运行两种配置的对比测试
 python3 test_hybrid_parallel.py --config both
 ```
 
-### 4. 使用启动脚本
+### 5. 使用启动脚本
 ```bash
 # Linux/Mac
 ./run_tests.sh --ep
@@ -269,16 +406,17 @@ python3 test_hybrid_parallel.py --config both
 3. **内存配置**: 根据实际情况调整`max_total_tokens`和`chunked_prefill_size`参数
 4. **环境变量**: 确保正确设置了`SINGLE_EXPERT_MODE`环境变量
 5. **简化配置**: 建议先使用简化配置测试基本功能，再逐步增加复杂度
+6. **Tensor Parallel**: 现在Qwen3MoeModel完全支持tensor parallel，可以使用TP=8配置
 
 ## 性能对比
 
 修复后的配置应该能够正常运行，并提供以下性能对比：
 
-| 配置 | Expert层策略 | 其他层策略 | 优势 | 复杂度 |
-|------|-------------|-----------|------|--------|
-| 简化配置 | DP模式 | TP=1, DP=1 | 稳定可靠，易于调试 | 低 |
-| Expert Parallel | DP=8 (每GPU完整副本) | TP=4, DP=2 | 减少通信开销，提高吞吐量 | 中 |
-| Tensor Parallel | TP=8 (GPU切分) | TP=8 | 减少内存占用，支持更大模型 | 高 |
+| 配置 | Expert层策略 | 其他层策略 | 优势 | 复杂度 | 支持状态 |
+|------|-------------|-----------|------|--------|----------|
+| 简化配置 | DP模式 | TP=1, DP=1 | 稳定可靠，易于调试 | 低 | ✅ |
+| Expert Parallel | DP=8 (每GPU完整副本) | TP=4, DP=2 | 减少通信开销，提高吞吐量 | 中 | ✅ |
+| Tensor Parallel | TP=8 (GPU切分) | TP=8 | 减少内存占用，支持更大模型 | 高 | ✅ |
 
 ## 故障排除
 
@@ -289,6 +427,7 @@ python3 test_hybrid_parallel.py --config both
 3. **模型配置**: 确认模型配置文件中的expert数量
 4. **GPU资源**: 确认GPU数量和内存充足
 5. **简化测试**: 先运行`test_simple_ep.py`确保基本功能正常
+6. **Tensor Parallel测试**: 运行`test_tp_support.py`验证TP支持
 
 ## 后续优化
 
@@ -297,3 +436,4 @@ python3 test_hybrid_parallel.py --config both
 3. **监控指标**: 添加更详细的性能监控
 4. **自动化测试**: 完善自动化测试流程
 5. **错误处理**: 改进错误处理和恢复机制
+6. **混合并行**: 支持更复杂的混合并行策略

@@ -747,6 +747,33 @@ class Qwen3MoeModel(Qwen2MoeModel):
             ".*mlp.*down_proj": "rowwise",
         }
 
+    def tensor_parallel(self, tp_size: int):
+        """
+        Apply tensor parallelization to the model.
+        This method applies tensor parallelization to all linear layers in the model.
+        """
+        if tp_size <= 1:
+            return
+
+        import re
+        from sglang.srt.model_parallel import replace_linear_class
+
+        def _tensor_parallel(module: nn.Module, prefix: str = ""):
+            for child_name, child_module in module.named_children():
+                qual_name = f"{prefix}.{child_name}" if prefix else child_name
+                
+                # Apply tensor parallelization based on the tp_plan
+                for pattern, style in self._tp_plan.items():
+                    if re.match(pattern, qual_name) and isinstance(child_module, nn.Linear):
+                        new_module = replace_linear_class(child_module, style, self.quant_config)
+                        setattr(module, child_name, new_module)
+                        break
+                
+                # Recursively apply to child modules
+                _tensor_parallel(child_module, qual_name)
+
+        _tensor_parallel(self)
+
 
 class Qwen3MoeForCausalLM(nn.Module):
     fall_back_to_pt_during_load = False
@@ -776,6 +803,50 @@ class Qwen3MoeForCausalLM(nn.Module):
 
     def get_input_embeddings(self) -> nn.Embedding:
         return self.model.embed_tokens
+
+    def tensor_parallel(self, tp_size: int):
+        """
+        Apply tensor parallelization to the model.
+        This method applies tensor parallelization to the underlying model and lm_head.
+        """
+        if tp_size <= 1:
+            return
+
+        # Apply tensor parallelization to the model
+        if hasattr(self.model, 'tensor_parallel'):
+            self.model.tensor_parallel(tp_size)
+        else:
+            # If model doesn't have tensor_parallel method, apply it manually
+            self._apply_tensor_parallel_to_model(tp_size)
+
+        # Apply tensor parallelization to lm_head if needed
+        if hasattr(self.lm_head, 'tensor_parallel'):
+            self.lm_head.tensor_parallel(tp_size)
+
+    def _apply_tensor_parallel_to_model(self, tp_size: int):
+        """
+        Manually apply tensor parallelization to the model components.
+        """
+        import re
+        from sglang.srt.model_parallel import replace_linear_class
+
+        def _tensor_parallel(module: nn.Module, prefix: str = ""):
+            for child_name, child_module in module.named_children():
+                qual_name = f"{prefix}.{child_name}" if prefix else child_name
+                
+                # Apply tensor parallelization based on the model's tp_plan
+                if hasattr(self.model, '_tp_plan'):
+                    tp_plan = self.model._tp_plan
+                    for pattern, style in tp_plan.items():
+                        if re.match(pattern, qual_name) and isinstance(child_module, nn.Linear):
+                            new_module = replace_linear_class(child_module, style, self.quant_config)
+                            setattr(module, child_name, new_module)
+                            break
+                
+                # Recursively apply to child modules
+                _tensor_parallel(child_module, qual_name)
+
+        _tensor_parallel(self.model)
 
     @torch.no_grad()
     def forward(
