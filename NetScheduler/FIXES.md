@@ -152,9 +152,42 @@ def get_moe_expert_parallel_rank():
 ValueError: <class 'transformers.models.qwen3_moe.modeling_qwen3_moe.Qwen3MoeModel'> does not support tensor parallel yet!
 ```
 
+以及单expert模型的特殊问题：
+```
+ValueError: Tensor parallel size 8 is greater than the number of experts 1.
+```
+
 ### 修复内容
 
-#### 1. 为Qwen3MoeModel添加完整的tensor parallel支持
+#### 1. 修复单expert模型的TP size检查
+在`sglang-0.4.7/python/sglang/srt/models/qwen3_moe.py`中修改`Qwen3MoeSparseMoeBlock`的初始化：
+
+```python
+def __init__(self, layer_id: int, config: Qwen3MoeConfig, ...):
+    super().__init__()
+    self.tp_size = get_tensor_model_parallel_world_size()
+    self.layer_id = layer_id
+    
+    # 对于单expert模型，允许TP size大于expert数量
+    # 因为expert会被复制到多个GPU上进行tensor parallel
+    if self.tp_size > config.num_experts and config.num_experts > 1:
+        raise ValueError(
+            f"Tensor parallel size {self.tp_size} is greater than "
+            f"the number of experts {config.num_experts}."
+        )
+```
+
+#### 2. 修复num_local_experts计算
+```python
+# 修复num_local_experts计算，避免除零错误
+if config.num_experts <= self.tp_size:
+    # 对于单expert模型，每个GPU分配一个expert
+    num_local_experts = 1
+else:
+    num_local_experts = config.num_experts // self.tp_size
+```
+
+#### 3. 为Qwen3MoeModel添加完整的tensor parallel支持
 在`sglang-0.4.7/python/sglang/srt/models/qwen3_moe.py`中为`Qwen3MoeModel`添加：
 
 ```python
@@ -203,7 +236,7 @@ class Qwen3MoeModel(Qwen2MoeModel):
         _tensor_parallel(self)
 ```
 
-#### 2. 为Qwen3MoeForCausalLM添加tensor parallel支持
+#### 4. 为Qwen3MoeForCausalLM添加tensor parallel支持
 ```python
 class Qwen3MoeForCausalLM(nn.Module):
     def __init__(self, config, quant_config=None, prefix=""):
@@ -254,7 +287,7 @@ class Qwen3MoeForCausalLM(nn.Module):
         _tensor_parallel(self.model)
 ```
 
-#### 3. 修改transformers.py中的tensor_parallel方法
+#### 5. 修改transformers.py中的tensor_parallel方法
 在`sglang-0.4.7/python/sglang/srt/models/transformers.py`中修改：
 
 ```python
@@ -362,21 +395,31 @@ def tensor_parallel(self, tp_size: int):
    - 专门测试tensor parallel支持
    - 验证TP=8配置是否正常工作
 
+5. `test_single_expert_tp_fixed.py` (新增)
+   - 专门测试单expert模型的tensor parallel支持
+   - 验证修复后的代码是否能正确处理单expert模型的TP=8配置
+
 ## 测试验证
 
-### 1. Tensor Parallel支持测试 (推荐)
+### 1. 单expert模型Tensor Parallel测试 (推荐)
+```bash
+# 测试单expert模型的Tensor Parallel支持
+python3 test_single_expert_tp_fixed.py
+```
+
+### 2. Tensor Parallel支持测试
 ```bash
 # 测试Tensor Parallel支持
 python3 test_tp_support.py
 ```
 
-### 2. 简化测试
+### 3. 简化测试
 ```bash
 # 使用简化的配置进行测试
 python3 test_simple_ep.py
 ```
 
-### 3. 基础测试
+### 4. 基础测试
 ```bash
 # 测试Expert Parallel
 python3 test_single_expert_ep.py
@@ -385,13 +428,13 @@ python3 test_single_expert_ep.py
 python3 test_single_expert_tp.py
 ```
 
-### 4. 混合测试
+### 5. 混合测试
 ```bash
 # 运行两种配置的对比测试
 python3 test_hybrid_parallel.py --config both
 ```
 
-### 5. 使用启动脚本
+### 6. 使用启动脚本
 ```bash
 # Linux/Mac
 ./run_tests.sh --ep

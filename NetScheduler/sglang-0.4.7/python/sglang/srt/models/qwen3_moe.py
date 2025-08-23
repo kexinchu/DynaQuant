@@ -96,7 +96,10 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
         super().__init__()
         self.tp_size = get_tensor_model_parallel_world_size()
         self.layer_id = layer_id
-        if self.tp_size > config.num_experts:
+        
+        # 对于单expert模型，允许TP size大于expert数量
+        # 因为expert会被复制到多个GPU上进行tensor parallel
+        if self.tp_size > config.num_experts and config.num_experts > 1:
             raise ValueError(
                 f"Tensor parallel size {self.tp_size} is greater than "
                 f"the number of experts {config.num_experts}."
@@ -136,12 +139,19 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
             self.top_k = config.num_experts_per_tok
             self.renormalize = config.norm_topk_prob
 
+            # 修复num_local_experts计算，避免除零错误
+            if config.num_experts <= self.tp_size:
+                # 对于单expert模型，每个GPU分配一个expert
+                num_local_experts = 1
+            else:
+                num_local_experts = config.num_experts // self.tp_size
+
             self.deepep_dispatcher = MaybeTboDeepEPDispatcher(
                 group=parallel_state.get_tp_group().device_group,
                 router_topk=self.top_k,
                 permute_fusion=True,
                 num_experts=self.num_experts,
-                num_local_experts=config.num_experts // self.tp_size,
+                num_local_experts=num_local_experts,
                 hidden_size=config.hidden_size,
                 params_dtype=config.torch_dtype,
                 deepep_mode=DeepEPMode[global_server_args_dict["deepep_mode"]],
@@ -665,6 +675,45 @@ class Qwen3MoeModel(Qwen2MoeModel):
             prefix=prefix,
             decoder_layer_type=Qwen3MoeDecoderLayer,
         )
+        # Add tensor parallel plan support
+        self.supports_tp_plan = True
+        self._tp_plan = {
+            "embed_tokens": "rowwise",
+            "lm_head": "colwise_rep",
+            ".*attention.*q_proj": "colwise",
+            ".*attention.*k_proj": "colwise", 
+            ".*attention.*v_proj": "colwise",
+            ".*attention.*o_proj": "rowwise",
+            ".*mlp.*gate_up_proj": "colwise",
+            ".*mlp.*down_proj": "rowwise",
+        }
+
+    def tensor_parallel(self, tp_size: int):
+        """
+        Apply tensor parallelization to the model.
+        This method applies tensor parallelization to all linear layers in the model.
+        """
+        if tp_size <= 1:
+            return
+
+        import re
+        from sglang.srt.model_parallel import replace_linear_class
+
+        def _tensor_parallel(module: nn.Module, prefix: str = ""):
+            for child_name, child_module in module.named_children():
+                qual_name = f"{prefix}.{child_name}" if prefix else child_name
+                
+                # Apply tensor parallelization based on the tp_plan
+                for pattern, style in self._tp_plan.items():
+                    if re.match(pattern, qual_name) and isinstance(child_module, nn.Linear):
+                        new_module = replace_linear_class(child_module, style, self.quant_config)
+                        setattr(module, child_name, new_module)
+                        break
+                
+                # Recursively apply to child modules
+                _tensor_parallel(child_module, qual_name)
+
+        _tensor_parallel(self)
 
 
 class Qwen3MoeForCausalLM(nn.Module):
@@ -825,6 +874,53 @@ class Qwen3MoeForCausalLM(nn.Module):
             num_logical_experts=config.num_experts,
             num_groups=None,
         )
+
+    def get_input_embeddings(self) -> nn.Embedding:
+        return self.model.embed_tokens
+
+    def tensor_parallel(self, tp_size: int):
+        """
+        Apply tensor parallelization to the model.
+        This method applies tensor parallelization to the underlying model and lm_head.
+        """
+        if tp_size <= 1:
+            return
+
+        # Apply tensor parallelization to the model
+        if hasattr(self.model, 'tensor_parallel'):
+            self.model.tensor_parallel(tp_size)
+        else:
+            # If model doesn't have tensor_parallel method, apply it manually
+            self._apply_tensor_parallel_to_model(tp_size)
+
+        # Apply tensor parallelization to lm_head if needed
+        if hasattr(self.lm_head, 'tensor_parallel'):
+            self.lm_head.tensor_parallel(tp_size)
+
+    def _apply_tensor_parallel_to_model(self, tp_size: int):
+        """
+        Manually apply tensor parallelization to the model components.
+        """
+        import re
+        from sglang.srt.model_parallel import replace_linear_class
+
+        def _tensor_parallel(module: nn.Module, prefix: str = ""):
+            for child_name, child_module in module.named_children():
+                qual_name = f"{prefix}.{child_name}" if prefix else child_name
+                
+                # Apply tensor parallelization based on the model's tp_plan
+                if hasattr(self.model, '_tp_plan'):
+                    tp_plan = self.model._tp_plan
+                    for pattern, style in tp_plan.items():
+                        if re.match(pattern, qual_name) and isinstance(child_module, nn.Linear):
+                            new_module = replace_linear_class(child_module, style, self.quant_config)
+                            setattr(module, child_name, new_module)
+                            break
+                
+                # Recursively apply to child modules
+                _tensor_parallel(child_module, qual_name)
+
+        _tensor_parallel(self.model)
 
 
 EntryClass = Qwen3MoeForCausalLM
