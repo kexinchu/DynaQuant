@@ -512,6 +512,10 @@ class EnhancedMixedPrecisionWeightLoader:
             'details': []
         }
         
+        # 获取模型设备
+        model_device = next(model.parameters()).device
+        logger.info(f"Model device: {model_device}")
+        
         for name, module in model.named_modules():
             if hasattr(module, 'weight') and module.weight is not None:
                 weight_name = name + '.weight'
@@ -522,6 +526,11 @@ class EnhancedMixedPrecisionWeightLoader:
                     
                     if weight is not None:
                         try:
+                            # 确保权重在正确的设备上
+                            if weight.device != model_device:
+                                weight = weight.to(model_device)
+                                logger.debug(f"Moved weight {weight_name} to device {model_device}")
+                            
                             # 检查形状是否匹配
                             if weight.shape == module.weight.shape:
                                 module.weight.data = weight
@@ -530,7 +539,8 @@ class EnhancedMixedPrecisionWeightLoader:
                                     'name': weight_name,
                                     'precision': precision,
                                     'status': 'loaded',
-                                    'shape': list(weight.shape)
+                                    'shape': list(weight.shape),
+                                    'device': str(weight.device)
                                 })
                             else:
                                 logger.warning(f"Shape mismatch for {weight_name}: expected {module.weight.shape}, got {weight.shape}")

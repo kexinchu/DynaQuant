@@ -37,6 +37,11 @@ class MoEModuleWrapper(nn.Module):
     def _tracked_forward(self, *args, **kwargs):
         """带跟踪的前向传播"""
         try:
+            # 确保输入在正确的设备上
+            device = next(self.original_module.parameters()).device
+            args = [arg.to(device) if isinstance(arg, torch.Tensor) else arg for arg in args]
+            kwargs = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in kwargs.items()}
+            
             # 调用原始前向传播
             output = self.original_forward(*args, **kwargs)
             

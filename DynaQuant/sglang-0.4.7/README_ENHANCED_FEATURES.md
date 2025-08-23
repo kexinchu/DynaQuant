@@ -256,6 +256,53 @@ python3 simple_gptq_test.py
 - **索引文件**: 利用safetensors索引
 - **分片加载**: 支持大模型的分片加载
 
+## 🔧 设备问题修复
+
+### 1. 设备不匹配问题
+自动检测和修复CUDA/CPU设备不匹配问题：
+
+```python
+from fix_device_issues import comprehensive_device_fix
+
+# 综合设备修复
+results = comprehensive_device_fix(model, tokenizer, 'cuda')
+print(f"修复结果: {results}")
+```
+
+### 2. 注意力掩码修复
+自动处理pad_token和eos_token相同的情况：
+
+```python
+from fix_device_issues import create_proper_attention_mask
+
+# 创建正确的注意力掩码
+attention_mask = create_proper_attention_mask(input_ids, tokenizer, 'cuda')
+```
+
+### 3. MoE模块设备修复
+专门处理MoE模块的设备问题：
+
+```python
+from fix_device_issues import fix_moe_device_issues
+
+# 修复MoE模块设备问题
+model = fix_moe_device_issues(model, 'cuda')
+```
+
+### 4. 设备一致性验证
+验证模型所有参数都在正确设备上：
+
+```python
+from fix_device_issues import validate_model_device_consistency
+
+# 验证设备一致性
+validation = validate_model_device_consistency(model, 'cuda')
+if validation['is_consistent']:
+    print("✓ 设备一致性检查通过")
+else:
+    print(f"⚠ 发现设备问题: {validation['issues']}")
+```
+
 ## 🧪 测试和验证
 
 ### 1. 功能测试
@@ -314,6 +361,30 @@ if tracker:
 else:
     print("专家跟踪器未启用")
 ```
+
+**Q: 设备不匹配错误**
+```
+WARNING: Expected all tensors to be on the same device, but found at least two devices, cuda:0 and cpu!
+```
+
+**解决方案**:
+```bash
+# 运行设备修复测试
+python3 test_device_fix.py
+
+# 使用设备修复功能
+from fix_device_issues import comprehensive_device_fix
+results = comprehensive_device_fix(model, tokenizer, 'cuda')
+```
+
+**Q: 注意力掩码警告**
+```
+The attention mask is not set and cannot be inferred from input because pad token is same as eos token.
+```
+
+**解决方案**:
+- 系统会自动创建正确的注意力掩码
+- 确保tokenizer的pad_token_id和eos_token_id设置正确
 
 ### 2. 调试模式
 ```bash

@@ -82,6 +82,14 @@ class EnhancedSGLangServer:
                 trust_remote_code=True
             )
             
+            # 2.5. 修复设备问题
+            try:
+                from fix_device_issues import comprehensive_device_fix
+                device_fix_results = comprehensive_device_fix(self.model, self.tokenizer, str(self.model.device))
+                logger.info(f"Device fix results: {device_fix_results}")
+            except ImportError:
+                logger.warning("Device fix module not available, skipping device fixes")
+            
             # 3. 使用增强功能加载权重
             logger.info("Loading weights with enhanced mixed precision...")
             stats = load_model_with_enhanced_features(
@@ -118,10 +126,25 @@ class EnhancedSGLangServer:
             inputs = self.tokenizer(prompt, return_tensors="pt")
             input_ids = inputs["input_ids"].to(self.model.device)
             
+            # 创建注意力掩码
+            attention_mask = inputs.get("attention_mask", None)
+            if attention_mask is None:
+                # 如果pad_token和eos_token相同，创建自定义的注意力掩码
+                if self.tokenizer.pad_token_id == self.tokenizer.eos_token_id:
+                    attention_mask = torch.ones_like(input_ids)
+                    # 将padding位置标记为0
+                    if self.tokenizer.pad_token_id is not None:
+                        attention_mask[input_ids == self.tokenizer.pad_token_id] = 0
+                else:
+                    attention_mask = torch.ones_like(input_ids)
+            
+            attention_mask = attention_mask.to(self.model.device)
+            
             # 生成文本
             with torch.no_grad():
                 outputs = self.model.generate(
                     input_ids,
+                    attention_mask=attention_mask,
                     max_length=max_length,
                     temperature=temperature,
                     do_sample=True,
