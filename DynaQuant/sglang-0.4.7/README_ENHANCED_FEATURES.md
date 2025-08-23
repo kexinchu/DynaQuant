@@ -1,6 +1,19 @@
-# SGLang增强功能集成
+# SGLang混合精度集成
 
-本项目将混合精度权重加载和专家激活跟踪功能集成到SGLang 0.4.7中，提供高效的模型推理和专家行为分析能力。
+本项目将混合精度权重加载功能真正集成到SGLang 0.4.7的核心架构中，通过SGLang的API和优化引擎提供高效的混合精度模型推理能力。
+
+## 🎯 核心优势
+
+### 1. **真正的SGLang集成**
+- **使用SGLang的API**: 通过`ModelConfig`、`DeviceConfig`、`LoadConfig`等SGLang核心配置
+- **利用SGLang优化**: 使用SGLang的高性能推理引擎和内存管理
+- **保持API兼容**: 完全兼容SGLang的现有API和功能
+
+### 2. **混合精度支持**
+- **选择性权重加载**: 根据配置文件选择性加载不同精度的权重
+- **GPTQ支持**: 完整的GPTQ-Int4量化模型支持
+- **Safetensors兼容**: 支持safetensors索引文件
+- **内存优化**: 智能缓存和内存管理
 
 ## 🚀 核心功能
 
@@ -22,14 +35,15 @@
 sglang-0.4.7/
 ├── python/sglang/srt/
 │   ├── model_loader/
-│   │   ├── enhanced_mixed_precision_loader.py  # 增强的混合精度加载器
-│   │   └── mixed_precision_loader.py           # 原始混合精度加载器
+│   │   ├── sglang_mixed_precision_loader.py    # SGLang集成的混合精度加载器
+│   │   ├── enhanced_mixed_precision_loader.py  # 增强的混合精度加载器（独立版本）
+│   │   └── loader.py                           # 修改的SGLang加载器（集成混合精度）
 │   ├── models/
 │   │   └── moe_tracker.py                      # MoE专家跟踪器
-│   └── enhanced_model_loader.py                # 增强的模型加载器
-├── launch_enhanced_server.py                   # 增强服务器启动脚本
-├── test_enhanced_features.py                   # 功能测试脚本
-├── start_enhanced_server.sh                    # 启动脚本
+│   └── enhanced_model_loader.py                # 增强的模型加载器（独立版本）
+├── launch_sglang_mixed_precision.py            # SGLang集成服务器启动脚本
+├── test_sglang_integration.py                  # SGLang集成测试脚本
+├── start_sglang_mixed_precision.sh             # SGLang集成启动脚本
 ├── mixed_precision_config.yaml                 # 混合精度配置文件
 └── README_ENHANCED_FEATURES.md                 # 本文档
 ```
@@ -87,54 +101,86 @@ server:
 
 ## 🚀 快速开始
 
-### 1. 运行功能测试
+### 1. 运行SGLang集成测试
 ```bash
-# 测试所有增强功能
-./start_enhanced_server.sh --test
+# 测试SGLang集成功能
+python3 test_sglang_integration.py
 
-# 或者直接运行测试脚本
-python3 test_enhanced_features.py
+# 或者使用启动脚本测试
+./start_sglang_mixed_precision.sh --help
 ```
 
-### 2. 启动增强服务器
+### 2. 启动SGLang混合精度服务器
 ```bash
-# 使用启动脚本
-./start_enhanced_server.sh -m /path/to/model -c mixed_precision_config.yaml
+# 使用SGLang集成启动脚本
+./start_sglang_mixed_precision.sh -m /path/to/model -c mixed_precision_config.yaml
 
 # 或者直接运行Python脚本
-python3 launch_enhanced_server.py \
-  --config mixed_precision_config.yaml \
+python3 launch_sglang_mixed_precision.py \
   --model /path/to/model \
-  --port 8080 \
-  --enable-expert-tracking
+  --mixed-precision-config mixed_precision_config.yaml \
+  --device cuda \
+  --dtype auto \
+  --test
 ```
 
-### 3. 使用API
+### 3. 使用SGLang API
 ```python
-from sglang.srt.enhanced_model_loader import (
-    load_model_with_enhanced_features,
-    get_expert_activation_stats,
-    reset_expert_activation_stats
+# 使用SGLang集成的混合精度功能
+from sglang.srt.configs.model_config import ModelConfig
+from sglang.srt.configs.device_config import DeviceConfig
+from sglang.srt.configs.load_config import LoadConfig, LoadFormat
+from sglang.srt.model_loader.loader import DefaultModelLoader
+
+# 创建SGLang配置
+model_config = ModelConfig(
+    model_path="/path/to/model",
+    mixed_precision_config="mixed_precision_config.yaml",
+    dtype="auto",
+    trust_remote_code=True
 )
 
-# 加载模型
-stats = load_model_with_enhanced_features(
-    model, config_path, enable_expert_tracking=True
+device_config = DeviceConfig(device="cuda")
+load_config = LoadConfig(load_format=LoadFormat.AUTO)
+
+# 使用SGLang加载器加载模型
+loader = DefaultModelLoader(load_config)
+model = loader.load_model(
+    model_config=model_config,
+    device_config=device_config
 )
 
-# 获取专家统计
-expert_stats = get_expert_activation_stats()
-print(f"专家统计: {expert_stats}")
+# 获取混合精度统计
+from sglang.srt.model_loader.sglang_mixed_precision_loader import get_global_mixed_precision_loader
+mixed_precision_loader = get_global_mixed_precision_loader()
+if mixed_precision_loader:
+    print(f"混合精度权重映射数量: {len(mixed_precision_loader.mixed_precision_config.weight_mapping)}")
 ```
 
-## 📊 专家激活跟踪
+## 🔧 SGLang集成架构
 
-### 1. 统计信息类型
-- **专家激活次数**: 每个专家被激活的总次数
-- **激活时间**: 最后一次激活的时间戳
-- **处理token数**: 每个专家处理的token总数
-- **层统计**: 每层的专家使用情况
-- **热门专家**: 激活次数最多的专家排名
+### 1. 集成方式
+- **继承SGLang基类**: `SGLangMixedPrecisionLoader`继承自`ModelLoader`
+- **使用SGLang配置**: 通过`ModelConfig`的`mixed_precision_config`参数
+- **集成到加载流程**: 在`DefaultModelLoader.load_model()`中自动检测和使用
+- **保持向后兼容**: 不影响SGLang的现有功能
+
+### 2. 核心组件
+- **SGLangMixedPrecisionLoader**: 继承SGLang的ModelLoader，支持混合精度
+- **SGLangGPTQDequantizer**: 集成到SGLang的GPTQ反量化器
+- **MixedPrecisionConfig**: 混合精度配置数据结构
+- **全局加载器管理**: 通过全局变量管理混合精度加载器实例
+
+### 3. 工作流程
+```
+1. 创建ModelConfig，指定mixed_precision_config
+2. DefaultModelLoader检测到混合精度配置
+3. 自动创建SGLangMixedPrecisionLoader
+4. 加载混合精度权重到模型
+5. 使用SGLang的推理引擎进行推理
+```
+
+## 📊 专家激活跟踪（独立版本）
 
 ### 2. API接口
 ```python

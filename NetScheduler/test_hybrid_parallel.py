@@ -30,8 +30,10 @@ class HybridParallelTester:
         """配置1: Expert层使用EP=8，其他层使用TP=4, DP=2"""
         print("=== 配置1: Expert Parallel (EP=8) + 其他层(TP=4, DP=2) ===")
         
-        # 注意：sglang的EP配置会影响整个模型，这里我们使用EP=8
-        # 但实际上expert层会使用EP，其他层会使用TP=4, DP=2的组合
+        # 设置环境变量
+        env = self.env.copy()
+        env['SINGLE_EXPERT_MODE'] = 'dp'  # 使用DP模式，每个GPU都有expert的完整副本
+        
         cmd = [
             'python3', '-m', 'sglang.launch_server',
             '--model-path', self.model_path,
@@ -55,7 +57,7 @@ class HybridParallelTester:
         ]
         
         print(f"启动命令: {' '.join(cmd)}")
-        process = subprocess.Popen(cmd, env=self.env)
+        process = subprocess.Popen(cmd, env=env)
         
         print("等待服务器启动...")
         time.sleep(30)
@@ -66,8 +68,10 @@ class HybridParallelTester:
         """配置2: Expert层使用TP=8，其他层使用TP=4, DP=2"""
         print("=== 配置2: Expert层使用TP=8，其他层使用TP=4, DP=2 ===")
         
-        # 注意：由于sglang的限制，这里我们使用TP=8来模拟expert层的TP切分
-        # 实际上所有层都会使用TP=8，但我们可以通过配置来优化
+        # 设置环境变量
+        env = self.env.copy()
+        env['SINGLE_EXPERT_MODE'] = 'tp'  # 使用TP模式，expert在8张GPU上切分
+        
         cmd = [
             'python3', '-m', 'sglang.launch_server',
             '--model-path', self.model_path,
@@ -89,7 +93,7 @@ class HybridParallelTester:
         ]
         
         print(f"启动命令: {' '.join(cmd)}")
-        process = subprocess.Popen(cmd, env=self.env)
+        process = subprocess.Popen(cmd, env=env)
         
         print("等待服务器启动...")
         time.sleep(30)

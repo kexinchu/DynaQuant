@@ -186,8 +186,9 @@ class ExpertLocationMetadata:
             + server_args.ep_num_redundant_experts
         )
         ep_size = server_args.ep_size
-        # assert num_physical_experts % ep_size == 0
-        if num_physical_experts < ep_size:
+        
+        # 修复除零错误：当expert数量小于ep_size时，每个GPU分配一个expert
+        if num_physical_experts <= ep_size:
             num_local_physical_experts = 1
         else:
             num_local_physical_experts = num_physical_experts // ep_size
@@ -340,7 +341,12 @@ def compute_logical_to_rank_dispatch_physical_map(
 ):
     r = random.Random(seed)
 
-    num_local_physical_experts = num_physical_experts // num_gpus
+    # 修复除零错误：当只有一个expert时，每个GPU分配一个expert
+    if num_physical_experts <= num_gpus:
+        num_local_physical_experts = 1
+    else:
+        num_local_physical_experts = num_physical_experts // num_gpus
+    
     num_layers, num_logical_experts, _ = logical_to_all_physical_map.shape
     dtype = logical_to_all_physical_map.dtype
 
@@ -402,7 +408,10 @@ def _logical_to_all_physical_raw(
 def _compute_gpu_id_of_physical_expert(
     physical_expert_id: int, num_local_physical_experts: int
 ) -> int:
-    return max(physical_expert_id // num_local_physical_experts, 1)
+    # 修复除零错误：当num_local_physical_experts为0时，直接返回physical_expert_id
+    if num_local_physical_experts <= 0:
+        return physical_expert_id % 8  # 假设有8个GPU，可以根据实际情况调整
+    return physical_expert_id // num_local_physical_experts
 
 
 def _fair_choices(arr: List, k: int, r: random.Random) -> List:

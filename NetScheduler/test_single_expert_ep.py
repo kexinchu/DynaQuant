@@ -22,7 +22,8 @@ def start_ep_server():
         'SGLANG_DISABLE_MARLIN': '1',
         'SGL_DISABLE_AWQ_MARLIN': '1', 
         'SGLANG_DISABLE_SGL_KERNEL': '1',
-        'CUDA_VISIBLE_DEVICES': '0,1,2,3,4,5,6,7'
+        'CUDA_VISIBLE_DEVICES': '0,1,2,3,4,5,6,7',
+        'SINGLE_EXPERT_MODE': 'dp'  # 使用DP模式，每个GPU都有expert的完整副本
     })
     
     # 启动命令

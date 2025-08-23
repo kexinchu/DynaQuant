@@ -382,15 +382,26 @@ class DefaultModelLoader(BaseModelLoader):
             # Try to load mixed precision weights first
             mixed_precision_loaded = False
             try:
-                from .mixed_precision_loader import load_mixed_precision_weights
+                # 尝试使用SGLang集成的混合精度加载器
                 config_path = getattr(model_config, 'mixed_precision_config', None)
                 if config_path and os.path.exists(config_path):
                     logger.info(f"Attempting to load mixed precision weights from {config_path}")
-                    mixed_precision_loaded = load_mixed_precision_weights(model, config_path)
-                    if mixed_precision_loaded:
-                        logger.info("Mixed precision weights loaded successfully")
+                    
+                    # 使用SGLang集成的混合精度加载器
+                    from .sglang_mixed_precision_loader import create_mixed_precision_loader, set_global_mixed_precision_loader
+                    
+                    mixed_precision_loader = create_mixed_precision_loader(model_config, config_path)
+                    set_global_mixed_precision_loader(mixed_precision_loader)
+                    
+                    # 加载混合精度权重
+                    stats = mixed_precision_loader.load_model_weights(model)
+                    if stats['loaded'] > 0:
+                        mixed_precision_loaded = True
+                        logger.info(f"Mixed precision weights loaded successfully: {stats['loaded']} weights loaded")
                     else:
-                        logger.warning("Failed to load mixed precision weights, falling back to standard loading")
+                        logger.warning("No mixed precision weights loaded, falling back to standard loading")
+                else:
+                    logger.info("No mixed precision config found, using standard loading")
             except Exception as e:
                 logger.warning(f"Mixed precision loading failed: {e}, falling back to standard loading")
             
