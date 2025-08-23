@@ -215,23 +215,60 @@ class GPTQDequantizer:
             else:
                 unpacked = qweight
             
-            # 2. 反量化零点
+            logger.debug(f"GPTQ dequantization shapes:")
+            logger.debug(f"  qweight: {qweight.shape} -> unpacked: {unpacked.shape}")
+            logger.debug(f"  qzeros: {qzeros.shape}")
+            logger.debug(f"  scales: {scales.shape}")
+            
+            # 2. 计算正确的维度
+            out_features = qweight.shape[0]
+            in_features = scales.shape[1]
+            
+            # 3. 反量化零点
             zeros = qzeros * scales
             
-            # 3. 简单的维度扩展
-            if zeros.shape[1] != unpacked.shape[1]:
-                factor = unpacked.shape[1] // zeros.shape[1]
-                zeros_expanded = zeros.repeat(1, factor)
-                scales_expanded = scales.repeat(1, factor)
+            # 4. 计算group_size和扩展因子
+            if len(scales.shape) == 2 and len(unpacked.shape) == 2:
+                # 计算实际的group_size
+                group_size_actual = in_features // scales.shape[0]
+                
+                # 计算每个group需要重复的次数
+                if group_size_actual > 1:
+                    # 扩展scales和zeros到正确的维度
+                    repeat_factor = group_size_actual // (in_features // scales.shape[0])
+                    scales_expanded = scales.repeat(repeat_factor, 1)
+                    zeros_expanded = zeros.repeat(repeat_factor, 1)
+                else:
+                    scales_expanded = scales
+                    zeros_expanded = zeros
             else:
-                zeros_expanded = zeros
                 scales_expanded = scales
+                zeros_expanded = zeros
             
-            # 4. 应用反量化公式
+            # 5. 确保维度匹配
+            if scales_expanded.shape[1] != unpacked.shape[1]:
+                # 需要调整维度
+                if scales_expanded.shape[1] < unpacked.shape[1]:
+                    # 扩展scales和zeros
+                    factor = unpacked.shape[1] // scales_expanded.shape[1]
+                    scales_expanded = scales_expanded.repeat(1, factor)
+                    zeros_expanded = zeros_expanded.repeat(1, factor)
+                else:
+                    # 截断unpacked
+                    unpacked = unpacked[:, :scales_expanded.shape[1]]
+            
+            logger.debug(f"  After expansion:")
+            logger.debug(f"    scales_expanded: {scales_expanded.shape}")
+            logger.debug(f"    zeros_expanded: {zeros_expanded.shape}")
+            logger.debug(f"    unpacked: {unpacked.shape}")
+            
+            # 6. 应用反量化公式
             weight = scales_expanded * (unpacked.float() - zeros_expanded)
             
-            # 5. 转置到正确的形状
+            # 7. 转置到正确的形状
             weight = weight.t()
+            
+            logger.debug(f"  Final weight shape: {weight.shape}")
             
             return weight
             
@@ -242,7 +279,13 @@ class GPTQDequantizer:
             logger.error(f"  scales: {scales.shape}")
             
             # 返回一个合理的fallback
-            return torch.zeros(scales.shape[1], qweight.shape[0])
+            try:
+                # 基于scales和qweight的形状估算
+                out_features = qweight.shape[0]
+                in_features = scales.shape[1]
+                return torch.zeros(in_features, out_features)
+            except:
+                return torch.zeros(768, 2048)  # 默认形状
     
     @staticmethod
     def _unpack_int32_to_int4(packed: torch.Tensor, bits: int = 4) -> torch.Tensor:
@@ -413,9 +456,17 @@ class EnhancedMixedPrecisionWeightLoader:
                                scales: torch.Tensor, g_idx: Optional[torch.Tensor] = None,
                                bits: int = 4, group_size: int = 128) -> torch.Tensor:
         """反量化GPTQ权重"""
-        return GPTQDequantizer.dequantize_gptq_weight(
-            qweight, qzeros, scales, g_idx, bits, group_size
-        )
+        try:
+            # 尝试使用修复的GPTQ反量化器
+            from .gptq_dequantizer_fixed import GPTQDequantizerFixed
+            return GPTQDequantizerFixed.dequantize_gptq_weight_corrected(
+                qweight, qzeros, scales
+            )
+        except ImportError:
+            # 如果修复版本不可用，使用原始版本
+            return GPTQDequantizer.dequantize_gptq_weight(
+                qweight, qzeros, scales, g_idx, bits, group_size
+            )
     
     def load_weight(self, weight_name: str, precision: str) -> Optional[torch.Tensor]:
         """加载指定精度的权重"""

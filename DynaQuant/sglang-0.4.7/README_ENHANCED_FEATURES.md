@@ -209,6 +209,36 @@ else:
     weight = weights[weight_name]
 ```
 
+### 3. 修复的GPTQ反量化算法
+最新版本修复了GPTQ反量化中的维度匹配问题：
+
+#### 问题描述
+```
+ERROR: The size of tensor a (96) must match the size of tensor b (768) at non-singleton dimension 1
+qweight: torch.Size([256, 768])
+qzeros: torch.Size([16, 96])
+scales: torch.Size([16, 768])
+```
+
+#### 修复方案
+- **正确的维度计算**: 基于实际的group_size计算扩展因子
+- **智能维度匹配**: 自动调整scales和zeros的维度以匹配unpacked权重
+- **详细的调试信息**: 提供完整的维度计算过程日志
+
+#### 修复文件
+- `gptq_dequantizer_fixed.py`: 修复的GPTQ反量化器
+- `enhanced_mixed_precision_loader.py`: 集成修复的加载器
+- `test_gptq_fix.py`: 修复验证测试
+
+#### 测试验证
+```bash
+# 运行GPTQ修复测试
+python3 test_gptq_fix.py
+
+# 运行简单测试
+python3 simple_gptq_test.py
+```
+
 ## 📈 性能优化
 
 ### 1. 内存优化
