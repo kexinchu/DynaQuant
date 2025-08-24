@@ -26,7 +26,7 @@ except ImportError:
 
 # SGLang核心导入
 from sglang.srt.model_loader.weight_utils import default_weight_loader
-from sglang.srt.model_loader.loader import ModelLoader
+from sglang.srt.model_loader.loader import BaseModelLoader
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.utils import get_bool_env_var
 
@@ -131,7 +131,7 @@ class SGLangGPTQDequantizer:
         return out
 
 
-class SGLangMixedPrecisionLoader(ModelLoader):
+class SGLangMixedPrecisionLoader(BaseModelLoader):
     """SGLang集成的混合精度权重加载器"""
     
     def __init__(self, config: ModelConfig, mixed_precision_config: MixedPrecisionConfig):

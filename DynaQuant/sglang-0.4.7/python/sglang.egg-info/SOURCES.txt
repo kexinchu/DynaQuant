@@ -38,6 +38,7 @@ sglang/srt/code_completion_parser.py
 sglang/srt/conversation.py
 sglang/srt/custom_op.py
 sglang/srt/debug_utils.py
+sglang/srt/enhanced_model_loader.py
 sglang/srt/hf_transformers_utils.py
 sglang/srt/mm_utils.py
 sglang/srt/model_parallel.py
@@ -132,6 +133,7 @@ sglang/srt/layers/elementwise.py
 sglang/srt/layers/layernorm.py
 sglang/srt/layers/linear.py
 sglang/srt/layers/logits_processor.py
+sglang/srt/layers/mixed_precision_linear.py
 sglang/srt/layers/multimodal.py
 sglang/srt/layers/parameter.py
 sglang/srt/layers/pooler.py
@@ -579,7 +581,10 @@ sglang/srt/model_executor/expert_location_updater.py
 sglang/srt/model_executor/forward_batch_info.py
 sglang/srt/model_executor/model_runner.py
 sglang/srt/model_loader/__init__.py
+sglang/srt/model_loader/enhanced_mixed_precision_loader.py
 sglang/srt/model_loader/loader.py
+sglang/srt/model_loader/mixed_precision_loader.py
+sglang/srt/model_loader/sglang_mixed_precision_loader.py
 sglang/srt/model_loader/utils.py
 sglang/srt/model_loader/weight_utils.py
 sglang/srt/models/baichuan.py
@@ -629,6 +634,7 @@ sglang/srt/models/mixtral.py
 sglang/srt/models/mixtral_quant.py
 sglang/srt/models/mllama.py
 sglang/srt/models/mllama4.py
+sglang/srt/models/moe_tracker.py
 sglang/srt/models/olmo.py
 sglang/srt/models/olmo2.py
 sglang/srt/models/olmoe.py

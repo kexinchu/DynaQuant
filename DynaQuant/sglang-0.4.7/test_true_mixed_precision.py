@@ -26,7 +26,7 @@ def test_compressed_weight_structures():
     print("=" * 60)
     
     try:
-        from sglang.srt.model_loader.true_mixed_precision_loader import (
+        from sglang.srt.model_loader.mixed_precision_loader import (
             CompressedWeight, WeightFormat
         )
         
@@ -75,46 +75,37 @@ def test_mixed_precision_loader():
     print("测试真正的混合精度加载器")
     print("=" * 60)
     
-    try:
-        from sglang.srt.configs.model_config import ModelConfig
-        from sglang.srt.model_loader.true_mixed_precision_loader import (
-            TrueMixedPrecisionLoader,
-            TrueMixedPrecisionConfig
-        )
-        
-        # 创建混合精度配置
-        mixed_precision_config = TrueMixedPrecisionConfig(
-            fp16_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B",
-            fp8_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B-FP8",
-            gptq_int4_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B-GPTQ-Int4",
-            weight_mapping={
-                "model.layers.0.self_attn.q_proj.weight": "fp16",
-                "model.layers.0.mlp.experts.0.up_proj.weight": "gptq_int4",
-                "model.layers.0.mlp.experts.1.up_proj.weight": "fp8"
-            }
-        )
-        
-        # 创建模型配置
-        model_config = ModelConfig(
-            model_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B",
-            dtype="auto",
-            trust_remote_code=True
-        )
-        
-        # 创建真正的混合精度加载器
-        loader = TrueMixedPrecisionLoader(model_config, mixed_precision_config)
-        
-        print("✓ 真正的混合精度加载器创建成功")
-        print(f"  权重映射数量: {len(mixed_precision_config.weight_mapping)}")
-        print(f"  FP16路径: {mixed_precision_config.fp16_path}")
-        print(f"  GPTQ-Int4路径: {mixed_precision_config.gptq_int4_path}")
-        print(f"  AWQ-Int4路径: {mixed_precision_config.awq_int4_path}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"✗ 真正的混合精度加载器测试失败: {e}")
-        return False
+    from sglang.srt.configs.load_config import LoadConfig
+    from sglang.srt.model_loader.mixed_precision_loader import (
+        TrueMixedPrecisionLoader,
+        TrueMixedPrecisionConfig
+    )
+    
+    # 创建混合精度配置
+    mixed_precision_config = TrueMixedPrecisionConfig(
+        fp16_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B",
+        fp8_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B-FP8",
+        gptq_int4_path="/dcar-vepfs-trans-models/Qwen3-30B-A3B-GPTQ-Int4",
+        weight_mapping={
+            "model.layers.0.self_attn.q_proj.weight": "fp16",
+            "model.layers.0.mlp.experts.0.up_proj.weight": "gptq_int4",
+            "model.layers.0.mlp.experts.1.up_proj.weight": "fp8"
+        }
+    )
+    
+    # 创建模型配置
+    model_config = LoadConfig()
+    
+    # 创建真正的混合精度加载器
+    loader = TrueMixedPrecisionLoader(model_config, mixed_precision_config)
+    
+    print("✓ 真正的混合精度加载器创建成功")
+    print(f"  权重映射数量: {len(mixed_precision_config.weight_mapping)}")
+    print(f"  FP16路径: {mixed_precision_config.fp16_path}")
+    print(f"  GPTQ-Int4路径: {mixed_precision_config.gptq_int4_path}")
+    print(f"  AWQ-Int4路径: {mixed_precision_config.awq_int4_path}")
+    
+    return True
 
 
 def test_mixed_precision_linear():
@@ -123,38 +114,32 @@ def test_mixed_precision_linear():
     print("测试混合精度线性层")
     print("=" * 60)
     
-    try:
-        from sglang.srt.layers.mixed_precision_linear import MixedPrecisionLinear
-        
-        # 创建混合精度线性层
-        linear_layer = MixedPrecisionLinear(
-            in_features=768,
-            out_features=2048,
-            bias=True,
-            weight_name="test.weight",
-            use_cache=True
-        )
-        
-        print("✓ 混合精度线性层创建成功")
-        print(f"  输入特征: {linear_layer.in_features}")
-        print(f"  输出特征: {linear_layer.out_features}")
-        print(f"  权重名称: {linear_layer.weight_name}")
-        print(f"  使用缓存: {linear_layer.use_cache}")
-        
-        # 测试前向传播（会使用零权重，因为没有真实的压缩权重）
-        input_tensor = torch.randn(2, 768, dtype=torch.float16)
-        output = linear_layer(input_tensor)
-        
-        print(f"  输入形状: {input_tensor.shape}")
-        print(f"  输出形状: {output.shape}")
-        print("  前向传播成功（使用零权重）")
-        
-        return True
-        
-    except Exception as e:
-        print(f"✗ 混合精度线性层测试失败: {e}")
-        return False
-
+    from sglang.srt.layers.mixed_precision_linear import MixedPrecisionLinear
+    
+    # 创建混合精度线性层
+    linear_layer = MixedPrecisionLinear(
+        in_features=768,
+        out_features=2048,
+        bias=True,
+        weight_name="test.weight",
+        use_cache=True
+    )
+    
+    print("✓ 混合精度线性层创建成功")
+    print(f"  输入特征: {linear_layer.in_features}")
+    print(f"  输出特征: {linear_layer.out_features}")
+    print(f"  权重名称: {linear_layer.weight_name}")
+    print(f"  使用缓存: {linear_layer.use_cache}")
+    
+    # 测试前向传播（会使用零权重，因为没有真实的压缩权重）
+    input_tensor = torch.randn(2, 768, dtype=torch.float16)
+    output = linear_layer(input_tensor)
+    
+    print(f"  输入形状: {input_tensor.shape}")
+    print(f"  输出形状: {output.shape}")
+    print("  前向传播成功（使用零权重）")
+    
+    return True
 
 def test_memory_savings():
     """测试内存节省效果"""
@@ -262,12 +247,12 @@ def main():
     results = []
     for test_name, test_func in tests:
         print(f"\n运行测试: {test_name}")
-        try:
-            result = test_func()
-            results.append((test_name, result))
-        except Exception as e:
-            print(f"✗ 测试异常: {e}")
-            results.append((test_name, False))
+        # try:
+        result = test_func()
+        results.append((test_name, result))
+        # except Exception as e:
+        #     print(f"✗ 测试异常: {e}")
+        #     results.append((test_name, False))
     
     # 创建测试配置文件
     config_path = create_test_config()

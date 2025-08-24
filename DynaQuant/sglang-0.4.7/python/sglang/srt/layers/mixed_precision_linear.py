@@ -3,18 +3,20 @@
 混合精度线性层
 支持动态处理不同格式的压缩权重，在推理时按需反量化
 """
-
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from typing import Optional, Dict, Any, Tuple
 from enum import Enum
 
-from sglang.srt.model_loader.true_mixed_precision_loader import (
+from sglang.srt.model_loader.mixed_precision_loader import (
     CompressedWeight, WeightFormat, get_global_true_mixed_precision_loader
 )
 
-logger = torch._C._log.Logger()
+# 设置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class WeightFormat(Enum):

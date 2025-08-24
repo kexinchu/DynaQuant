@@ -8,18 +8,16 @@ import os
 import torch
 import yaml
 import logging
-import json
-from typing import Dict, Any, Optional, List, Tuple, Union
-from pathlib import Path
+from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
 # 兼容性处理safetensors导入
 try:
-    from safetensors.torch import load_file, safe_open
+    from safetensors.torch import load_file
 except ImportError:
     try:
-        from safetensors import load_file, safe_open
+        from safetensors import load_file
     except ImportError:
         import safetensors
         load_file = safetensors.load_file
@@ -27,7 +25,7 @@ except ImportError:
 
 # SGLang核心导入
 from sglang.srt.model_loader.weight_utils import default_weight_loader
-from sglang.srt.model_loader.loader import ModelLoader
+from sglang.srt.model_loader.loader import DefaultModelLoader
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.utils import get_bool_env_var
 
@@ -76,7 +74,7 @@ class TrueMixedPrecisionConfig:
             self.weight_mapping = {}
 
 
-class TrueMixedPrecisionLoader(ModelLoader):
+class TrueMixedPrecisionLoader(DefaultModelLoader):
     """真正的混合精度权重加载器"""
     
     def __init__(self, config: ModelConfig, mixed_precision_config: TrueMixedPrecisionConfig):
