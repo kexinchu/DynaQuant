@@ -105,10 +105,10 @@ class MixedPrecisionLinear(nn.Module):
         zp_full = zp_group_ic.repeat_interleave(g, dim=0).to(torch.int16)
         
         # 广播scales
-        scales_full = scales.repeat_interleave(g, dim=0).to(torch.float32)
+        scales_full = scales.repeat_interleave(g, dim=0).to(torch.float16)
         
         # 反量化
-        W_fp16 = ((Wq - zp_full).to(torch.float32) * scales_full).to(torch.float16)
+        W_fp16 = ((Wq - zp_full).to(torch.float16) * scales_full).to(torch.float16)
         return W_fp16.t()
     
     def _dequantize_awq_weight(self, compressed_weight: CompressedWeight) -> torch.Tensor:
@@ -164,8 +164,8 @@ class MixedPrecisionLinear(nn.Module):
             else:
                 return weight.to(torch.float16) * 0.01  # 简单的缩放
         elif compressed_weight.format in [WeightFormat.FP16, WeightFormat.FP8]:
-            # 浮点权重直接使用
-            return compressed_weight.data
+            # 浮点权重直接使用，转换为float16以确保兼容性
+            return compressed_weight.data.to(torch.float16)
         else:
             # 默认处理
             return compressed_weight.data.to(torch.float16)
@@ -177,7 +177,7 @@ class MixedPrecisionLinear(nn.Module):
         
         compressed_weight = self._get_compressed_weight()
         if compressed_weight is None:
-            # 如果没有压缩权重，返回零权重
+            # 如果没有压缩权重，返回零权重（使用float16以兼容更多输入类型）
             weight = torch.zeros(self.out_features, self.in_features, dtype=torch.float16)
             logger.warning(f"No compressed weight found for {self.weight_name}, using zero weight")
         else:
@@ -213,6 +213,16 @@ class MixedPrecisionLinear(nn.Module):
             weight = weight.to(input.device)
             if self.use_cache:
                 self._cached_weight = weight
+        
+        # 确保输入和权重具有相同的数据类型
+        if input.dtype != weight.dtype:
+            weight = weight.to(input.dtype)
+            if self.use_cache:
+                self._cached_weight = weight
+        
+        # 确保偏置具有相同的数据类型
+        if self.bias is not None and self.bias.dtype != input.dtype:
+            self.bias = self.bias.to(input.dtype)
         
         # 执行线性变换
         output = F.linear(input, weight, self.bias)
