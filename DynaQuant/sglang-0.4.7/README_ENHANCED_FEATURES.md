@@ -1,29 +1,34 @@
-# SGLang混合精度集成
+# SGLang真正混合精度集成
 
-本项目将混合精度权重加载功能真正集成到SGLang 0.4.7的核心架构中，通过SGLang的API和优化引擎提供高效的混合精度模型推理能力。
+本项目将**真正的混合精度**功能集成到SGLang 0.4.7的核心架构中，支持多种量化格式共存，保持各自的压缩格式以节省GPU存储，而不是转换为统一格式。
 
 ## 🎯 核心优势
 
-### 1. **真正的SGLang集成**
+### 1. **真正的混合精度**
+- **多种量化格式共存**: FP16、FP8、Int4、Int8格式同时存在
+- **保持压缩格式**: GPTQ Int4权重保持压缩格式，节省75%存储
+- **动态反量化**: 仅在推理时反量化，不预先转换
+- **真正的内存节省**: 不是虚假的格式转换，而是真正的压缩存储
+
+### 2. **SGLang深度集成**
 - **使用SGLang的API**: 通过`ModelConfig`、`DeviceConfig`、`LoadConfig`等SGLang核心配置
 - **利用SGLang优化**: 使用SGLang的高性能推理引擎和内存管理
 - **保持API兼容**: 完全兼容SGLang的现有API和功能
 
-### 2. **混合精度支持**
-- **选择性权重加载**: 根据配置文件选择性加载不同精度的权重
-- **GPTQ支持**: 完整的GPTQ-Int4量化模型支持
-- **Safetensors兼容**: 支持safetensors索引文件
-- **内存优化**: 智能缓存和内存管理
-
 ## 🚀 核心功能
 
-### 1. 混合精度权重加载
-- **选择性权重加载**: 根据配置文件选择性加载不同精度的权重
-- **GPTQ支持**: 完整的GPTQ-Int4量化模型支持
-- **Safetensors兼容**: 支持safetensors索引文件
-- **内存优化**: 智能缓存和内存管理
+### 1. 真正的混合精度权重加载
+- **多种量化格式共存**: FP16、FP8、Int4、Int8格式同时存在
+- **保持压缩格式**: GPTQ Int4权重保持压缩格式，节省75%存储
+- **动态反量化**: 仅在推理时反量化，不预先转换
+- **权重缓存**: 支持反量化结果缓存，避免重复计算
 
-### 2. 专家激活跟踪
+### 2. 混合精度线性层
+- **动态格式处理**: 根据权重格式动态选择处理方式
+- **缓存优化**: 支持权重缓存，提高推理效率
+- **内存优化**: 真正的内存节省，不是格式转换
+
+### 3. 专家激活跟踪（独立版本）
 - **实时监控**: 跟踪MoE模型中每个专家的激活情况
 - **统计分析**: 提供详细的专家使用统计
 - **性能分析**: 分析专家利用率和负载分布
@@ -35,15 +40,20 @@
 sglang-0.4.7/
 ├── python/sglang/srt/
 │   ├── model_loader/
+│   │   ├── true_mixed_precision_loader.py      # 真正的混合精度加载器
 │   │   ├── sglang_mixed_precision_loader.py    # SGLang集成的混合精度加载器
 │   │   ├── enhanced_mixed_precision_loader.py  # 增强的混合精度加载器（独立版本）
 │   │   └── loader.py                           # 修改的SGLang加载器（集成混合精度）
+│   ├── layers/
+│   │   └── mixed_precision_linear.py           # 混合精度线性层
 │   ├── models/
 │   │   └── moe_tracker.py                      # MoE专家跟踪器
 │   └── enhanced_model_loader.py                # 增强的模型加载器（独立版本）
 ├── launch_sglang_mixed_precision.py            # SGLang集成服务器启动脚本
+├── test_true_mixed_precision.py                # 真正混合精度功能测试脚本
 ├── test_sglang_integration.py                  # SGLang集成测试脚本
 ├── start_sglang_mixed_precision.sh             # SGLang集成启动脚本
+├── mixed_precision_config.yaml            # 真正混合精度配置文件
 ├── mixed_precision_config.yaml                 # 混合精度配置文件
 └── README_ENHANCED_FEATURES.md                 # 本文档
 ```
@@ -101,8 +111,11 @@ server:
 
 ## 🚀 快速开始
 
-### 1. 运行SGLang集成测试
+### 1. 运行真正混合精度测试
 ```bash
+# 测试真正混合精度功能
+python3 test_true_mixed_precision.py
+
 # 测试SGLang集成功能
 python3 test_sglang_integration.py
 
@@ -110,9 +123,9 @@ python3 test_sglang_integration.py
 ./start_sglang_mixed_precision.sh --help
 ```
 
-### 2. 启动SGLang混合精度服务器
+### 2. 启动真正混合精度服务器
 ```bash
-# 使用SGLang集成启动脚本
+# 使用真正混合精度配置
 ./start_sglang_mixed_precision.sh -m /path/to/model -c mixed_precision_config.yaml
 
 # 或者直接运行Python脚本
@@ -124,9 +137,9 @@ python3 launch_sglang_mixed_precision.py \
   --test
 ```
 
-### 3. 使用SGLang API
+### 3. 使用真正混合精度API
 ```python
-# 使用SGLang集成的混合精度功能
+# 使用真正混合精度功能
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.configs.device_config import DeviceConfig
 from sglang.srt.configs.load_config import LoadConfig, LoadFormat
@@ -143,18 +156,22 @@ model_config = ModelConfig(
 device_config = DeviceConfig(device="cuda")
 load_config = LoadConfig(load_format=LoadFormat.AUTO)
 
-# 使用SGLang加载器加载模型
+# 使用SGLang加载器加载模型（自动使用真正混合精度）
 loader = DefaultModelLoader(load_config)
 model = loader.load_model(
     model_config=model_config,
     device_config=device_config
 )
 
-# 获取混合精度统计
-from sglang.srt.model_loader.sglang_mixed_precision_loader import get_global_mixed_precision_loader
-mixed_precision_loader = get_global_mixed_precision_loader()
+# 获取真正混合精度统计
+from sglang.srt.model_loader.true_mixed_precision_loader import get_global_true_mixed_precision_loader
+from sglang.srt.layers.mixed_precision_linear import get_mixed_precision_memory_stats
+
+mixed_precision_loader = get_global_true_mixed_precision_loader()
 if mixed_precision_loader:
-    print(f"混合精度权重映射数量: {len(mixed_precision_loader.mixed_precision_config.weight_mapping)}")
+    memory_stats = get_mixed_precision_memory_stats()
+    print(f"内存节省: {memory_stats['memory_saved_mb']:.2f}MB")
+    print(f"压缩比: {memory_stats['compression_ratio']:.2f}x")
 ```
 
 ## 🔧 SGLang集成架构

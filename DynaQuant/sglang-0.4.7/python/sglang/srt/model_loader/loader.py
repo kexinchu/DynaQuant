@@ -379,31 +379,38 @@ class DefaultModelLoader(BaseModelLoader):
                 )
             print(model_config)
             
-            # Try to load mixed precision weights first
+            # Try to load true mixed precision weights first
             mixed_precision_loaded = False
             try:
-                # 尝试使用SGLang集成的混合精度加载器
+                # 尝试使用真正的混合精度加载器
                 config_path = getattr(model_config, 'mixed_precision_config', None)
                 if config_path and os.path.exists(config_path):
-                    logger.info(f"Attempting to load mixed precision weights from {config_path}")
+                    logger.info(f"Attempting to load true mixed precision weights from {config_path}")
                     
-                    # 使用SGLang集成的混合精度加载器
-                    from .sglang_mixed_precision_loader import create_mixed_precision_loader, set_global_mixed_precision_loader
+                    # 使用真正的混合精度加载器
+                    from .mixed_precision_loader import create_true_mixed_precision_loader, set_global_true_mixed_precision_loader
+                    from ..layers.mixed_precision_linear import replace_linear_with_mixed_precision
                     
-                    mixed_precision_loader = create_mixed_precision_loader(model_config, config_path)
-                    set_global_mixed_precision_loader(mixed_precision_loader)
+                    # 创建真正的混合精度加载器
+                    mixed_precision_loader = create_true_mixed_precision_loader(model_config, config_path)
+                    set_global_true_mixed_precision_loader(mixed_precision_loader)
                     
-                    # 加载混合精度权重
+                    # 加载量化权重（保持压缩格式）
                     stats = mixed_precision_loader.load_model_weights(model)
+                    
                     if stats['loaded'] > 0:
+                        # 替换线性层为混合精度线性层
+                        model = replace_linear_with_mixed_precision(model, mixed_precision_loader, use_cache=True)
+                        
                         mixed_precision_loaded = True
-                        logger.info(f"Mixed precision weights loaded successfully: {stats['loaded']} weights loaded")
+                        logger.info(f"True mixed precision weights loaded successfully: {stats['loaded']} weights loaded")
+                        logger.info(f"Total memory saved: {stats['memory_saved_mb']:.2f}MB")
                     else:
                         logger.warning("No mixed precision weights loaded, falling back to standard loading")
                 else:
                     logger.info("No mixed precision config found, using standard loading")
             except Exception as e:
-                logger.warning(f"Mixed precision loading failed: {e}, falling back to standard loading")
+                logger.warning(f"True mixed precision loading failed: {e}, falling back to standard loading")
             
             # If mixed precision loading failed, use standard loading
             if not mixed_precision_loaded:
