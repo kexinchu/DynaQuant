@@ -179,13 +179,26 @@ class EPMoE(torch.nn.Module):
 
         self.layer_id = layer_id
         self.num_experts = num_experts
-        assert self.num_experts % self.tp_size == 0
+        # 对于单expert模型，允许expert数量不能被TP size整除
+        # 这种情况下，每个GPU分配一个expert
+        if self.num_experts <= self.tp_size:
+            # 单expert模型：每个GPU分配一个expert
+            self.num_experts_per_partition = 1
+            # self.start_expert_id = self.tp_rank
+            # self.end_expert_id = self.tp_rank
+            # 对于单expert模型，所有GPU都使用expert 0
+            self.start_expert_id = 0
+            self.end_expert_id = 0
+        else:
+            # 多expert模型：需要expert数量能被TP size整除
+            assert self.num_experts % self.tp_size == 0
+            self.num_experts_per_partition = self.num_experts // self.tp_size
+            self.start_expert_id = self.tp_rank * self.num_experts_per_partition
+            self.end_expert_id = self.start_expert_id + self.num_experts_per_partition - 1
+
         assert (
             num_fused_shared_experts == 0
         ), "num_fused_shared_experts is not supported in EP"
-        self.num_experts_per_partition = self.num_experts // self.tp_size
-        self.start_expert_id = self.tp_rank * self.num_experts_per_partition
-        self.end_expert_id = self.start_expert_id + self.num_experts_per_partition - 1
 
         self.top_k = top_k
         self.intermediate_size = intermediate_size

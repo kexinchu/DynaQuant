@@ -30,8 +30,8 @@ def start_ep_server():
     cmd = [
         'python3', '-m', 'sglang.launch_server',
         '--model-path', '/dev/shm/Qwen3-30B-A3B',  # 修改为你的模型路径
-        '--tp-size', '4',  # 其他层使用TP=4
-        '--dp-size', '2',  # 其他层使用DP=2
+        '--tp-size', '8',  # 其他层使用TP=4
+        '--dp-size', '1',  # 其他层使用DP=2
         '--enable-ep-moe',  # 启用expert parallel
         '--ep-size', '8',   # expert parallel size = 8
         '--max-running-requests', '32',
@@ -120,7 +120,7 @@ def main():
         print("\n=== 测试完成 ===")
         print("Expert Parallel 配置:")
         print("- Expert层: EP=8 (每个expert在8张GPU上都有备份)")
-        print("- 其他层: TP=4, DP=2")
+        print("- 其他层: TP=8, DP=1")
         print("- 路由策略: 随机routing")
         
     except KeyboardInterrupt:

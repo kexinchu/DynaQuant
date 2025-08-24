@@ -26,6 +26,7 @@ def start_tp_server():
     })
     
     # 启动命令 - 使用TP=8进行expert切分
+    # double check 一下TP是否正确了
     cmd = [
         'python3', '-m', 'sglang.launch_server',
         '--model-path', '/dev/shm/Qwen3-30B-A3B',  # 修改为你的模型路径
