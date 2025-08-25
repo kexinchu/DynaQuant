@@ -9,7 +9,7 @@ import os
 import torch
 import yaml
 import logging
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 from enum import Enum
 
@@ -112,7 +112,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         try:
             weights = load_file(file_path)
             self.weight_cache[file_path] = weights
-            # logger.info(f"Loaded safetensors file: {file_path}")
+            logger.info(f"Loaded safetensors file: {file_path}")
             return weights
         except Exception as e:
             logger.error(f"Failed to load safetensors file {file_path}: {e}")
@@ -148,7 +148,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             if 'weight_map' in index_data:
                 weight_to_file = index_data['weight_map']
             
-            # logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
+            logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
             return weight_to_file
         except Exception as e:
             logger.error(f"Failed to load safetensors index {index_file}: {e}")
@@ -159,13 +159,16 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         normalized_names = [weight_name]
         
         # 处理qkv_proj -> q_proj, k_proj, v_proj的转换
+        # SGLang的QKVParallelLinear期望qkv_proj.weight，但权重文件可能是分离的
         if "qkv_proj" in weight_name:
-            base_name = weight_name.replace("qkv_proj.weight", "")
+            base_name = weight_name.replace("qkv_proj", "")
             normalized_names = [
                 base_name + "q_proj.weight",
                 base_name + "k_proj.weight", 
                 base_name + "v_proj.weight"
             ]
+            # 同时保留原始的qkv_proj.weight名称，以防权重文件中有直接的qkv_proj权重
+            normalized_names.append(weight_name)
         
         # 处理不同精度的权重名称差异
         if precision in ["fp8", "int8"]:
@@ -242,10 +245,10 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 file_name = weight_to_file[normalized_name]
                 file_path = os.path.join(base_path, file_name)
                 if os.path.exists(file_path):
-                    # if normalized_name != weight_name:
-                    #     logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
-                    # else:
-                    #     logger.info(f"Found weight {weight_name} in index file: {file_path}")
+                    if normalized_name != weight_name:
+                        logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
+                    else:
+                        logger.info(f"Found weight {weight_name} in index file: {file_path}")
                     return file_path
                 else:
                     logger.warning(f"Weight file from index not found: {file_path}")
@@ -304,8 +307,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 weights = self._load_pytorch_file(weight_file)
             
             # 处理qkv_proj的特殊情况
+            # SGLang的QKVParallelLinear期望qkv_proj.weight，但权重文件可能是分离的q_proj, k_proj, v_proj
             if "qkv_proj" in weight_name:
-                return self._load_qkv_weight(weight_name, weights, precision)
+                return self._load_qkv_weight_for_sglang(weight_name, weights, precision)
             
             # 处理GPTQ-Int4的特殊情况
             if precision in ["gptq_int4", "awq_int4"]:
@@ -335,9 +339,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
             return None
     
-    def _load_qkv_weight(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
-        """加载qkv权重，将分离的q_proj, k_proj, v_proj合并"""
-        base_name = weight_name.replace("qkv_proj.weight", "")
+    def _load_qkv_weight_for_sglang(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
+        """为SGLang加载qkv权重，处理分离的q_proj, k_proj, v_proj合并为qkv_proj"""
+        base_name = weight_name.replace("qkv_proj", "")
         q_name = base_name + "q_proj.weight"
         k_name = base_name + "k_proj.weight"
         v_name = base_name + "v_proj.weight"
@@ -348,8 +352,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             k_weight = weights[k_name]
             v_weight = weights[v_name]
             
-            # 合并qkv权重
-            qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
+            # 合并qkv权重 - 按照SGLang的QKVParallelLinear期望的格式
+            # QKV权重在最后一个维度上连接
+            qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
             original_shape = qkv_weight.shape
             
             # 创建压缩权重对象
@@ -360,7 +365,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                     'q_weight': q_weight,
                     'k_weight': k_weight,
                     'v_weight': v_weight,
-                    'is_merged': True
+                    'is_merged': True,
+                    'q_size': q_weight.shape[-1],
+                    'kv_size': k_weight.shape[-1]
                 },
                 original_shape=original_shape,
                 compressed_size=qkv_weight.numel() * qkv_weight.element_size()
@@ -369,8 +376,25 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             # logger.info(f"Merged qkv weight {weight_name} from {q_name}, {k_name}, {v_name}, shape: {original_shape}")
             return compressed_weight
         else:
-            logger.warning(f"Separate qkv weights not found: {q_name}, {k_name}, {v_name}")
-            return None
+            # 如果找不到分离的权重，检查是否有直接的qkv_proj权重
+            if weight_name in weights:
+                weight_data = weights[weight_name]
+                original_shape = weight_data.shape
+                
+                compressed_weight = CompressedWeight(
+                    format=WeightFormat(precision),
+                    data=weight_data,
+                    metadata={},
+                    original_shape=original_shape,
+                    compressed_size=weight_data.numel() * weight_data.element_size()
+                )
+                
+                # logger.info(f"Found direct qkv weight {weight_name}, shape: {original_shape}")
+                return compressed_weight
+            else:
+                logger.warning(f"Neither separate qkv weights nor direct qkv weight found for {weight_name}")
+                logger.warning(f"Tried: {q_name}, {k_name}, {v_name}, {weight_name}")
+                return None
     
     def _load_gptq_weight(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
         """加载GPTQ权重，处理分离的量化组件"""
@@ -871,21 +895,103 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
     def _load_base_model_weights_dict(self, base_model_path: str) -> Optional[Dict[str, torch.Tensor]]:
         """加载基础模型权重字典"""
         try:
-            # 尝试加载safetensors格式
+            # 首先尝试加载safetensors索引文件
+            index_file = os.path.join(base_model_path, "model.safetensors.index.json")
+            if os.path.exists(index_file):
+                logger.info(f"Loading safetensors index from {index_file}")
+                return self._load_safetensors_index_weights(base_model_path, index_file)
+            
+            # 尝试加载单个safetensors文件
             model_file = os.path.join(base_model_path, "model.safetensors")
             if os.path.exists(model_file):
+                logger.info(f"Loading single safetensors file: {model_file}")
                 return self._load_safetensors_file(model_file)
             
             # 尝试加载PyTorch格式
             model_file = os.path.join(base_model_path, "pytorch_model.bin")
             if os.path.exists(model_file):
+                logger.info(f"Loading PyTorch model file: {model_file}")
                 return self._load_pytorch_file(model_file)
             
+            # 尝试加载分片的PyTorch文件
+            pytorch_files = [f for f in os.listdir(base_model_path) if f.startswith("pytorch_model-") and f.endswith(".bin")]
+            if pytorch_files:
+                logger.info(f"Loading PyTorch sharded files: {len(pytorch_files)} files")
+                return self._load_pytorch_sharded_files(base_model_path, pytorch_files)
+            
             logger.warning(f"No model file found in {base_model_path}")
+            logger.info(f"Available files in {base_model_path}:")
+            try:
+                for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
+                    logger.info(f"  - {f}")
+            except Exception as e:
+                logger.error(f"Error listing directory: {e}")
+            
             return None
             
         except Exception as e:
             logger.error(f"Failed to load base model weights: {e}")
+            return None
+    
+    def _load_safetensors_index_weights(self, base_model_path: str, index_file: str) -> Optional[Dict[str, torch.Tensor]]:
+        """从safetensors索引文件加载权重"""
+        try:
+            import json
+            with open(index_file, 'r', encoding='utf-8') as f:
+                index_data = json.load(f)
+            
+            weight_to_file = index_data.get('weight_map', {})
+            if not weight_to_file:
+                logger.warning("No weight_map found in index file")
+                return None
+            
+            all_weights = {}
+            loaded_files = set()
+            
+            for weight_name, file_name in weight_to_file.items():
+                file_path = os.path.join(base_model_path, file_name)
+                
+                if file_name not in loaded_files:
+                    if os.path.exists(file_path):
+                        logger.debug(f"Loading safetensors file: {file_path}")
+                        file_weights = self._load_safetensors_file(file_path)
+                        if file_weights:
+                            all_weights.update(file_weights)
+                            loaded_files.add(file_name)
+                        else:
+                            logger.warning(f"Failed to load file: {file_path}")
+                    else:
+                        logger.warning(f"File not found: {file_path}")
+            
+            logger.info(f"Loaded {len(all_weights)} weights from {len(loaded_files)} files")
+            return all_weights
+            
+        except Exception as e:
+            logger.error(f"Error loading safetensors index: {e}")
+            return None
+    
+    def _load_pytorch_sharded_files(self, base_model_path: str, pytorch_files: List[str]) -> Optional[Dict[str, torch.Tensor]]:
+        """加载分片的PyTorch文件"""
+        try:
+            all_weights = {}
+            
+            for file_name in sorted(pytorch_files):  # 确保按顺序加载
+                file_path = os.path.join(base_model_path, file_name)
+                if os.path.exists(file_path):
+                    logger.debug(f"Loading PyTorch file: {file_path}")
+                    file_weights = self._load_pytorch_file(file_path)
+                    if file_weights:
+                        all_weights.update(file_weights)
+                    else:
+                        logger.warning(f"Failed to load file: {file_path}")
+                else:
+                    logger.warning(f"File not found: {file_path}")
+            
+            logger.info(f"Loaded {len(all_weights)} weights from {len(pytorch_files)} PyTorch files")
+            return all_weights
+            
+        except Exception as e:
+            logger.error(f"Error loading PyTorch sharded files: {e}")
             return None
 
 
