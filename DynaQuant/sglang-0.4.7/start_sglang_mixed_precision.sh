@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 混合精度TP/DP启动脚本
-# 支持TP=4, DP=2的配置
+# 兼容SGLang原生启动方式的混合精度启动脚本
+# 支持TP/DP/EP等SGLang原生功能
 
 set -e
 
@@ -17,33 +17,46 @@ MODEL_PATH=""
 MIXED_PRECISION_CONFIG=""
 TP_SIZE=4
 DP_SIZE=2
-WORLD_SIZE=8
-DIST_INIT_ADDR="127.0.0.1:50000"
-DTYPE="auto"
-TEST_MODE=false
-
-# 进程管理
-PIDS=()
+EP_SIZE=1
+HOST="127.0.0.1"
+PORT=8080
+DTYPE="bfloat16"
+MAX_RUNNING_REQUESTS=32
+MAX_TOTAL_TOKENS=40960
+ENABLE_MIXED_PRECISION=false
 
 # 显示帮助信息
 show_help() {
-    echo -e "${BLUE}混合精度TP/DP启动脚本${NC}"
+    echo -e "${BLUE}兼容SGLang原生启动方式的混合精度启动脚本${NC}"
     echo ""
     echo "用法: $0 [选项]"
     echo ""
     echo "选项:"
     echo "  -m, --model PATH              模型路径 (必需)"
-    echo "  -c, --config PATH             混合精度配置文件路径 (必需)"
+    echo "  -c, --config PATH             混合精度配置文件路径"
     echo "  -t, --tp-size SIZE            张量并行大小 (默认: 4)"
     echo "  -d, --dp-size SIZE            数据并行大小 (默认: 2)"
-    echo "  -a, --dist-addr ADDR:PORT     分布式初始化地址 (默认: 127.0.0.1:50000)"
-    echo "  --dtype TYPE                  数据类型 (默认: auto)"
-    echo "  --test                        运行测试模式"
+    echo "  -e, --ep-size SIZE            专家并行大小 (默认: 1)"
+    echo "  --host HOST                   服务器主机 (默认: 127.0.0.1)"
+    echo "  --port PORT                   服务器端口 (默认: 8080)"
+    echo "  --dtype TYPE                  数据类型 (默认: bfloat16)"
+    echo "  --max-running-requests NUM    最大运行请求数 (默认: 32)"
+    echo "  --max-total-tokens NUM        最大总token数 (默认: 40960)"
+    echo "  --enable-mixed-precision      启用混合精度加载"
     echo "  -h, --help                    显示此帮助信息"
     echo ""
     echo "示例:"
-    echo "  $0 -m /path/to/model -c mixed_precision_config.yaml"
-    echo "  $0 -m /path/to/model -c mixed_precision_config.yaml -t 4 -d 2 --test"
+    echo "  # 标准SGLang启动 (无混合精度)"
+    echo "  $0 -m /path/to/model -t 4 -d 2"
+    echo ""
+    echo "  # 启用混合精度的SGLang启动"
+    echo "  $0 -m /path/to/model -c mixed_precision_config.yaml --enable-mixed-precision -t 4 -d 2"
+    echo ""
+    echo "  # 兼容原生SGLang命令格式"
+    echo "  $0 -m /path/to/model --enable-mixed-precision -c config.yaml \\"
+    echo "     --tp-size 4 --dp-size 2 --ep-size 1 \\"
+    echo "     --max-running-requests 32 --max-total-tokens 40960 \\"
+    echo "     --dtype bfloat16 --trust-remote-code"
     echo ""
 }
 
@@ -88,7 +101,7 @@ check_files() {
         exit 1
     fi
     
-    if [[ ! -f "$MIXED_PRECISION_CONFIG" ]]; then
+    if [[ "$ENABLE_MIXED_PRECISION" = true ]] && [[ ! -f "$MIXED_PRECISION_CONFIG" ]]; then
         echo -e "${RED}错误: 混合精度配置文件不存在: $MIXED_PRECISION_CONFIG${NC}"
         exit 1
     fi
@@ -98,172 +111,94 @@ check_files() {
 
 # 检查GPU数量
 check_gpu_count() {
-    local required_gpus=$WORLD_SIZE
-    local available_gpus=0
+    echo -e "${BLUE}检查GPU数量...${NC}"
     
-    if command -v nvidia-smi &> /dev/null; then
-        available_gpus=$(nvidia-smi --list-gpus | wc -l)
+    local gpu_count=$(nvidia-smi --list-gpus | wc -l 2>/dev/null || echo 0)
+    local required_gpus=$((TP_SIZE * DP_SIZE))
+    
+    echo -e "可用GPU数量: $gpu_count"
+    echo -e "需要GPU数量: $required_gpus (TP=$TP_SIZE × DP=$DP_SIZE)"
+    
+    if [[ $gpu_count -lt $required_gpus ]]; then
+        echo -e "${RED}错误: GPU数量不足${NC}"
+        echo -e "需要至少 $required_gpus 个GPU，但只有 $gpu_count 个可用"
+        exit 1
     fi
     
-    echo -e "${BLUE}GPU检查:${NC}"
-    echo "  需要GPU数量: $required_gpus"
-    echo "  可用GPU数量: $available_gpus"
-    
-    if [[ $available_gpus -lt $required_gpus ]]; then
-        echo -e "${YELLOW}警告: 可用GPU数量($available_gpus)少于需要数量($required_gpus)${NC}"
-        echo "  将使用单GPU模式运行多个进程"
-    else
-        echo -e "${GREEN}GPU数量检查通过${NC}"
-    fi
+    echo -e "${GREEN}GPU数量检查通过${NC}"
 }
 
-# 启动单个进程
-start_process() {
-    local rank=$1
-    local local_rank=$((rank % $(nvidia-smi --list-gpus | wc -l 2>/dev/null || echo 1)))
-    
-    echo -e "${BLUE}启动进程 rank=$rank (local_rank=$local_rank)...${NC}"
+# 显示配置信息
+show_config() {
+    echo -e "${BLUE}配置信息:${NC}"
+    echo -e "  模型路径: $MODEL_PATH"
+    if [[ "$ENABLE_MIXED_PRECISION" = true ]]; then
+        echo -e "  混合精度: 启用"
+        echo -e "  配置文件: $MIXED_PRECISION_CONFIG"
+    else
+        echo -e "  混合精度: 禁用"
+    fi
+    echo -e "  张量并行: $TP_SIZE"
+    echo -e "  数据并行: $DP_SIZE"
+    echo -e "  专家并行: $EP_SIZE"
+    echo -e "  服务器地址: $HOST:$PORT"
+    echo -e "  数据类型: $DTYPE"
+    echo -e "  最大运行请求数: $MAX_RUNNING_REQUESTS"
+    echo -e "  最大总token数: $MAX_TOTAL_TOKENS"
+    echo ""
+}
+
+# 启动服务器
+start_server() {
+    echo -e "${BLUE}启动兼容SGLang原生方式的混合精度服务器...${NC}"
     
     # 设置环境变量
-    export CUDA_VISIBLE_DEVICES=$local_rank
-    export NCCL_DEBUG=INFO
-    export NCCL_ASYNC_ERROR_HANDLING=1
+    export CUDA_VISIBLE_DEVICES=0,1,2,3
+    export PYTHONPATH="${PYTHONPATH}:$(pwd)/python"
     
-    # 启动进程
-    python3 launch_sglang_mixed_precision.py \
-        --model "$MODEL_PATH" \
-        --mixed-precision-config "$MIXED_PRECISION_CONFIG" \
-        --tp-size "$TP_SIZE" \
-        --dp-size "$DP_SIZE" \
-        --rank "$rank" \
-        --world-size "$WORLD_SIZE" \
-        --dist-init-addr "$DIST_INIT_ADDR" \
-        --dtype "$DTYPE" \
-        ${TEST_MODE:+--test} > "mixed_precision_rank_${rank}.log" 2>&1 &
+    # 构建启动命令
+    LAUNCH_CMD="python3 launch_mixed_precision_sglang.py"
     
-    local pid=$!
-    PIDS+=($pid)
+    # 添加混合精度参数
+    if [[ "$ENABLE_MIXED_PRECISION" = true ]]; then
+        LAUNCH_CMD="$LAUNCH_CMD --enable-mixed-precision --mixed-precision-config $MIXED_PRECISION_CONFIG"
+    fi
     
-    echo -e "${GREEN}进程 rank=$rank 已启动 (PID: $pid)${NC}"
-}
-
-# 启动所有进程
-start_all_processes() {
-    echo -e "${BLUE}启动所有进程...${NC}"
-    echo "配置: TP=$TP_SIZE, DP=$DP_SIZE, World Size=$WORLD_SIZE"
-    echo "分布式地址: $DIST_INIT_ADDR"
+    # 添加标准SGLang参数
+    LAUNCH_CMD="$LAUNCH_CMD --model-path $MODEL_PATH"
+    LAUNCH_CMD="$LAUNCH_CMD --tp-size $TP_SIZE"
+    LAUNCH_CMD="$LAUNCH_CMD --dp-size $DP_SIZE"
+    LAUNCH_CMD="$LAUNCH_CMD --ep-size $EP_SIZE"
+    LAUNCH_CMD="$LAUNCH_CMD --max-running-requests $MAX_RUNNING_REQUESTS"
+    LAUNCH_CMD="$LAUNCH_CMD --host $HOST"
+    LAUNCH_CMD="$LAUNCH_CMD --port $PORT"
+    LAUNCH_CMD="$LAUNCH_CMD --max-total-tokens $MAX_TOTAL_TOKENS"
+    LAUNCH_CMD="$LAUNCH_CMD --dtype $DTYPE"
+    LAUNCH_CMD="$LAUNCH_CMD --trust-remote-code"
+    LAUNCH_CMD="$LAUNCH_CMD --attention-backend torch_native"
+    LAUNCH_CMD="$LAUNCH_CMD --sampling-backend pytorch"
+    LAUNCH_CMD="$LAUNCH_CMD --disable-cuda-graph"
+    LAUNCH_CMD="$LAUNCH_CMD --disable-cuda-graph-padding"
+    LAUNCH_CMD="$LAUNCH_CMD --kv-cache-dtype auto"
+    LAUNCH_CMD="$LAUNCH_CMD --allow-auto-truncate"
+    LAUNCH_CMD="$LAUNCH_CMD --chunked-prefill-size 16384"
+    
+    echo -e "${GREEN}启动命令:${NC}"
+    echo "$LAUNCH_CMD"
+    echo ""
+    echo -e "${BLUE}服务器将在 http://$HOST:$PORT 启动${NC}"
+    echo -e "${YELLOW}按 Ctrl+C 停止服务器${NC}"
     echo ""
     
-    # 清理之前的日志文件
-    rm -f mixed_precision_rank_*.log
-    
-    # 启动所有进程
-    for ((rank=0; rank<WORLD_SIZE; rank++)); do
-        start_process $rank
-        sleep 1  # 减少等待时间，让进程更快启动
-    done
-    
-    # 等待所有进程初始化
-    echo -e "${BLUE}等待所有进程初始化...${NC}"
-    sleep 10
-    
-    # 检查进程状态
-    local running=0
-    for pid in "${PIDS[@]}"; do
-        if kill -0 "$pid" 2>/dev/null; then
-            ((running++))
-        fi
-    done
-    
-    echo ""
-    echo -e "${GREEN}所有进程已启动${NC}"
-    echo "进程PID: ${PIDS[@]}"
-    echo "运行中进程: $running/$WORLD_SIZE"
-    
-    # 显示日志文件位置
-    echo ""
-    echo -e "${BLUE}日志文件:${NC}"
-    for ((rank=0; rank<WORLD_SIZE; rank++)); do
-        echo "  Rank $rank: mixed_precision_rank_${rank}.log"
-    done
-}
-
-# 清理进程
-cleanup() {
-    echo -e "${YELLOW}清理进程...${NC}"
-    for pid in "${PIDS[@]}"; do
-        if kill -0 "$pid" 2>/dev/null; then
-            echo "终止进程 PID: $pid"
-            kill -TERM "$pid" 2>/dev/null || true
-        fi
-    done
-    
-    # 等待进程结束
-    for pid in "${PIDS[@]}"; do
-        if kill -0 "$pid" 2>/dev/null; then
-            wait "$pid" 2>/dev/null || true
-        fi
-    done
-    
-    echo -e "${GREEN}所有进程已清理${NC}"
-}
-
-# 监控进程
-monitor_processes() {
-    echo -e "${BLUE}监控进程状态...${NC}"
-    echo "按 Ctrl+C 停止所有进程"
-    echo ""
-    
-    # 设置信号处理
-    trap cleanup EXIT INT TERM
-    
-    # 监控循环
-    local iteration=0
-    while true; do
-        local running=0
-        local failed=0
-        
-        for i in "${!PIDS[@]}"; do
-            local pid=${PIDS[$i]}
-            if kill -0 "$pid" 2>/dev/null; then
-                ((running++))
-            else
-                ((failed++))
-                echo -e "${RED}进程 rank=$i (PID: $pid) 已停止${NC}"
-                
-                # 检查日志文件中的错误
-                if [[ -f "mixed_precision_rank_${i}.log" ]]; then
-                    echo -e "${YELLOW}Rank $i 日志摘要:${NC}"
-                    tail -n 10 "mixed_precision_rank_${i}.log" | head -n 5
-                fi
-            fi
-        done
-        
-        if [[ $running -eq 0 ]]; then
-            echo -e "${RED}所有进程已停止${NC}"
-            break
-        fi
-        
-        if [[ $failed -gt 0 ]]; then
-            echo -e "${YELLOW}运行中进程: $running/$WORLD_SIZE, 失败: $failed${NC}"
-        else
-            echo -e "${GREEN}运行中进程: $running/$WORLD_SIZE${NC}"
-        fi
-        
-        # 每10次迭代显示一次GPU状态
-        if [[ $((iteration % 10)) -eq 0 ]]; then
-            echo -e "${BLUE}GPU状态:${NC}"
-            nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits | head -n 4
-        fi
-        
-        ((iteration++))
-        sleep 10
-    done
+    # 启动服务器
+    eval $LAUNCH_CMD
 }
 
 # 主函数
 main() {
-    echo -e "${BLUE}=== 混合精度TP/DP启动脚本 ===${NC}"
+    echo -e "${BLUE}================================${NC}"
+    echo -e "${BLUE}兼容SGLang原生启动方式的混合精度服务器${NC}"
+    echo -e "${BLUE}================================${NC}"
     echo ""
     
     # 解析命令行参数
@@ -285,16 +220,32 @@ main() {
                 DP_SIZE="$2"
                 shift 2
                 ;;
-            -a|--dist-addr)
-                DIST_INIT_ADDR="$2"
+            -e|--ep-size)
+                EP_SIZE="$2"
+                shift 2
+                ;;
+            --host)
+                HOST="$2"
+                shift 2
+                ;;
+            --port)
+                PORT="$2"
                 shift 2
                 ;;
             --dtype)
                 DTYPE="$2"
                 shift 2
                 ;;
-            --test)
-                TEST_MODE=true
+            --max-running-requests)
+                MAX_RUNNING_REQUESTS="$2"
+                shift 2
+                ;;
+            --max-total-tokens)
+                MAX_TOTAL_TOKENS="$2"
+                shift 2
+                ;;
+            --enable-mixed-precision)
+                ENABLE_MIXED_PRECISION=true
                 shift
                 ;;
             -h|--help)
@@ -302,57 +253,47 @@ main() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}未知选项: $1${NC}"
+                echo -e "${RED}未知参数: $1${NC}"
                 show_help
                 exit 1
                 ;;
         esac
     done
     
-    # 验证必需参数
+    # 检查必需参数
     if [[ -z "$MODEL_PATH" ]]; then
         echo -e "${RED}错误: 必须指定模型路径 (-m/--model)${NC}"
         show_help
         exit 1
     fi
     
-    if [[ -z "$MIXED_PRECISION_CONFIG" ]]; then
-        echo -e "${RED}错误: 必须指定混合精度配置文件 (-c/--config)${NC}"
+    if [[ "$ENABLE_MIXED_PRECISION" = true ]] && [[ -z "$MIXED_PRECISION_CONFIG" ]]; then
+        echo -e "${RED}错误: 启用混合精度时必须指定配置文件 (-c/--config)${NC}"
         show_help
         exit 1
     fi
     
-    # 计算world size
-    WORLD_SIZE=$((TP_SIZE * DP_SIZE))
-    
-    echo -e "${BLUE}配置信息:${NC}"
-    echo "  模型路径: $MODEL_PATH"
-    echo "  混合精度配置: $MIXED_PRECISION_CONFIG"
-    echo "  张量并行大小: $TP_SIZE"
-    echo "  数据并行大小: $DP_SIZE"
-    echo "  总进程数: $WORLD_SIZE"
-    echo "  分布式地址: $DIST_INIT_ADDR"
-    echo "  数据类型: $DTYPE"
-    echo "  测试模式: $TEST_MODE"
-    echo ""
-    
-    # 检查依赖和文件
+    # 检查Python环境
     check_dependencies
+    echo ""
+    
+    # 检查配置文件
     check_files
+    echo ""
+    
+    # 检查GPU数量
     check_gpu_count
-    
-    echo ""
-    echo -e "${BLUE}开始启动混合精度TP/DP服务器...${NC}"
     echo ""
     
-    # 启动所有进程
-    start_all_processes
+    # 显示配置信息
+    show_config
     
-    # 监控进程
-    monitor_processes
+    # 启动服务器
+    start_server
 }
 
+# 捕获Ctrl+C信号
+trap 'echo -e "\n${YELLOW}服务器已停止${NC}"; exit 0' INT
+
 # 运行主函数
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    main "$@"
-fi
+main "$@"

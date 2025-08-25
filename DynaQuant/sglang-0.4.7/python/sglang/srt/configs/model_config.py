@@ -270,6 +270,7 @@ class ModelConfig:
             dtype=server_args.dtype,
             quantization=server_args.quantization,
             impl=server_args.impl,
+            mixed_precision_config=server_args.mixed_precision_config if server_args.enable_mixed_precision else None,
             **kwargs,
         )
 

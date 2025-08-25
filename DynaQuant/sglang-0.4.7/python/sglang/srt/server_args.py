@@ -129,6 +129,10 @@ class ServerArgs:
     json_model_override_args: str = "{}"
     preferred_sampling_params: Optional[str] = None
 
+    # Mixed precision configuration
+    mixed_precision_config: Optional[str] = None
+    enable_mixed_precision: bool = False
+
     # LoRA
     lora_paths: Optional[List[str]] = None
     max_loras_per_batch: int = 8
@@ -627,6 +631,20 @@ class ServerArgs:
             "scaling factors. This should generally be supplied, when "
             "KV cache dtype is FP8. Otherwise, KV cache scaling factors "
             "default to 1.0, which may cause accuracy issues. ",
+        )
+        parser.add_argument(
+            "--enable-mixed-precision",
+            action="store_true",
+            default=ServerArgs.enable_mixed_precision,
+            help="Enable mixed precision loading for selective weight quantization.",
+        )
+        parser.add_argument(
+            "--mixed-precision-config",
+            type=str,
+            default=ServerArgs.mixed_precision_config,
+            help="Path to the mixed precision configuration file (YAML format). "
+            "This file specifies which model layers should use which precision "
+            "(FP16, FP8, Int4, etc.) for optimal memory usage and performance.",
         )
         parser.add_argument(
             "--context-length",
