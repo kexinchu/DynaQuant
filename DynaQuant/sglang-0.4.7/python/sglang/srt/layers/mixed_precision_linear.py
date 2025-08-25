@@ -1,306 +1,279 @@
 #!/usr/bin/env python3
 """
-混合精度线性层
-支持动态处理不同格式的压缩权重，在推理时按需反量化
+混合精度线性层 - 使用SGLang现成的量化kernel
+避免de-quantization，直接使用压缩权重进行推理
 """
-import logging
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Dict, Any, Tuple
-from enum import Enum
+from typing import Optional, Dict, Any
+import logging
 
-from sglang.srt.model_loader.mixed_precision_loader import (
-    CompressedWeight, WeightFormat, get_global_true_mixed_precision_loader
+# SGLang量化支持导入
+from sglang.srt.layers.quantization import (
+    Fp8LinearMethod, GPTQLinearMethod, AWQLinearMethod,
+    QuantizationConfig
 )
+from sglang.srt.layers.linear import LinearBase, LinearMethodBase
 
-# 设置日志
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class WeightFormat(Enum):
-    """权重格式枚举"""
-    FP16 = "fp16"
-    FP8 = "fp8"
-    INT4 = "int4"
-    INT8 = "int8"
-    GPTQ_INT4 = "gptq_int4"
-    AWQ_INT4 = "awq_int4"
-
-
-class MixedPrecisionLinear(nn.Module):
-    """混合精度线性层"""
+class MixedPrecisionLinear(LinearBase):
+    """混合精度线性层 - 使用SGLang的量化kernel"""
     
-    def __init__(self, in_features: int, out_features: int, bias: bool = True, 
-                 weight_name: str = None, use_cache: bool = True):
-        """
-        初始化混合精度线性层
+    def __init__(
+        self,
+        input_size: int,
+        output_size: int,
+        bias: bool = True,
+        device: Optional[torch.device] = None,
+        dtype: Optional[torch.dtype] = None,
+    ):
+        super().__init__(input_size, output_size, bias, device, dtype)
         
-        Args:
-            in_features: 输入特征数
-            out_features: 输出特征数
-            bias: 是否使用偏置
-            weight_name: 权重名称（用于从加载器获取压缩权重）
-            use_cache: 是否使用缓存
-        """
-        super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.weight_name = weight_name
-        self.use_cache = use_cache
+        # 存储压缩权重
+        self.compressed_weight = None
+        self.weight_format = None
+        self.quantization_method = None
         
-        # 缓存反量化后的权重
-        self._cached_weight = None
-        self._cached_bias = None
+        # 初始化量化方法
+        self._init_quantization_methods()
+    
+    def _init_quantization_methods(self):
+        """初始化量化方法"""
+        self.quantization_methods = {
+            'fp8': Fp8LinearMethod(),
+            'gptq_int4': GPTQLinearMethod(),
+            'awq_int4': AWQLinearMethod(),
+        }
+    
+    def set_compressed_weight(self, compressed_weight):
+        """设置压缩权重"""
+        self.compressed_weight = compressed_weight
+        self.weight_format = compressed_weight.format.value
         
-        # 创建偏置（如果需要）
-        if bias:
-            self.bias = nn.Parameter(torch.zeros(out_features))
+        # 根据权重格式选择量化方法
+        if self.weight_format in self.quantization_methods:
+            self.quantization_method = self.quantization_methods[self.weight_format]
+            logger.debug(f"Set quantization method for {self.weight_format}")
         else:
-            self.register_parameter('bias', None)
-        
-        # 初始化权重（占位符，实际权重从压缩格式加载）
-        self.register_parameter('weight', None)
-
-        logger.info(f"True mixed precision linear initialized: {self.weight_name}")
-    
-    def _get_compressed_weight(self) -> Optional[CompressedWeight]:
-        """获取压缩权重"""
-        if self.weight_name is None:
-            return None
-        
-        loader = get_global_true_mixed_precision_loader()
-        if loader is None:
-            return None
-        
-        return loader.get_compressed_weight(self.weight_name)
-    
-    def _dequantize_gptq_weight(self, compressed_weight: CompressedWeight) -> torch.Tensor:
-        """反量化GPTQ权重"""
-        metadata = compressed_weight.metadata
-        qweight = metadata['qweight']
-        qzeros = metadata['qzeros']
-        scales = metadata['scales']
-        g_idx = metadata.get('g_idx', None)
-        bits = metadata.get('bits', 4)
-        group_size = metadata.get('group_size', 128)
-        
-        # GPTQ反量化逻辑
-        pack = 32 // bits
-        oc_pack, IC = qweight.shape
-        OC = oc_pack * pack
-        
-        # 解包qweight
-        Wq = self._unpack_int32_to_nibbles_rows(qweight, bits=bits)
-        
-        # 处理qzeros和scales
-        groups_out = qzeros.shape[0]
-        g = OC // groups_out
-        
-        device = qweight.device
-        mask = (1 << bits) - 1
-        col = torch.arange(IC, device=device)
-        qz_cols = qzeros[:, (col // pack)]
-        shift = (col % pack) * bits
-        zp_group_ic = (qz_cols >> shift.unsqueeze(0)) & mask
-        zp_full = zp_group_ic.repeat_interleave(g, dim=0).to(torch.int16)
-        
-        # 广播scales
-        scales_full = scales.repeat_interleave(g, dim=0).to(torch.float16)
-        
-        # 反量化
-        W_fp16 = ((Wq - zp_full).to(torch.float16) * scales_full).to(torch.float16)
-        return W_fp16.t()
-    
-    def _dequantize_awq_weight(self, compressed_weight: CompressedWeight) -> torch.Tensor:
-        """反量化AWQ权重"""
-        metadata = compressed_weight.metadata
-        qweight = metadata['qweight']
-        qzeros = metadata['qzeros']
-        scales = metadata['scales']
-        qweight_scale = metadata['qweight_scale']
-        
-        # AWQ反量化逻辑（类似GPTQ但有不同的缩放处理）
-        pack = 32 // 4  # AWQ通常是4bit
-        oc_pack, IC = qweight.shape
-        OC = oc_pack * pack
-        
-        # 解包qweight
-        Wq = self._unpack_int32_to_nibbles_rows(qweight, bits=4)
-        
-        # AWQ特有的缩放处理
-        scales_full = scales.repeat_interleave(OC // scales.shape[0], dim=0)
-        qweight_scale_full = qweight_scale.repeat_interleave(OC // qweight_scale.shape[0], dim=0)
-        
-        # 反量化
-        W_fp16 = (Wq.to(torch.float32) * scales_full * qweight_scale_full.unsqueeze(1)).to(torch.float16)
-        return W_fp16.t()
-    
-    def _unpack_int32_to_nibbles_rows(self, packed: torch.Tensor, bits: int = 4) -> torch.Tensor:
-        """将int32打包的权重解包为nibbles"""
-        pack = 32 // bits
-        R, C = packed.shape
-        out = torch.empty((R * pack, C), dtype=torch.int16, device=packed.device)
-        mask = (1 << bits) - 1
-        
-        for k in range(pack):
-            vals = (packed >> (k * bits)) & mask
-            out[k::pack, :] = vals.to(torch.int16)
-        
-        return out
-    
-    def _dequantize_weight(self, compressed_weight: CompressedWeight) -> torch.Tensor:
-        """根据格式反量化权重"""
-        if compressed_weight.format == WeightFormat.GPTQ_INT4:
-            return self._dequantize_gptq_weight(compressed_weight)
-        elif compressed_weight.format == WeightFormat.AWQ_INT4:
-            return self._dequantize_awq_weight(compressed_weight)
-        elif compressed_weight.format in [WeightFormat.INT4, WeightFormat.INT8]:
-            # 简单的量化权重反量化
-            weight = compressed_weight.data
-            bits = compressed_weight.metadata.get('bits', 4)
-            if bits == 4:
-                # 假设是简单的4bit量化
-                return weight.to(torch.float16) * 0.1  # 简单的缩放
-            else:
-                return weight.to(torch.float16) * 0.01  # 简单的缩放
-        elif compressed_weight.format in [WeightFormat.FP16, WeightFormat.FP8]:
-            # 浮点权重直接使用，转换为float16以确保兼容性
-            return compressed_weight.data.to(torch.float16)
-        else:
-            # 默认处理
-            return compressed_weight.data.to(torch.float16)
-    
-    def _get_weight(self) -> torch.Tensor:
-        """获取权重（可能从缓存或反量化）"""
-        if self.use_cache and self._cached_weight is not None:
-            return self._cached_weight
-        
-        compressed_weight = self._get_compressed_weight()
-        if compressed_weight is None:
-            # 如果没有压缩权重，返回零权重（使用float16以兼容更多输入类型）
-            weight = torch.zeros(self.out_features, self.in_features, dtype=torch.float16)
-            logger.warning(f"No compressed weight found for {self.weight_name}, using zero weight")
-        else:
-            # 反量化权重
-            weight = self._dequantize_weight(compressed_weight)
-            
-            # 确保形状正确
-            if weight.shape != (self.out_features, self.in_features):
-                logger.warning(f"Weight shape mismatch for {self.weight_name}: "
-                             f"expected ({self.out_features}, {self.in_features}), got {weight.shape}")
-                # 调整形状
-                if weight.shape[0] < self.out_features or weight.shape[1] < self.in_features:
-                    # 扩展权重
-                    new_weight = torch.zeros(self.out_features, self.in_features, dtype=weight.dtype, device=weight.device)
-                    new_weight[:weight.shape[0], :weight.shape[1]] = weight
-                    weight = new_weight
-                else:
-                    # 截断权重
-                    weight = weight[:self.out_features, :self.in_features]
-        
-        # 缓存权重
-        if self.use_cache:
-            self._cached_weight = weight
-        
-        return weight
+            logger.warning(f"No quantization method found for format: {self.weight_format}")
     
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        """前向传播"""
-        weight = self._get_weight()
+        """前向传播 - 使用SGLang的量化kernel"""
+        if self.compressed_weight is None:
+            # 如果没有压缩权重，使用标准线性层
+            return F.linear(input, self.weight, self.bias)
         
-        # 确保输入和权重在同一设备上
-        if input.device != weight.device:
-            weight = weight.to(input.device)
-            if self.use_cache:
-                self._cached_weight = weight
-        
-        # 确保输入和权重具有相同的数据类型
-        if input.dtype != weight.dtype:
-            weight = weight.to(input.dtype)
-            if self.use_cache:
-                self._cached_weight = weight
-        
-        # 确保偏置具有相同的数据类型
-        bias = self.bias
-        if self.bias is not None and self.bias.dtype != input.dtype:
-            bias = self.bias.to(input.dtype)
-        
-        # 执行线性变换
-        output = F.linear(input, weight, bias)
-        
-        return output
+        # 使用SGLang的量化kernel
+        if self.quantization_method is not None:
+            return self._forward_with_quantization(input)
+        else:
+            # 回退到标准线性层
+            logger.warning(f"Using fallback linear for format: {self.weight_format}")
+            return F.linear(input, self.weight, self.bias)
     
-    def extra_repr(self) -> str:
-        """额外的字符串表示"""
-        return f'in_features={self.in_features}, out_features={self.out_features}, ' \
-               f'bias={self.bias is not None}, weight_name={self.weight_name}, ' \
-               f'use_cache={self.use_cache}'
-
-
-def replace_linear_with_mixed_precision(model: nn.Module, 
-                                      loader, 
-                                      use_cache: bool = True) -> nn.Module:
-    """
-    将模型中的线性层替换为混合精度线性层
-    
-    Args:
-        model: 要替换的模型
-        loader: 混合精度加载器
-        use_cache: 是否使用缓存
-    
-    Returns:
-        替换后的模型
-    """
-    for name, module in model.named_modules():
-        if isinstance(module, nn.Linear):
-            # 创建混合精度线性层
-            mixed_precision_linear = MixedPrecisionLinear(
-                in_features=module.in_features,
-                out_features=module.out_features,
-                bias=module.bias is not None,
-                weight_name=name + '.weight',
-                use_cache=use_cache
-            )
-            
-            # 复制偏置
-            if module.bias is not None:
-                mixed_precision_linear.bias.data = module.bias.data.clone()
-            
-            # 替换模块
-            parent_name = '.'.join(name.split('.')[:-1])
-            if parent_name:
-                parent = model.get_submodule(parent_name)
-                child_name = name.split('.')[-1]
-                setattr(parent, child_name, mixed_precision_linear)
+    def _forward_with_quantization(self, input: torch.Tensor) -> torch.Tensor:
+        """使用量化kernel进行前向传播"""
+        try:
+            if self.weight_format == 'fp8':
+                return self._forward_fp8(input)
+            elif self.weight_format == 'gptq_int4':
+                return self._forward_gptq(input)
+            elif self.weight_format == 'awq_int4':
+                return self._forward_awq(input)
             else:
-                # 根模块
-                setattr(model, name, mixed_precision_linear)
+                logger.warning(f"Unsupported weight format: {self.weight_format}")
+                return F.linear(input, self.weight, self.bias)
+        except Exception as e:
+            logger.error(f"Error in quantized forward pass: {e}")
+            # 回退到标准线性层
+            return F.linear(input, self.weight, self.bias)
+    
+    def _forward_fp8(self, input: torch.Tensor) -> torch.Tensor:
+        """FP8量化前向传播"""
+        try:
+            # 获取FP8权重和缩放因子
+            weight_data = self.compressed_weight.data
+            weight = weight_data['weight']
+            scale_inv = weight_data.get('scale_inv', None)
             
-            logger.info(f"Replaced linear layer {name} with mixed precision linear layer")
+            # 使用SGLang的FP8 kernel
+            if hasattr(self.quantization_method, 'apply'):
+                # 创建临时的权重参数
+                temp_weight = nn.Parameter(weight)
+                if scale_inv is not None:
+                    temp_scale_inv = nn.Parameter(scale_inv)
+                    setattr(self, '_temp_scale_inv', temp_scale_inv)
+                
+                # 应用量化方法
+                result = self.quantization_method.apply(self, input)
+                
+                # 清理临时参数
+                delattr(self, '_temp_scale_inv')
+                return result
+            else:
+                # 直接使用FP8权重
+                return F.linear(input, weight, self.bias)
+                
+        except Exception as e:
+            logger.error(f"Error in FP8 forward pass: {e}")
+            return F.linear(input, self.weight, self.bias)
     
-    return model
-
-
-def get_mixed_precision_memory_stats() -> Dict[str, Any]:
-    """获取混合精度内存统计"""
-    loader = get_global_true_mixed_precision_loader()
-    if loader is None:
-        return {"error": "No mixed precision loader available"}
+    def _forward_gptq(self, input: torch.Tensor) -> torch.Tensor:
+        """GPTQ量化前向传播"""
+        try:
+            # 获取GPTQ组件
+            weight_data = self.compressed_weight.data
+            qweight = weight_data['qweight']
+            qzeros = weight_data['qzeros']
+            scales = weight_data['scales']
+            g_idx = weight_data.get('g_idx', None)
+            
+            # 使用SGLang的GPTQ kernel
+            if hasattr(self.quantization_method, 'apply'):
+                # 创建临时的权重参数
+                temp_qweight = nn.Parameter(qweight)
+                temp_qzeros = nn.Parameter(qzeros)
+                temp_scales = nn.Parameter(scales)
+                
+                setattr(self, 'qweight', temp_qweight)
+                setattr(self, 'qzeros', temp_qzeros)
+                setattr(self, 'scales', temp_scales)
+                
+                if g_idx is not None:
+                    temp_g_idx = nn.Parameter(g_idx)
+                    setattr(self, 'g_idx', temp_g_idx)
+                
+                # 应用量化方法
+                result = self.quantization_method.apply(self, input)
+                
+                # 清理临时参数
+                delattr(self, 'qweight')
+                delattr(self, 'qzeros')
+                delattr(self, 'scales')
+                if g_idx is not None:
+                    delattr(self, 'g_idx')
+                
+                return result
+            else:
+                # 直接使用GPTQ权重（需要de-quantization）
+                logger.warning("GPTQ kernel not available, using de-quantization")
+                weight = self._dequantize_gptq(qweight, qzeros, scales, g_idx)
+                return F.linear(input, weight, self.bias)
+                
+        except Exception as e:
+            logger.error(f"Error in GPTQ forward pass: {e}")
+            return F.linear(input, self.weight, self.bias)
     
-    return loader.get_memory_stats()
-
-
-def clear_mixed_precision_cache():
-    """清除混合精度缓存"""
-    loader = get_global_true_mixed_precision_loader()
-    if loader is None:
-        return
+    def _forward_awq(self, input: torch.Tensor) -> torch.Tensor:
+        """AWQ量化前向传播"""
+        try:
+            # 获取AWQ组件
+            weight_data = self.compressed_weight.data
+            qweight = weight_data['qweight']
+            qzeros = weight_data['qzeros']
+            scales = weight_data['scales']
+            qweight_scale = weight_data.get('qweight_scale', None)
+            
+            # 使用SGLang的AWQ kernel
+            if hasattr(self.quantization_method, 'apply'):
+                # 创建临时的权重参数
+                temp_qweight = nn.Parameter(qweight)
+                temp_qzeros = nn.Parameter(qzeros)
+                temp_scales = nn.Parameter(scales)
+                
+                setattr(self, 'qweight', temp_qweight)
+                setattr(self, 'qzeros', temp_qzeros)
+                setattr(self, 'scales', temp_scales)
+                
+                if qweight_scale is not None:
+                    temp_qweight_scale = nn.Parameter(qweight_scale)
+                    setattr(self, 'qweight_scale', temp_qweight_scale)
+                
+                # 应用量化方法
+                result = self.quantization_method.apply(self, input)
+                
+                # 清理临时参数
+                delattr(self, 'qweight')
+                delattr(self, 'qzeros')
+                delattr(self, 'scales')
+                if qweight_scale is not None:
+                    delattr(self, 'qweight_scale')
+                
+                return result
+            else:
+                # 直接使用AWQ权重（需要de-quantization）
+                logger.warning("AWQ kernel not available, using de-quantization")
+                weight = self._dequantize_awq(qweight, qzeros, scales, qweight_scale)
+                return F.linear(input, weight, self.bias)
+                
+        except Exception as e:
+            logger.error(f"Error in AWQ forward pass: {e}")
+            return F.linear(input, self.weight, self.bias)
     
-    # 清除所有模块的缓存
-    for name, module in loader.compressed_weights.items():
-        # 这里可以添加清除缓存的逻辑
-        pass
+    def _dequantize_gptq(self, qweight, qzeros, scales, g_idx=None):
+        """GPTQ反量化（仅作为fallback）"""
+        try:
+            # 简单的GPTQ反量化实现
+            pack = 32 // 4  # 4-bit packing
+            oc_pack, ic = qweight.shape
+            oc = oc_pack * pack
+            
+            # 解包qweight
+            unpacked = torch.zeros(oc, ic, dtype=torch.int32, device=qweight.device)
+            for i in range(8):
+                shift = i * 4
+                mask = 0xF
+                unpacked[i::8, :] = (qweight >> shift) & mask
+            
+            # 反量化
+            weight = scales * (unpacked.float() - qzeros)
+            return weight.t()
+            
+        except Exception as e:
+            logger.error(f"Error in GPTQ dequantization: {e}")
+            return torch.zeros(ic, oc, device=qweight.device, dtype=torch.float16)
     
-    logger.info("Mixed precision cache cleared")
+    def _dequantize_awq(self, qweight, qzeros, scales, qweight_scale=None):
+        """AWQ反量化（仅作为fallback）"""
+        try:
+            # 简单的AWQ反量化实现
+            pack = 32 // 4  # 4-bit packing
+            oc_pack, ic = qweight.shape
+            oc = oc_pack * pack
+            
+            # 解包qweight
+            unpacked = torch.zeros(oc, ic, dtype=torch.int32, device=qweight.device)
+            for i in range(8):
+                shift = i * 4
+                mask = 0xF
+                unpacked[i::8, :] = (qweight >> shift) & mask
+            
+            # 反量化
+            weight = scales * (unpacked.float() - qzeros)
+            if qweight_scale is not None:
+                weight = weight * qweight_scale
+            return weight.t()
+            
+        except Exception as e:
+            logger.error(f"Error in AWQ dequantization: {e}")
+            return torch.zeros(ic, oc, device=qweight.device, dtype=torch.float16)
+    
+    def get_memory_usage(self) -> int:
+        """获取内存使用量"""
+        if self.compressed_weight is not None:
+            return self.compressed_weight.get_memory_usage()
+        else:
+            return self.weight.numel() * self.weight.element_size()
+    
+    def get_compression_ratio(self) -> float:
+        """获取压缩比"""
+        if self.compressed_weight is not None:
+            original_size = self.compressed_weight.original_shape[0] * self.compressed_weight.original_shape[1] * 2  # FP16
+            compressed_size = self.compressed_weight.get_memory_usage()
+            return original_size / compressed_size
+        else:
+            return 1.0

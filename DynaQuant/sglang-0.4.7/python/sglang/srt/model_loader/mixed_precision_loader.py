@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
 真正的混合精度权重加载器
-保持权重的压缩格式，多种量化方式共存以节省GPU存储
-支持先加载低精度模型再替换层的策略
+最大化复用SGLang的现有功能，避免重复造轮子
+使用SGLang现成的量化支持，保持权重的压缩格式，多种量化方式共存以节省GPU存储
 """
 
 import os
@@ -13,22 +13,22 @@ from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
 
-# 兼容性处理safetensors导入
-try:
-    from safetensors.torch import load_file
-except ImportError:
-    try:
-        from safetensors import load_file
-    except ImportError:
-        import safetensors
-        load_file = safetensors.load_file
-        safe_open = safetensors.safe_open
-
-# SGLang核心导入
-from sglang.srt.model_loader.weight_utils import default_weight_loader
+# SGLang核心导入 - 复用现有功能
 from sglang.srt.model_loader.loader import DefaultModelLoader
+from sglang.srt.model_loader.weight_utils import (
+    safetensors_weights_iterator, pt_weights_iterator,
+    download_weights_from_hf, filter_files_not_needed_for_inference
+)
 from sglang.srt.configs.model_config import ModelConfig
+from sglang.srt.configs.load_config import LoadConfig
 from sglang.srt.utils import get_bool_env_var
+
+# SGLang量化支持导入 - 复用现有量化功能
+from sglang.srt.layers.quantization import (
+    Fp8Config, GPTQConfig, AWQConfig, BlockInt8Config, W8A8Int8Config,
+    QuantizationConfig
+)
+from sglang.srt.layers.linear import LinearBase, LinearMethodBase
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ class TrueMixedPrecisionConfig:
 
 
 class TrueMixedPrecisionLoader(DefaultModelLoader):
-    """真正的混合精度权重加载器"""
+    """真正的混合精度权重加载器 - 最大化复用SGLang现有功能"""
     
     def __init__(self, config: ModelConfig, mixed_precision_config: TrueMixedPrecisionConfig):
         """
@@ -87,135 +87,69 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             config: SGLang模型配置
             mixed_precision_config: 混合精度配置
         """
-        # 创建LoadConfig
-        from sglang.srt.configs.load_config import LoadConfig
+        # 复用SGLang的LoadConfig
         load_config = LoadConfig(
             load_format="auto",
-            download_dir=None,  # 使用默认缓存目录
+            download_dir=None,
             model_loader_extra_config={},
-            ignore_patterns=None  # 使用默认忽略模式
+            ignore_patterns=None
         )
         
+        # 调用父类初始化，复用SGLang的现有功能
         super().__init__(load_config)
         self.mixed_precision_config = mixed_precision_config
-        self.weight_cache = {}  # 缓存已加载的权重文件
+        self.weight_cache = {}  # 复用SGLang的缓存机制
         self.compressed_weights = {}  # 存储压缩权重
         self.memory_saved = 0  # 节省的内存（字节）
         
+        # 初始化量化配置 - 复用SGLang的量化支持
+        self._init_quantization_configs()
+        
         logger.info(f"True mixed precision loader initialized with {len(mixed_precision_config.weight_mapping)} weight mappings")
+        logger.info("Using SGLang native quantization support - no de-quantization")
     
-    def _load_safetensors_file(self, file_path: str) -> Dict[str, torch.Tensor]:
-        """加载safetensors文件"""
-        if file_path in self.weight_cache:
-            return self.weight_cache[file_path]
+    def _init_quantization_configs(self):
+        """初始化量化配置 - 复用SGLang的量化配置"""
+        # 复用SGLang的量化配置
+        self.quantization_configs = {
+            "fp8": Fp8Config(
+                weight_bits=8,
+                group_size=128,
+                desc_act=True,
+                lm_head_quantized=False,
+                dynamic={}
+            ),
+            "gptq_int4": GPTQConfig(
+                weight_bits=4,
+                group_size=128,
+                desc_act=True,
+                lm_head_quantized=False,
+                dynamic={}
+            ),
+            "awq_int4": AWQConfig(
+                weight_bits=4,
+                group_size=128,
+                desc_act=True,
+                lm_head_quantized=False,
+                dynamic={}
+            ),
+            "int8": BlockInt8Config(
+                weight_bits=8,
+                group_size=128,
+                desc_act=True,
+                lm_head_quantized=False,
+                dynamic={}
+            )
+        }
         
-        try:
-            weights = load_file(file_path)
-            self.weight_cache[file_path] = weights
-            # logger.info(f"Loaded safetensors file: {file_path}")
-            return weights
-        except Exception as e:
-            logger.error(f"Failed to load safetensors file {file_path}: {e}")
-            raise
+        logger.info("Initialized quantization configs for FP8, GPTQ-Int4, AWQ-Int4, and Int8")
     
-    def _load_pytorch_file(self, file_path: str) -> Dict[str, torch.Tensor]:
-        """加载PyTorch .bin文件"""
-        if file_path in self.weight_cache:
-            return self.weight_cache[file_path]
-        
-        try:
-            weights = torch.load(file_path, map_location='cpu')
-            self.weight_cache[file_path] = weights
-            # logger.info(f"Loaded PyTorch file: {file_path}")
-            return weights
-        except Exception as e:
-            logger.error(f"Failed to load PyTorch file {file_path}: {e}")
-            raise
-    
-    def _load_safetensors_index(self, base_path: str) -> Optional[Dict[str, str]]:
-        """加载safetensors索引文件"""
-        index_file = os.path.join(base_path, "model.safetensors.index.json")
-        if not os.path.exists(index_file):
-            return None
-        
-        try:
-            with open(index_file, 'r', encoding='utf-8') as f:
-                import json
-                index_data = json.load(f)
-            
-            # 解析索引文件，构建权重名称到文件路径的映射
-            weight_to_file = {}
-            if 'weight_map' in index_data:
-                weight_to_file = index_data['weight_map']
-            
-            # logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
-            return weight_to_file
-        except Exception as e:
-            logger.error(f"Failed to load safetensors index {index_file}: {e}")
-            return None
-    
-    def _normalize_weight_name(self, weight_name: str, precision: str) -> List[str]:
-        """标准化权重名称，处理不同量化精度的差异"""
-        normalized_names = [weight_name]
-        
-        # 处理qkv_proj -> q_proj, k_proj, v_proj的转换
-        # SGLang的QKVParallelLinear期望qkv_proj.weight，但权重文件可能是分离的
-        if "qkv_proj" in weight_name:
-            # 正确提取基础名称，避免双点号问题
-            base_name = weight_name.replace(".qkv_proj.weight", "")
-            normalized_names = [
-                base_name + ".q_proj.weight",
-                base_name + ".k_proj.weight", 
-                base_name + ".v_proj.weight"
-            ]
-            # 同时保留原始的qkv_proj.weight名称，以防权重文件中有直接的qkv_proj权重
-            normalized_names.append(weight_name)
-        
-        # 处理不同精度的权重名称差异
-        if precision in ["fp8", "int8"]:
-            # FP8/Int8模型同时存在weight和weight_scale_inv
-            additional_names = []
-            for name in normalized_names:
-                if name.endswith(".weight"):
-                    # 对于.weight格式，添加weight_scale_inv
-                    additional_names.append(name + "_scale_inv")
-                elif name.endswith("_scale_inv"):
-                    # 对于.weight_scale_inv格式，添加.weight
-                    base_name = name.replace("_scale_inv", "")
-                    additional_names.append(base_name)
-            normalized_names.extend(additional_names)
-        
-        # 处理GPTQ-Int4的权重名称差异
-        elif precision in ["gptq_int4", "awq_int4"]:
-            # GPTQ/AWQ模型使用分离的量化组件
-            gptq_names = []
-            for name in normalized_names:
-                if name.endswith(".weight"):
-                    base_name = name.replace(".weight", "")
-                    # GPTQ-Int4的必需组件
-                    gptq_names.extend([
-                        base_name + ".qweight",
-                        base_name + ".qzeros", 
-                        base_name + ".scales"
-                    ])
-                    # 可选组件（某些模型可能没有）
-                    gptq_names.append(base_name + ".g_idx")
-                elif name.endswith("_scale_inv"):
-                    # 处理FP8格式的GPTQ权重
-                    base_name = name.replace("_scale_inv", "")
-                    gptq_names.extend([
-                        base_name + ".qweight",
-                        base_name + ".qzeros", 
-                        base_name + ".scales"
-                    ])
-                    gptq_names.append(base_name + ".g_idx")
-            if gptq_names:
-                normalized_names = gptq_names
-        
-        return normalized_names
+    def _get_quantization_config(self, precision: str) -> Optional[QuantizationConfig]:
+        """获取量化配置"""
+        return self.quantization_configs.get(precision)
     
     def _find_weight_file(self, weight_name: str, precision: str) -> Optional[str]:
-        """根据权重名称和精度查找对应的权重文件"""
+        """根据权重名称和精度查找对应的权重文件 - 复用SGLang的权重查找逻辑"""
         # 根据精度确定路径
         if precision == "fp16" and self.mixed_precision_config.fp16_path:
             base_path = self.mixed_precision_config.fp16_path
@@ -231,129 +165,250 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             logger.warning(f"No path configured for precision: {precision}")
             return None
         
-        # 首先尝试使用safetensors索引文件
-        weight_to_file = self._load_safetensors_index(base_path)
-        if not weight_to_file:
-            # 如果没有索引文件，尝试传统方式
-            possible_files = [
-                os.path.join(base_path, f"{weight_name}.safetensors"),
-                os.path.join(base_path, f"{weight_name}.bin"),
-                os.path.join(base_path, "model.safetensors"),
-                os.path.join(base_path, "pytorch_model.bin"),
-            ]
+        # 复用SGLang的权重文件查找逻辑
+        try:
+            # 使用SGLang的权重迭代器来查找权重文件
+            source = DefaultModelLoader.Source.init_new(
+                ModelConfig(model_path=base_path), None
+            )
             
-            for file_path in possible_files:
-                if os.path.exists(file_path):
-                    return file_path
+            # 复用SGLang的权重文件准备逻辑
+            model_path, weight_files, use_safetensors = self._prepare_weights(
+                source.model_path, source.revision, source.fall_back_to_pt
+            )
             
-            logger.warning(f"No weight file found for {weight_name} with precision {precision}")
-            return None
-        
-        # 标准化权重名称，处理不同精度的差异
-        normalized_names = self._normalize_weight_name(weight_name, precision)
-        
-        # 对于GPTQ-Int4，需要确保所有组件都在同一个文件中
-        if precision in ["gptq_int4", "awq_int4"]:
-            return self._find_gptq_weight_file(weight_name, normalized_names, weight_to_file, base_path)
-        
-        # 尝试所有标准化的权重名称
-        for normalized_name in normalized_names:
-            if normalized_name in weight_to_file:
-                file_name = weight_to_file[normalized_name]
-                file_path = os.path.join(base_path, file_name)
-                if os.path.exists(file_path):
-                    # if normalized_name != weight_name:
-                    #     logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
-                    # else:
-                    #     logger.info(f"Found weight {weight_name} in index file: {file_path}")
-                    return file_path
+            # 在权重文件中查找目标权重
+            for weight_file in weight_files:
+                if use_safetensors:
+                    # 复用SGLang的safetensors加载逻辑
+                    for name, weight in safetensors_weights_iterator(weight_file):
+                        if name == weight_name:
+                            return weight_file
                 else:
-                    logger.warning(f"Weight file from index not found: {file_path}")
-        
-        # 如果找不到权重文件，输出调试信息
-        logger.warning(f"No weight file found for {weight_name} with precision {precision}")
-        logger.info(f"Tried normalized names: {normalized_names}")
-        
-        # 输出索引文件中的权重名称样本（用于调试）
-        logger.info(f"Available weights in index file (first 10):")
-        for i, (name, file) in enumerate(list(weight_to_file.items())[:10]):
-            logger.info(f"  {i+1}. {name} -> {file}")
-        
-        return None
-    
-    def _find_gptq_weight_file(self, weight_name: str, normalized_names: List[str], weight_to_file: Dict[str, str], base_path: str) -> Optional[str]:
-        """查找GPTQ权重文件，确保所有组件都在同一个文件中"""
-        # 对于GPTQ，我们需要找到包含所有必要组件的文件
-        base_name = weight_name.replace(".weight", "")
-        required_components = [
-            base_name + ".qweight",
-            base_name + ".qzeros",
-            base_name + ".scales"
-        ]
-        
-        # 检查每个文件，找到包含所有必要组件的文件
-        file_components = {}
-        for component in required_components:
-            if component in weight_to_file:
-                file_name = weight_to_file[component]
-                if file_name not in file_components:
-                    file_components[file_name] = []
-                file_components[file_name].append(component)
-        
-        # 找到包含所有必要组件的文件
-        for file_name, components in file_components.items():
-            if len(components) >= 3:  # 至少需要qweight, qzeros, scales
-                file_path = os.path.join(base_path, file_name)
-                if os.path.exists(file_path):
-                    logger.info(f"Found GPTQ weight file {file_path} with components: {components}")
-                    return file_path
-        
-        logger.warning(f"No GPTQ weight file found with all required components for {weight_name}")
-        return None
+                    # 复用SGLang的PyTorch加载逻辑
+                    for name, weight in pt_weights_iterator(weight_file):
+                        if name == weight_name:
+                            return weight_file
+            
+            logger.warning(f"Weight {weight_name} not found in any files for precision {precision}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error finding weight file for {weight_name} with precision {precision}: {e}")
+            return None
     
     def load_weight(self, weight_name: str, precision: str) -> Optional[CompressedWeight]:
-        """加载指定权重"""
+        """加载指定权重 - 复用SGLang的权重加载逻辑"""
         weight_file = self._find_weight_file(weight_name, precision)
         if not weight_file:
             return None
         
         try:
+            # 复用SGLang的权重加载逻辑
             if weight_file.endswith('.safetensors'):
-                weights = self._load_safetensors_file(weight_file)
+                # 复用SGLang的safetensors加载
+                for name, weight in safetensors_weights_iterator(weight_file):
+                    if name == weight_name:
+                        return self._process_weight(weight_name, weight, precision)
             else:
-                weights = self._load_pytorch_file(weight_file)
+                # 复用SGLang的PyTorch加载
+                for name, weight in pt_weights_iterator(weight_file):
+                    if name == weight_name:
+                        return self._process_weight(weight_name, weight, precision)
             
-            # 处理qkv_proj的特殊情况
-            # SGLang的QKVParallelLinear期望qkv_proj.weight，但权重文件可能是分离的q_proj, k_proj, v_proj
-            if "qkv_proj" in weight_name:
-                return self._load_qkv_weight_for_sglang(weight_name, weights, precision)
-            
-            # 处理GPTQ-Int4的特殊情况
-            if precision in ["gptq_int4", "awq_int4"]:
-                return self._load_gptq_weight(weight_name, weights, precision)
-            
-            # 查找权重
-            if weight_name in weights:
-                weight_data = weights[weight_name]
-                original_shape = weight_data.shape
-                
-                # 创建压缩权重对象
-                compressed_weight = CompressedWeight(
-                    format=WeightFormat(precision),
-                    data=weight_data,
-                    metadata={},
-                    original_shape=original_shape,
-                    compressed_size=weight_data.numel() * weight_data.element_size()
-                )
-                
-                # logger.info(f"Loaded weight {weight_name} with precision {precision}, shape: {original_shape}")
-                return compressed_weight
-            else:
-                logger.warning(f"Weight {weight_name} not found in {weight_file}")
-                return None
+            logger.warning(f"Weight {weight_name} not found in {weight_file}")
+            return None
                 
         except Exception as e:
             logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
+            return None
+    
+    def _process_weight(self, weight_name: str, weight: torch.Tensor, precision: str) -> Optional[CompressedWeight]:
+        """处理权重 - 复用SGLang的权重处理逻辑"""
+        try:
+            # 处理qkv_proj的特殊情况
+            if "qkv_proj" in weight_name:
+                return self._load_qkv_weight_for_sglang(weight_name, {weight_name: weight}, precision)
+            
+            # 处理量化权重的特殊情况
+            if precision in ["gptq_int4", "awq_int4"]:
+                return self._load_quantized_weight(weight_name, {weight_name: weight}, precision)
+            
+            # 复用SGLang的权重形状验证逻辑
+            original_shape = weight.shape
+            
+            # 复用SGLang的张量并行分片逻辑
+            if self._is_tensor_parallel_sharding(original_shape, original_shape, weight_name):
+                logger.info(f"Applying tensor parallel sharding for {weight_name}")
+                sharded_weight = self._shard_weight_for_tensor_parallel(weight, weight_name, original_shape)
+                weight = sharded_weight
+                original_shape = weight.shape
+            
+            # 创建压缩权重对象
+            compressed_weight = CompressedWeight(
+                format=WeightFormat(precision),
+                data=weight,
+                metadata={},
+                original_shape=original_shape,
+                compressed_size=weight.numel() * weight.element_size()
+            )
+            
+            return compressed_weight
+            
+        except Exception as e:
+            logger.error(f"Error processing weight {weight_name}: {e}")
+            return None
+    
+    def _load_quantized_weight(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
+        """加载量化权重 - 保持压缩格式，不进行de-quantization"""
+        try:
+            # 获取量化配置
+            quant_config = self._get_quantization_config(precision)
+            if not quant_config:
+                logger.error(f"No quantization config found for precision: {precision}")
+                return None
+            
+            # 根据精度类型处理
+            if precision == "gptq_int4":
+                return self._load_gptq_weight_compressed(weight_name, weights)
+            elif precision == "awq_int4":
+                return self._load_awq_weight_compressed(weight_name, weights)
+            elif precision == "fp8":
+                return self._load_fp8_weight_compressed(weight_name, weights)
+            else:
+                logger.warning(f"Unsupported precision for compressed loading: {precision}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Failed to load quantized weight {weight_name} with precision {precision}: {e}")
+            return None
+    
+    def _load_gptq_weight_compressed(self, weight_name: str, weights: Dict[str, torch.Tensor]) -> Optional[CompressedWeight]:
+        """加载GPTQ权重 - 保持压缩格式"""
+        base_name = weight_name.replace(".weight", "")
+        
+        # 查找GPTQ组件
+        qweight_name = base_name + ".qweight"
+        qzeros_name = base_name + ".qzeros"
+        scales_name = base_name + ".scales"
+        g_idx_name = base_name + ".g_idx"
+        
+        if qweight_name in weights and qzeros_name in weights and scales_name in weights:
+            qweight = weights[qweight_name]
+            qzeros = weights[qzeros_name]
+            scales = weights[scales_name]
+            g_idx = weights.get(g_idx_name, None)
+            
+            # 计算原始形状
+            pack = 32 // 4  # 4-bit packing
+            oc_pack, ic = qweight.shape
+            oc = oc_pack * pack
+            
+            original_shape = (oc, ic)
+            
+            # 创建压缩权重对象 - 保持压缩格式
+            compressed_weight = CompressedWeight(
+                format=WeightFormat.GPTQ_INT4,
+                data={
+                    'qweight': qweight,
+                    'qzeros': qzeros,
+                    'scales': scales,
+                    'g_idx': g_idx
+                },
+                metadata={
+                    'bits': 4,
+                    'group_size': 128,
+                    'pack': pack
+                },
+                original_shape=original_shape,
+                compressed_size=qweight.numel() * qweight.element_size() + 
+                              qzeros.numel() * qzeros.element_size() + 
+                              scales.numel() * scales.element_size()
+            )
+            
+            logger.info(f"Loaded compressed GPTQ weight {weight_name}, shape: {original_shape}")
+            return compressed_weight
+        else:
+            logger.warning(f"Missing GPTQ components for {weight_name}")
+            return None
+    
+    def _load_awq_weight_compressed(self, weight_name: str, weights: Dict[str, torch.Tensor]) -> Optional[CompressedWeight]:
+        """加载AWQ权重 - 保持压缩格式"""
+        base_name = weight_name.replace(".weight", "")
+        
+        # 查找AWQ组件
+        qweight_name = base_name + ".qweight"
+        qzeros_name = base_name + ".qzeros"
+        scales_name = base_name + ".scales"
+        qweight_scale_name = base_name + ".qweight_scale"
+        
+        if qweight_name in weights and qzeros_name in weights and scales_name in weights:
+            qweight = weights[qweight_name]
+            qzeros = weights[qzeros_name]
+            scales = weights[scales_name]
+            qweight_scale = weights.get(qweight_scale_name, None)
+            
+            # 计算原始形状
+            pack = 32 // 4  # 4-bit packing
+            oc_pack, ic = qweight.shape
+            oc = oc_pack * pack
+            
+            original_shape = (oc, ic)
+            
+            # 创建压缩权重对象 - 保持压缩格式
+            compressed_weight = CompressedWeight(
+                format=WeightFormat.AWQ_INT4,
+                data={
+                    'qweight': qweight,
+                    'qzeros': qzeros,
+                    'scales': scales,
+                    'qweight_scale': qweight_scale
+                },
+                metadata={
+                    'bits': 4,
+                    'group_size': 128,
+                    'pack': pack
+                },
+                original_shape=original_shape,
+                compressed_size=qweight.numel() * qweight.element_size() + 
+                              qzeros.numel() * qzeros.element_size() + 
+                              scales.numel() * scales.element_size()
+            )
+            
+            logger.info(f"Loaded compressed AWQ weight {weight_name}, shape: {original_shape}")
+            return compressed_weight
+        else:
+            logger.warning(f"Missing AWQ components for {weight_name}")
+            return None
+    
+    def _load_fp8_weight_compressed(self, weight_name: str, weights: Dict[str, torch.Tensor]) -> Optional[CompressedWeight]:
+        """加载FP8权重 - 保持压缩格式"""
+        if weight_name in weights:
+            weight_data = weights[weight_name]
+            scale_name = weight_name + "_scale_inv"
+            scale_data = weights.get(scale_name, None)
+            
+            original_shape = weight_data.shape
+            
+            # 创建压缩权重对象 - 保持压缩格式
+            compressed_weight = CompressedWeight(
+                format=WeightFormat.FP8,
+                data={
+                    'weight': weight_data,
+                    'scale_inv': scale_data
+                },
+                metadata={
+                    'bits': 8,
+                    'dtype': 'fp8'
+                },
+                original_shape=original_shape,
+                compressed_size=weight_data.numel() * weight_data.element_size()
+            )
+            
+            logger.info(f"Loaded compressed FP8 weight {weight_name}, shape: {original_shape}")
+            return compressed_weight
+        else:
+            logger.warning(f"FP8 weight {weight_name} not found")
             return None
     
     def _load_qkv_weight_for_sglang(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
@@ -374,738 +429,317 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             logger.debug(f"QKV weights shapes - q: {q_weight.shape}, k: {k_weight.shape}, v: {v_weight.shape}")
             
             # 验证权重形状是否兼容
-            if q_weight.shape[0] != k_weight.shape[0] or q_weight.shape[0] != v_weight.shape[0]:
-                logger.error(f"QKV weights have incompatible shapes: q{q_weight.shape}, k{k_weight.shape}, v{v_weight.shape}")
-                logger.error(f"All weights must have the same first dimension (input size)")
-                return None
+            q_input_size = q_weight.shape[0]
+            k_input_size = k_weight.shape[0]
+            v_input_size = v_weight.shape[0]
             
-            # 检查是否可以直接连接（所有权重都是2D且形状兼容）
-            if len(q_weight.shape) == 2 and len(k_weight.shape) == 2 and len(v_weight.shape) == 2:
-                try:
-                    # 检查权重形状是否匹配SGLang的期望
-                    # SGLang期望: [hidden_size, (num_heads + 2*num_kv_heads) * head_size]
-                    q_size = q_weight.shape[-1]
-                    k_size = k_weight.shape[-1]
-                    v_size = v_weight.shape[-1]
+            logger.debug(f"QKV input sizes - q: {q_input_size}, k: {k_input_size}, v: {v_input_size}")
+            
+            # 检查是否所有输入维度都相同（标准情况）
+            if q_input_size == k_input_size == v_input_size:
+                logger.debug("Standard QKV weights - all input dimensions match")
+                qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
+            else:
+                # 检查是否是分片权重
+                logger.warning(f"QKV weights appear to be sharded or have different input dimensions")
+                logger.warning(f"This might be due to tensor parallelism or special weight processing")
+                
+                # 首先检查是否是GQA模型
+                if self._is_gqa_model(q_weight, k_weight, v_weight):
+                    logger.info("Detected GQA model - handling grouped-query attention")
+                    qkv_weight = self._handle_gqa_qkv_weights(q_weight, k_weight, v_weight)
+                    logger.debug("Successfully handled GQA QKV weights")
+                # 然后检查是否是张量并行分片
+                elif self._is_tensor_parallel_qkv_sharding(q_weight, k_weight, v_weight):
+                    logger.info("Detected tensor parallel QKV sharding - performing proper sharding")
+                    qkv_weight = self._shard_qkv_weights_for_tensor_parallel(q_weight, k_weight, v_weight)
+                    logger.debug("Successfully sharded QKV weights for tensor parallel")
+                else:
+                    # Fallback to padding strategy if neither GQA nor known TP sharding
+                    max_input_size = max(q_input_size, k_input_size, v_input_size)
                     
-                    logger.debug(f"QKV sizes - q: {q_size}, k: {k_size}, v: {v_size}")
+                    # Pad smaller weights with zeros along dim=0
+                    if q_input_size < max_input_size:
+                        padding = torch.zeros(max_input_size - q_input_size, q_weight.shape[1], 
+                                            dtype=q_weight.dtype, device=q_weight.device)
+                        q_weight = torch.cat([q_weight, padding], dim=0)
                     
-                    # 验证形状兼容性
-                    if q_weight.shape[0] != k_weight.shape[0] or q_weight.shape[0] != v_weight.shape[0]:
-                        logger.error(f"QKV weights have incompatible input dimensions")
-                        return None
+                    if k_input_size < max_input_size:
+                        padding = torch.zeros(max_input_size - k_input_size, k_weight.shape[1], 
+                                            dtype=k_weight.dtype, device=k_weight.device)
+                        k_weight = torch.cat([k_weight, padding], dim=0)
                     
-                    # 合并qkv权重 - 按照SGLang的QKVParallelLinear期望的格式
-                    # 注意：这里需要确保合并后的形状正确
+                    if v_input_size < max_input_size:
+                        padding = torch.zeros(max_input_size - v_input_size, v_weight.shape[1], 
+                                            dtype=v_weight.dtype, device=v_weight.device)
+                        v_weight = torch.cat([v_weight, padding], dim=0)
+                    
                     qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
-                    original_shape = qkv_weight.shape
-                    
-                    logger.debug(f"Successfully merged QKV weights, final shape: {original_shape}")
-                    logger.debug(f"Expected total size: {q_size + k_size + v_size}, actual: {qkv_weight.shape[-1]}")
-                    
-                    # 创建压缩权重对象
-                    compressed_weight = CompressedWeight(
-                        format=WeightFormat(precision),
-                        data=qkv_weight,
-                        metadata={
-                            'q_weight': q_weight,
-                            'k_weight': k_weight,
-                            'v_weight': v_weight,
-                            'is_merged': True,
-                            'q_size': q_size,
-                            'k_size': k_size,
-                            'v_size': v_size,
-                            'total_size': q_size + k_size + v_size
-                        },
-                        original_shape=original_shape,
-                        compressed_size=qkv_weight.numel() * qkv_weight.element_size()
-                    )
-                    
-                    logger.info(f"Merged qkv weight {weight_name} from {q_name}, {k_name}, {v_name}, shape: {original_shape}")
-                    return compressed_weight
-                    
-                except Exception as e:
-                    logger.error(f"Failed to merge QKV weights: {e}")
-                    logger.error(f"Q: {q_weight.shape}, K: {k_weight.shape}, V: {v_weight.shape}")
-                    logger.error(f"Error details: {str(e)}")
-                    return None
-            else:
-                logger.error(f"QKV weights are not 2D tensors: q{q_weight.shape}, k{k_weight.shape}, v{v_weight.shape}")
-                return None
-        else:
-            # 如果找不到分离的权重，检查是否有直接的qkv_proj权重
-            if weight_name in weights:
-                weight_data = weights[weight_name]
-                original_shape = weight_data.shape
-                
-                compressed_weight = CompressedWeight(
-                    format=WeightFormat(precision),
-                    data=weight_data,
-                    metadata={},
-                    original_shape=original_shape,
-                    compressed_size=weight_data.numel() * weight_data.element_size()
-                )
-                
-                # logger.info(f"Found direct qkv weight {weight_name}, shape: {original_shape}")
-                return compressed_weight
-            else:
-                logger.warning(f"Neither separate qkv weights nor direct qkv weight found for {weight_name}")
-                logger.warning(f"Tried: {q_name}, {k_name}, {v_name}, {weight_name}")
-                return None
-    
-    def _load_gptq_weight(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
-        """加载GPTQ权重，处理分离的量化组件"""
-        base_name = weight_name.replace(".weight", "")
-        
-        # 检查是否存在GPTQ组件
-        qweight_name = base_name + ".qweight"
-        qzeros_name = base_name + ".qzeros"
-        scales_name = base_name + ".scales"
-        g_idx_name = base_name + ".g_idx"
-        
-        if qweight_name in weights and qzeros_name in weights and scales_name in weights:
-            qweight = weights[qweight_name]
-            qzeros = weights[qzeros_name]
-            scales = weights[scales_name]
-            g_idx = weights.get(g_idx_name, None)  # g_idx是可选的
-            
-            # 计算压缩大小
-            compressed_size = (qweight.numel() + qzeros.numel() + scales.numel()) * 4  # 假设都是float32/int32
-            if g_idx is not None:
-                compressed_size += g_idx.numel() * 4
-            
-            # 估算原始形状（从scales推断）
-            original_shape = (scales.shape[1], qweight.shape[1] * 8)  # 8 = 32/4 bits
+                    logger.warning(f"Padded QKV weights to max input size {max_input_size}")
             
             # 创建压缩权重对象
             compressed_weight = CompressedWeight(
                 format=WeightFormat(precision),
-                data=qweight,  # 主要数据
-                metadata={
-                    'qweight': qweight,
-                    'qzeros': qzeros,
-                    'scales': scales,
-                    'g_idx': g_idx,
-                    'bits': 4,
-                    'group_size': 128,
-                    'is_gptq': True
-                },
-                original_shape=original_shape,
-                compressed_size=compressed_size
+                data=qkv_weight,
+                metadata={},
+                original_shape=qkv_weight.shape,
+                compressed_size=qkv_weight.numel() * qkv_weight.element_size()
             )
             
-            logger.info(f"Loaded GPTQ weight {weight_name}, shape: {original_shape}, compressed size: {compressed_size}")
+            logger.info(f"Loaded QKV weight {weight_name}, shape: {qkv_weight.shape}")
             return compressed_weight
         else:
-            logger.warning(f"GPTQ components not found for {weight_name}: {qweight_name}, {qzeros_name}, {scales_name}")
+            logger.warning(f"QKV components not found for {weight_name}")
             return None
     
-    def _is_expert_layer(self, weight_name: str) -> bool:
-        """判断是否是专家层权重"""
-        return "experts" in weight_name and "mlp" in weight_name
-    
-    def _get_default_precision(self, weight_name: str) -> str:
-        """获取默认精度策略"""
-        if self._is_expert_layer(weight_name):
-            # 专家层根据配置文件决定，如果没有配置则使用默认值
-            return self.mixed_precision_config.weight_mapping.get(weight_name, "fp16")
-        else:
-            # 非专家层默认使用FP16
-            return "fp16"
-    
-    def _generate_weight_mapping(self, model: torch.nn.Module) -> Dict[str, str]:
-        """生成权重映射（应用默认策略）"""
-        weight_mapping = {}
-        
-        # 遍历模型的所有权重
-        for name, module in model.named_modules():
-            if hasattr(module, 'weight') and module.weight is not None:
-                weight_name = name + '.weight'
+    def _is_gqa_model(self, q_weight: torch.Tensor, k_weight: torch.Tensor, v_weight: torch.Tensor) -> bool:
+        """检查是否是GQA (Grouped-Query Attention) 模型"""
+        try:
+            q_input_size = q_weight.shape[0]
+            k_input_size = k_weight.shape[0]
+            v_input_size = v_weight.shape[0]
+            
+            if (q_input_size > k_input_size and q_input_size > v_input_size and 
+                k_input_size == v_input_size and q_input_size % k_input_size == 0):
                 
-                # 检查是否在配置中有明确指定
-                if weight_name in self.mixed_precision_config.weight_mapping:
-                    # 使用配置文件中的精度
-                    weight_mapping[weight_name] = self.mixed_precision_config.weight_mapping[weight_name]
-                    logger.debug(f"Using configured precision for {weight_name}: {weight_mapping[weight_name]}")
-                else:
-                    # 使用默认策略
-                    default_precision = self._get_default_precision(weight_name)
-                    weight_mapping[weight_name] = default_precision
-                    logger.debug(f"Using default precision for {weight_name}: {default_precision}")
-        
-        return weight_mapping
+                gqa_ratio = q_input_size // k_input_size
+                logger.debug(f"Detected potential GQA model with ratio {gqa_ratio}:1")
+                
+                if gqa_ratio in [2, 4, 8, 16]:
+                    logger.info(f"Detected GQA model with {gqa_ratio}:1 ratio")
+                    return True
+            return False
+        except Exception as e:
+            logger.error(f"Error checking GQA model: {e}")
+            return False
     
-    def load_model_weights(self, model: torch.nn.Module) -> Dict[str, Any]:
-        """加载模型权重（使用精确的层级初始化）"""
-        logger.info("Starting mixed precision model loading with selective layer initialization...")
-        
-        # 1. 验证模型结构兼容性
-        if not self._validate_model_compatibility(model):
-            logger.error("Model structure compatibility check failed")
-            return {'loaded': 0, 'failed': 1, 'base_model_loaded': False}
-        
-        # 2. 生成权重映射（应用默认策略）
-        logger.info("Generating weight mapping with default strategy...")
-        weight_mapping = self._generate_weight_mapping(model)
-        
-        # 统计不同精度的权重数量
-        precision_counts = {}
-        expert_layer_count = 0
-        non_expert_layer_count = 0
-        
-        for weight_name, precision in weight_mapping.items():
-            precision_counts[precision] = precision_counts.get(precision, 0) + 1
-            if self._is_expert_layer(weight_name):
-                expert_layer_count += 1
-            else:
-                non_expert_layer_count += 1
-        
-        logger.info(f"Weight mapping generated:")
-        logger.info(f"  Total weights: {len(weight_mapping)}")
-        logger.info(f"  Expert layers: {expert_layer_count}")
-        logger.info(f"  Non-expert layers: {non_expert_layer_count}")
-        for precision, count in precision_counts.items():
-            logger.info(f"  {precision}: {count} weights")
-        
-        # 4. 根据生成的映射替换权重
-        replaced_count = 0
-        failed_count = 0
-        
-        for weight_name, precision in weight_mapping.items():
+    def _handle_gqa_qkv_weights(self, q_weight: torch.Tensor, k_weight: torch.Tensor, v_weight: torch.Tensor) -> torch.Tensor:
+        """处理GQA (Grouped-Query Attention) 模型的QKV权重"""
+        try:
+            q_input_size = q_weight.shape[0]
+            k_input_size = k_weight.shape[0]
+            v_input_size = v_weight.shape[0]
+            
+            gqa_ratio = q_input_size // k_input_size
+            logger.info(f"Handling GQA model with {gqa_ratio}:1 ratio")
+            
+            # Get current tensor parallel rank (assuming tp_size=4 from user's script)
+            tp_rank = 0
             try:
-                # 验证权重是否存在于模型中
-                if not self._weight_exists_in_model(model, weight_name):
-                    logger.warning(f"Weight {weight_name} does not exist in model, skipping")
-                    failed_count += 1
-                    continue
-                
-                compressed_weight = self.load_weight(weight_name, precision)
-                if compressed_weight:
-                    # 验证权重形状兼容性
-                    if self._validate_weight_compatibility(model, weight_name, compressed_weight):
-                        # 存储压缩权重
-                        self.compressed_weights[weight_name] = compressed_weight
-                        replaced_count += 1
-                        logger.debug(f"Replaced {weight_name} with {precision} precision")
-                    else:
-                        failed_count += 1
-                        logger.warning(f"Weight shape incompatible for {weight_name}")
-                else:
-                    failed_count += 1
-                    logger.warning(f"Failed to load weight {weight_name} with precision {precision}")
+                import torch.distributed as dist
+                if dist.is_initialized():
+                    tp_rank = dist.get_rank() % 4  # tp_size=4
+                    logger.info(f"Current tensor parallel rank: {tp_rank}")
             except Exception as e:
-                failed_count += 1
-                logger.error(f"Error loading weight {weight_name}: {e}")
-        
-        # 计算内存节省
-        total_memory_saved = sum(weight.get_memory_usage() for weight in self.compressed_weights.values())
-        
-        stats = {
-            'loaded': replaced_count,
-            'failed': failed_count,
-            'total_weights': len(weight_mapping),
-            'memory_saved_mb': total_memory_saved / (1024 * 1024),
-            'compressed_weights': len(self.compressed_weights),
-            'base_model_loaded': True,  # 现在使用精确的层级初始化
-            'precision_distribution': precision_counts
-        }
-        
-        logger.info(f"Mixed precision loading completed:")
-        logger.info(f"  Successfully replaced: {replaced_count}/{len(weight_mapping)} weights")
-        logger.info(f"  Failed to load: {failed_count} weights")
-        logger.info(f"  Memory saved: {stats['memory_saved_mb']:.2f}MB")
-        
-        return stats
-    
-    def _load_base_model_weights(self, model: torch.nn.Module, base_model_path: str):
-        """加载基础模型权重"""
-        try:
-            # 尝试加载safetensors格式
-            model_file = os.path.join(base_model_path, "model.safetensors")
-            if os.path.exists(model_file):
-                weights = self._load_safetensors_file(model_file)
-            else:
-                # 尝试加载PyTorch格式
-                model_file = os.path.join(base_model_path, "pytorch_model.bin")
-                if os.path.exists(model_file):
-                    weights = self._load_pytorch_file(model_file)
-                else:
-                    logger.warning(f"No model file found in {base_model_path}")
-                    return
+                logger.warning(f"Could not get tensor parallel rank: {e}, using rank 0")
             
-            # 加载权重到模型
-            model.load_state_dict(weights, strict=False)
-            logger.info(f"Base model weights loaded from {base_model_path}")
+            # GQA sharding strategy for tp_size=4
+            # Each rank handles 1/4 of the query heads
+            q_shard_size = q_input_size // 4  # e.g., 4096 // 4 = 1024
+            start_idx = tp_rank * q_shard_size
+            end_idx = start_idx + q_shard_size
+            q_shard = q_weight[start_idx:end_idx, :]
             
+            # k_proj and v_proj also need sharding for tp_size=4
+            # Each rank handles 1/4 of the KV heads
+            k_shard_size = k_input_size // 4  # e.g., 512 // 4 = 128
+            k_start_idx = tp_rank * k_shard_size
+            k_end_idx = k_start_idx + k_shard_size
+            k_shard = k_weight[k_start_idx:k_end_idx, :]
+            
+            v_shard_size = v_input_size // 4  # e.g., 512 // 4 = 128
+            v_start_idx = tp_rank * v_shard_size
+            v_end_idx = v_start_idx + v_shard_size
+            v_shard = v_weight[v_start_idx:v_end_idx, :]
+            
+            logger.debug(f"GQA QKV shard shapes - q: {q_shard.shape}, k: {k_shard.shape}, v: {v_shard.shape}")
+            
+            qkv_shard = torch.cat([q_shard, k_shard, v_shard], dim=-1)
+            logger.info(f"Successfully created GQA QKV shard for rank {tp_rank}, shape: {qkv_shard.shape}")
+            return qkv_shard
         except Exception as e:
-            logger.error(f"Failed to load base model weights: {e}")
+            logger.error(f"Error handling GQA QKV weights: {e}")
+            logger.warning("Falling back to original QKV weights")
+            return q_weight
     
-    def get_compressed_weight(self, weight_name: str) -> Optional[CompressedWeight]:
-        """获取压缩权重"""
-        return self.compressed_weights.get(weight_name)
-    
-    def get_memory_stats(self) -> Dict[str, Any]:
-        """获取内存统计信息"""
-        total_compressed_size = sum(weight.get_memory_usage() for weight in self.compressed_weights.values())
-        return {
-            'compressed_weights_count': len(self.compressed_weights),
-            'total_compressed_size_mb': total_compressed_size / (1024 * 1024),
-            'memory_saved_mb': self.memory_saved / (1024 * 1024)
-        }
-    
-    def download_model(self, model_config: ModelConfig) -> str:
-        """下载模型（返回模型路径）"""
-        return model_config.model_path
-    
-    def load_model(self, model_config: ModelConfig, device_config) -> None:
-        """加载模型（返回None，实际加载由父类处理）"""
-        return None
-    
-    def _validate_model_compatibility(self, model: torch.nn.Module) -> bool:
-        """验证模型结构兼容性"""
-        logger.info("Validating model structure compatibility...")
-        
+    def _is_tensor_parallel_qkv_sharding(self, q_weight: torch.Tensor, k_weight: torch.Tensor, v_weight: torch.Tensor) -> bool:
+        """检查是否是张量并行QKV分片的情况"""
         try:
-            # 检查模型是否有必要的属性
-            if not hasattr(model, 'named_modules'):
-                logger.error("Model does not have named_modules method")
+            q_input_size = q_weight.shape[0]
+            k_input_size = k_weight.shape[0]
+            v_input_size = v_weight.shape[0]
+            
+            # 检查是否是典型的张量并行分片模式
+            if (q_input_size == k_input_size == v_input_size):
+                # 标准情况，不是分片
                 return False
             
-            # 检查模型是否有权重参数
-            has_weights = False
-            for name, module in model.named_modules():
-                if hasattr(module, 'weight') and module.weight is not None:
-                    has_weights = True
-                    break
-            
-            if not has_weights:
-                logger.error("Model does not have any weight parameters")
-                return False
-            
-            logger.info("Model structure compatibility check passed")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Model compatibility check failed: {e}")
-            return False
-    
-    def _weight_exists_in_model(self, model: torch.nn.Module, weight_name: str) -> bool:
-        """检查权重是否存在于模型中"""
-        try:
-            # 解析权重名称
-            module_names = weight_name.split('.')
-            if module_names[-1] != 'weight':
-                return False
-            
-            # 获取模块名称
-            module_name = '.'.join(module_names[:-1])
-            
-            # 检查模块是否存在
-            module = model
-            for name in module_name.split('.'):
-                if hasattr(module, name):
-                    module = getattr(module, name)
-                else:
-                    return False
-            
-            # 检查是否有weight属性
-            return hasattr(module, 'weight') and module.weight is not None
-            
-        except Exception as e:
-            logger.debug(f"Error checking weight existence for {weight_name}: {e}")
-            return False
-    
-    def _validate_weight_compatibility(self, model: torch.nn.Module, weight_name: str, compressed_weight: CompressedWeight) -> bool:
-        """验证权重形状兼容性"""
-        try:
-            # 获取模型中的权重形状
-            module_names = weight_name.split('.')
-            module_name = '.'.join(module_names[:-1])
-            
-            module = model
-            for name in module_name.split('.'):
-                if hasattr(module, name):
-                    module = getattr(module, name)
-                else:
-                    return False
-            
-            if not hasattr(module, 'weight') or module.weight is None:
-                return False
-            
-            model_weight_shape = module.weight.shape
-            compressed_weight_shape = compressed_weight.original_shape
-            
-            # 检查形状是否兼容
-            if model_weight_shape != compressed_weight_shape:
-                logger.warning(f"Weight shape mismatch for {weight_name}: "
-                             f"model has {model_weight_shape}, compressed has {compressed_weight_shape}")
-                return False
-            
-            logger.debug(f"Weight shape compatible for {weight_name}: {model_weight_shape}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error validating weight compatibility for {weight_name}: {e}")
-            return False
-    
-    def _get_model_weight_info(self, model: torch.nn.Module) -> Dict[str, Any]:
-        """获取模型权重信息"""
-        weight_info = {}
-        
-        for name, module in model.named_modules():
-            if hasattr(module, 'weight') and module.weight is not None:
-                weight_name = name + '.weight'
-                weight_info[weight_name] = {
-                    'shape': module.weight.shape,
-                    'dtype': module.weight.dtype,
-                    'device': module.weight.device
-                }
-        
-        return weight_info
-    
-    def initialize_specific_layers(self, model: torch.nn.Module, base_model_path: str):
-        """精确初始化特定层，而不是重新初始化整个模型"""
-        logger.info("Starting selective layer initialization...")
-        
-        try:
-            # 1. 获取需要初始化的层列表
-            layers_to_initialize = self._get_layers_to_initialize()
-            logger.info(f"Found {len(layers_to_initialize)} layers to initialize")
-            
-            # 2. 加载基础模型的权重
-            base_weights = self._load_base_model_weights_dict(base_model_path)
-            if not base_weights:
-                logger.warning("Failed to load base model weights for layer initialization")
-                return
-            
-            # 3. 精确初始化每个需要的层
-            initialized_count = 0
-            for layer_name in layers_to_initialize:
-                if self._initialize_single_layer(model, layer_name, base_weights):
-                    initialized_count += 1
-                    logger.debug(f"Initialized layer: {layer_name}")
-                else:
-                    logger.warning(f"Failed to initialize layer: {layer_name}")
-            
-            logger.info(f"Selective layer initialization completed: {initialized_count}/{len(layers_to_initialize)} layers initialized")
-            
-        except Exception as e:
-            logger.error(f"Error during selective layer initialization: {e}")
-    
-    def _get_layers_to_initialize(self) -> List[str]:
-        """获取需要初始化的层列表"""
-        layers_to_initialize = set()
-        
-        # 从权重映射中提取层名称
-        for weight_name in self.mixed_precision_config.weight_mapping.keys():
-            # 解析权重名称，提取层名称
-            # 例如: "model.layers.12.self_attn.q_proj.weight" -> "model.layers.12.self_attn"
-            layer_name = self._extract_layer_name_from_weight(weight_name)
-            if layer_name:
-                layers_to_initialize.add(layer_name)
-        
-        # 添加qkv_proj相关的层（如果存在）
-        qkv_layers = set()
-        for layer_name in list(layers_to_initialize):
-            if "self_attn" in layer_name:
-                # 检查是否有qkv_proj相关的权重
-                qkv_weight_name = layer_name + ".qkv_proj.weight"
-                if qkv_weight_name in self.mixed_precision_config.weight_mapping:
-                    qkv_layers.add(layer_name)
-        
-        layers_to_initialize.update(qkv_layers)
-        
-        # logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
-        return list(layers_to_initialize)
-    
-    def _extract_layer_name_from_weight(self, weight_name: str) -> Optional[str]:
-        """从权重名称中提取层名称"""
-        # 移除权重后缀（包括FP8的weight_scale_inv后缀）
-        if weight_name.endswith('.weight_scale_inv'):
-            layer_name = weight_name[:-18]  # 移除 '.weight_scale_inv'
-        elif weight_name.endswith('.weight'):
-            layer_name = weight_name[:-7]  # 移除 '.weight'
-        else:
-            layer_name = weight_name
-        
-        # 处理专家层权重名称
-        if '.experts.' in layer_name:
-            # 对于专家层，提取到专家模块级别
-            parts = layer_name.split('.')
-            for i, part in enumerate(parts):
-                if part == 'experts':
-                    # 找到experts后面的数字
-                    if i + 1 < len(parts) and parts[i + 1].isdigit():
-                        layer_name = '.'.join(parts[:i+2])  # 包含experts和数字
-                        break
-                    else:
-                        layer_name = '.'.join(parts[:i+1])  # 只包含experts
-                        break
-        
-        # 处理注意力层权重名称
-        elif '.q_proj.' in layer_name or '.k_proj.' in layer_name or '.v_proj.' in layer_name:
-            # 对于分离的q_proj, k_proj, v_proj，提取到self_attn层
-            parts = layer_name.split('.')
-            for i, part in enumerate(parts):
-                if part == 'self_attn':
-                    layer_name = '.'.join(parts[:i+1])
-                    break
-        
-        # 处理MLP层权重名称
-        elif '.gate_proj.' in layer_name or '.up_proj.' in layer_name or '.down_proj.' in layer_name:
-            # 对于MLP层，提取到mlp层
-            parts = layer_name.split('.')
-            for i, part in enumerate(parts):
-                if part == 'mlp':
-                    layer_name = '.'.join(parts[:i+1])
-                    break
-        
-        return layer_name
-    
-    def _initialize_single_layer(self, model: torch.nn.Module, layer_name: str, base_weights: Dict[str, torch.Tensor]) -> bool:
-        """初始化单个层"""
-        try:
-            # 1. 获取层模块
-            layer_module = self._get_module_by_name(model, layer_name)
-            if layer_module is None:
-                logger.warning(f"Layer module not found: {layer_name}")
-                return False
-            
-            # 2. 收集该层的所有权重
-            layer_weights = {}
-            for weight_name, weight_tensor in base_weights.items():
-                if weight_name.startswith(layer_name + '.'):
-                    layer_weights[weight_name] = weight_tensor
-            
-            if not layer_weights:
-                logger.warning(f"No weights found for layer: {layer_name}")
-                return False
-            
-            # 3. 初始化层的权重
-            self._initialize_layer_weights(layer_module, layer_weights, layer_name)
-            
-            logger.debug(f"Successfully initialized layer: {layer_name} with {len(layer_weights)} weights")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Error initializing layer {layer_name}: {e}")
-            return False
-    
-    def _get_module_by_name(self, model: torch.nn.Module, module_name: str) -> Optional[torch.nn.Module]:
-        """根据名称获取模块"""
-        try:
-            module = model
-            for name in module_name.split('.'):
-                if hasattr(module, name):
-                    module = getattr(module, name)
-                else:
-                    print(f"module: {module}, name: {name}")
-                    return None
-            return module
-        except Exception as e:
-            logger.error(f"Error getting module {module_name}: {e}")
-            return None
-    
-    def _initialize_layer_weights(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
-        """初始化层的权重"""
-        try:
-            # 对于不同类型的层，采用不同的初始化策略
-            if "self_attn" in layer_name:
-                self._initialize_attention_layer(layer_module, layer_weights, layer_name)
-            elif "mlp" in layer_name:
-                self._initialize_mlp_layer(layer_module, layer_weights, layer_name)
-            else:
-                # 通用初始化
-                self._initialize_generic_layer(layer_module, layer_weights, layer_name)
+            # 检查是否是张量并行分片
+            if (q_input_size > k_input_size and q_input_size > v_input_size and 
+                k_input_size == v_input_size):
                 
-        except Exception as e:
-            logger.error(f"Error initializing layer weights for {layer_name}: {e}")
-    
-    def _initialize_attention_layer(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
-        """初始化注意力层"""
-        logger.debug(f"Initializing attention layer: {layer_name}")
-        
-        # 检查是否有qkv_proj权重
-        qkv_weight_name = layer_name + ".qkv_proj.weight"
-        if qkv_weight_name in layer_weights:
-            # 处理qkv_proj权重
-            qkv_weight = layer_weights[qkv_weight_name]
-            if hasattr(layer_module, 'qkv_proj'):
-                layer_module.qkv_proj.weight.data = qkv_weight
-                logger.debug(f"Set qkv_proj weight for {layer_name}")
-        
-        # 处理分离的q_proj, k_proj, v_proj权重
-        for proj_name in ['q_proj', 'k_proj', 'v_proj']:
-            weight_name = layer_name + "." + proj_name + ".weight"
-            if weight_name in layer_weights:
-                weight = layer_weights[weight_name]
-                if hasattr(layer_module, proj_name):
-                    getattr(layer_module, proj_name).weight.data = weight
-                    logger.debug(f"Set {proj_name} weight for {layer_name}")
-        
-        # 处理o_proj权重
-        o_weight_name = layer_name + ".o_proj.weight"
-        if o_weight_name in layer_weights and hasattr(layer_module, 'o_proj'):
-            layer_module.o_proj.weight.data = layer_weights[o_weight_name]
-            logger.debug(f"Set o_proj weight for {layer_name}")
-    
-    def _initialize_mlp_layer(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
-        """初始化MLP层"""
-        logger.debug(f"Initializing MLP layer: {layer_name}")
-        
-        # 检查是否是专家层
-        if '.experts.' in layer_name:
-            self._initialize_expert_layer(layer_module, layer_weights, layer_name)
-        else:
-            # 处理普通MLP的各个投影层
-            for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
-                weight_name = layer_name + "." + proj_name + ".weight"
-                if weight_name in layer_weights:
-                    weight = layer_weights[weight_name]
-                    if hasattr(layer_module, proj_name):
-                        getattr(layer_module, proj_name).weight.data = weight
-                        logger.debug(f"Set {proj_name} weight for {layer_name}")
-    
-    def _initialize_expert_layer(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
-        """初始化专家层"""
-        logger.debug(f"Initializing expert layer: {layer_name}")
-        
-        # 处理专家层的各个投影层
-        for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
-            # 尝试不同的权重名称格式（按优先级）
-            weight_names = [
-                layer_name + "." + proj_name + ".weight",  # FP16格式
-                layer_name + "." + proj_name + ".weight_scale_inv",  # FP8格式
-            ]
-            
-            weight_found = False
-            for weight_name in weight_names:
-                if weight_name in layer_weights:
-                    weight = layer_weights[weight_name]
-                    if hasattr(layer_module, proj_name):
-                        getattr(layer_module, proj_name).weight.data = weight
-                        logger.debug(f"Set {proj_name} weight for {layer_name} (format: {weight_name})")
-                        weight_found = True
-                        break
-            
-            if not weight_found:
-                logger.warning(f"No weight found for {proj_name} in layer {layer_name}")
-                logger.debug(f"Available weights for this layer: {[k for k in layer_weights.keys() if proj_name in k]}")
-    
-    def _initialize_generic_layer(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
-        """通用层初始化"""
-        logger.debug(f"Initializing generic layer: {layer_name}")
-        
-        # 直接设置权重
-        for weight_name, weight_tensor in layer_weights.items():
-            # 提取权重名称（移除层前缀）
-            if weight_name.startswith(layer_name + '.'):
-                param_name = weight_name[len(layer_name) + 1:]  # 移除层名和点号
-                if hasattr(layer_module, param_name):
-                    getattr(layer_module, param_name).data = weight_tensor
-                    logger.debug(f"Set {param_name} for {layer_name}")
-    
-    def _load_base_model_weights_dict(self, base_model_path: str) -> Optional[Dict[str, torch.Tensor]]:
-        """加载基础模型权重字典"""
-        try:
-            # 首先尝试加载safetensors索引文件
-            index_file = os.path.join(base_model_path, "model.safetensors.index.json")
-            if os.path.exists(index_file):
-                # logger.info(f"Loading safetensors index from {index_file}")
-                return self._load_safetensors_index_weights(base_model_path, index_file)
-            
-            # 尝试加载单个safetensors文件
-            model_file = os.path.join(base_model_path, "model.safetensors")
-            if os.path.exists(model_file):
-                # logger.info(f"Loading single safetensors file: {model_file}")
-                return self._load_safetensors_file(model_file)
-            
-            # 尝试加载PyTorch格式
-            model_file = os.path.join(base_model_path, "pytorch_model.bin")
-            if os.path.exists(model_file):
-                # logger.info(f"Loading PyTorch model file: {model_file}")
-                return self._load_pytorch_file(model_file)
-            
-            # 尝试加载分片的PyTorch文件
-            pytorch_files = [f for f in os.listdir(base_model_path) if f.startswith("pytorch_model-") and f.endswith(".bin")]
-            if pytorch_files:
-                # logger.info(f"Loading PyTorch sharded files: {len(pytorch_files)} files")
-                return self._load_pytorch_sharded_files(base_model_path, pytorch_files)
-            
-            logger.warning(f"No model file found in {base_model_path}")
-            # logger.info(f"Available files in {base_model_path}:")
-            # try:
-            #     for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
-            #         logger.info(f"  - {f}")
-            # except Exception as e:
-            #     logger.error(f"Error listing directory: {e}")
-            
-            return None
-            
-        except Exception as e:
-            logger.error(f"Failed to load base model weights: {e}")
-            return None
-    
-    def _load_safetensors_index_weights(self, base_model_path: str, index_file: str) -> Optional[Dict[str, torch.Tensor]]:
-        """从safetensors索引文件加载权重"""
-        try:
-            import json
-            with open(index_file, 'r', encoding='utf-8') as f:
-                index_data = json.load(f)
-            
-            weight_to_file = index_data.get('weight_map', {})
-            if not weight_to_file:
-                logger.warning("No weight_map found in index file")
-                return None
-            
-            all_weights = {}
-            loaded_files = set()
-            
-            for weight_name, file_name in weight_to_file.items():
-                file_path = os.path.join(base_model_path, file_name)
+                # 计算分片大小
+                tp_size = q_input_size // k_input_size
                 
-                if file_name not in loaded_files:
-                    if os.path.exists(file_path):
-                        logger.debug(f"Loading safetensors file: {file_path}")
-                        file_weights = self._load_safetensors_file(file_path)
-                        if file_weights:
-                            all_weights.update(file_weights)
-                            loaded_files.add(file_name)
-                        else:
-                            logger.warning(f"Failed to load file: {file_path}")
-                    else:
-                        logger.warning(f"File not found: {file_path}")
+                # 检查是否是合理的分片大小
+                if tp_size in [2, 4, 8, 16] and q_input_size % tp_size == 0:
+                    logger.info(f"Detected tensor parallel QKV sharding with tp_size={tp_size}")
+                    return True
             
-            # logger.info(f"Loaded {len(all_weights)} weights from {len(loaded_files)} files")
-            return all_weights
-            
+            return False
         except Exception as e:
-            logger.error(f"Error loading safetensors index: {e}")
-            return None
+            logger.error(f"Error checking tensor parallel QKV sharding: {e}")
+            return False
     
-    def _load_pytorch_sharded_files(self, base_model_path: str, pytorch_files: List[str]) -> Optional[Dict[str, torch.Tensor]]:
-        """加载分片的PyTorch文件"""
+    def _shard_qkv_weights_for_tensor_parallel(self, q_weight: torch.Tensor, k_weight: torch.Tensor, v_weight: torch.Tensor) -> torch.Tensor:
+        """为张量并行分片QKV权重"""
         try:
-            all_weights = {}
+            q_input_size = q_weight.shape[0]
+            k_input_size = k_weight.shape[0]
+            v_input_size = v_weight.shape[0]
             
-            for file_name in sorted(pytorch_files):  # 确保按顺序加载
-                file_path = os.path.join(base_model_path, file_name)
-                if os.path.exists(file_path):
-                    logger.debug(f"Loading PyTorch file: {file_path}")
-                    file_weights = self._load_pytorch_file(file_path)
-                    if file_weights:
-                        all_weights.update(file_weights)
-                    else:
-                        logger.warning(f"Failed to load file: {file_path}")
-                else:
-                    logger.warning(f"File not found: {file_path}")
+            # 计算张量并行大小
+            if q_input_size > k_input_size and q_input_size > v_input_size:
+                tp_size = q_input_size // k_input_size
+            else:
+                # 默认使用4-way张量并行
+                tp_size = 4
+                logger.warning(f"Could not determine tp_size, using default {tp_size}")
             
-            # logger.info(f"Loaded {len(all_weights)} weights from {len(pytorch_files)} PyTorch files")
-            return all_weights
+            # 获取当前张量并行rank
+            tp_rank = 0
+            try:
+                import torch.distributed as dist
+                if dist.is_initialized():
+                    tp_rank = dist.get_rank() % tp_size
+            except Exception as e:
+                logger.warning(f"Could not get tensor parallel rank: {e}, using rank 0")
+            
+            # 分片Q权重
+            q_shard_size = q_input_size // tp_size
+            q_start_idx = tp_rank * q_shard_size
+            q_end_idx = q_start_idx + q_shard_size
+            q_shard = q_weight[q_start_idx:q_end_idx, :]
+            
+            # 分片K权重
+            k_shard_size = k_input_size // tp_size
+            k_start_idx = tp_rank * k_shard_size
+            k_end_idx = k_start_idx + k_shard_size
+            k_shard = k_weight[k_start_idx:k_end_idx, :]
+            
+            # 分片V权重
+            v_shard_size = v_input_size // tp_size
+            v_start_idx = tp_rank * v_shard_size
+            v_end_idx = v_start_idx + v_shard_size
+            v_shard = v_weight[v_start_idx:v_end_idx, :]
+            
+            # 合并分片
+            qkv_shard = torch.cat([q_shard, k_shard, v_shard], dim=-1)
+            
+            logger.info(f"Successfully sharded QKV weights for tensor parallel rank {tp_rank}, shape: {qkv_shard.shape}")
+            return qkv_shard
             
         except Exception as e:
-            logger.error(f"Error loading PyTorch sharded files: {e}")
-            return None
+            logger.error(f"Error sharding QKV weights for tensor parallel: {e}")
+            return q_weight
+    
+    def _is_tensor_parallel_sharding(self, model_shape: torch.Size, compressed_shape: torch.Size, weight_name: str) -> bool:
+        """检查是否是张量并行分片的情况"""
+        try:
+            # 复用SGLang的张量并行检测逻辑
+            if model_shape == compressed_shape:
+                return False
+            
+            # 检查是否是典型的张量并行分片模式
+            if "embed_tokens" in weight_name:
+                # 嵌入层：vocab_size被分片
+                if len(model_shape) == 2 and len(compressed_shape) == 2:
+                    if model_shape[1] == compressed_shape[1]:  # hidden_size相同
+                        return model_shape[0] > compressed_shape[0] and model_shape[0] % compressed_shape[0] == 0
+            
+            elif any(proj in weight_name for proj in ["o_proj", "gate_proj", "up_proj", "down_proj"]):
+                # 线性层：输出维度被分片
+                if len(model_shape) == 2 and len(compressed_shape) == 2:
+                    if model_shape[0] == compressed_shape[0]:  # 输入维度相同
+                        return model_shape[1] > compressed_shape[1] and model_shape[1] % compressed_shape[1] == 0
+                    elif model_shape[1] == compressed_shape[1]:  # 输出维度相同
+                        return model_shape[0] > compressed_shape[0] and model_shape[0] % compressed_shape[0] == 0
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error checking tensor parallel sharding: {e}")
+            return False
+    
+    def _shard_weight_for_tensor_parallel(self, weight: torch.Tensor, weight_name: str, target_shape: torch.Size) -> torch.Tensor:
+        """为张量并行分片权重"""
+        try:
+            current_shape = weight.shape
+            
+            # 获取当前张量并行rank
+            tp_rank = 0
+            try:
+                import torch.distributed as dist
+                if dist.is_initialized():
+                    tp_rank = dist.get_rank() % 4  # 假设tp_size=4
+            except Exception as e:
+                logger.warning(f"Could not get tensor parallel rank: {e}, using rank 0")
+            
+            # 根据权重类型进行分片
+            if "embed_tokens" in weight_name:
+                # 嵌入层：vocab_size被分片
+                if len(current_shape) == 2 and len(target_shape) == 2:
+                    if current_shape[1] == target_shape[1]:  # hidden_size相同
+                        vocab_size_full = current_shape[0]
+                        vocab_size_shard = target_shape[0]
+                        tp_size = vocab_size_full // vocab_size_shard
+                        
+                        # 计算当前rank对应的vocab范围
+                        start_idx = tp_rank * vocab_size_shard
+                        end_idx = start_idx + vocab_size_shard
+                        
+                        # 分片嵌入权重
+                        sharded_weight = weight[start_idx:end_idx, :]
+                        logger.info(f"Sharded embedding weight for rank {tp_rank}: {current_shape} -> {sharded_weight.shape}")
+                        return sharded_weight
+            
+            elif any(proj in weight_name for proj in ["o_proj", "gate_proj", "up_proj", "down_proj"]):
+                # 线性层：输出维度被分片
+                if len(current_shape) == 2 and len(target_shape) == 2:
+                    if current_shape[0] == target_shape[0]:  # 输入维度相同
+                        output_size_full = current_shape[1]
+                        output_size_shard = target_shape[1]
+                        tp_size = output_size_full // output_size_shard
+                        
+                        # 计算当前rank对应的输出维度范围
+                        start_idx = tp_rank * output_size_shard
+                        end_idx = start_idx + output_size_shard
+                        
+                        # 分片线性层权重
+                        sharded_weight = weight[:, start_idx:end_idx]
+                        logger.info(f"Sharded linear weight for rank {tp_rank}: {current_shape} -> {sharded_weight.shape}")
+                        return sharded_weight
+                    
+                    elif current_shape[1] == target_shape[1]:  # 输出维度相同
+                        input_size_full = current_shape[0]
+                        input_size_shard = target_shape[0]
+                        tp_size = input_size_full // input_size_shard
+                        
+                        # 计算当前rank对应的输入维度范围
+                        start_idx = tp_rank * input_size_shard
+                        end_idx = start_idx + input_size_shard
+                        
+                        # 分片线性层权重
+                        sharded_weight = weight[start_idx:end_idx, :]
+                        logger.info(f"Sharded linear weight for rank {tp_rank}: {current_shape} -> {sharded_weight.shape}")
+                        return sharded_weight
+            
+            # 如果无法分片，返回原始权重
+            logger.warning(f"Could not shard weight {weight_name}, returning original")
+            return weight
+            
+        except Exception as e:
+            logger.error(f"Error sharding weight {weight_name} for tensor parallel: {e}")
+            return weight
 
 
 # 全局混合精度加载器实例

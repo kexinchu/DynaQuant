@@ -3,7 +3,7 @@
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
 python3 -m sglang.launch_server \
   --model-path /dcar-vepfs-trans-models/Qwen3-30B-A3B \
-  --tp-size 1 --dp-size 4 --ep-size 1\
+  --tp-size 4 --dp-size 1 --ep-size 1\
   --enable-ep-moe \
   --max-running-requests 32 \
   --host 127.0.0.1 --port 8080 \
