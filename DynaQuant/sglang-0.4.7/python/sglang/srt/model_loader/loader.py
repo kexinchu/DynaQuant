@@ -381,36 +381,33 @@ class DefaultModelLoader(BaseModelLoader):
             
             # Try to load true mixed precision weights first
             mixed_precision_loaded = False
-            try:
-                # 尝试使用真正的混合精度加载器
-                config_path = getattr(model_config, 'mixed_precision_config', None)
-                if config_path and os.path.exists(config_path):
-                    logger.info(f"Attempting to load true mixed precision weights from {config_path}")
+            # 尝试使用真正的混合精度加载器
+            config_path = getattr(model_config, 'mixed_precision_config', None)
+            if config_path and os.path.exists(config_path):
+                logger.info(f"Attempting to load true mixed precision weights from {config_path}")
+                
+                # 使用真正的混合精度加载器
+                from .mixed_precision_loader import create_true_mixed_precision_loader, set_global_true_mixed_precision_loader
+                from ..layers.mixed_precision_linear import replace_linear_with_mixed_precision
+                
+                # 创建真正的混合精度加载器
+                mixed_precision_loader = create_true_mixed_precision_loader(model_config, config_path)
+                set_global_true_mixed_precision_loader(mixed_precision_loader)
+                
+                # 先加载基础模型（通常是低精度模型），然后替换指定层
+                stats = mixed_precision_loader.load_model_weights(model)
+                
+                if stats['loaded'] > 0 or stats.get('base_model_loaded', False):
+                    # 替换线性层为混合精度线性层
+                    model = replace_linear_with_mixed_precision(model, mixed_precision_loader, use_cache=True)
                     
-                    # 使用真正的混合精度加载器
-                    from .mixed_precision_loader import create_true_mixed_precision_loader, set_global_true_mixed_precision_loader
-                    from ..layers.mixed_precision_linear import replace_linear_with_mixed_precision
-                    
-                    # 创建真正的混合精度加载器
-                    mixed_precision_loader = create_true_mixed_precision_loader(model_config, config_path)
-                    set_global_true_mixed_precision_loader(mixed_precision_loader)
-                    
-                    # 先加载基础模型（通常是低精度模型），然后替换指定层
-                    stats = mixed_precision_loader.load_model_weights(model)
-                    
-                    if stats['loaded'] > 0 or stats.get('base_model_loaded', False):
-                        # 替换线性层为混合精度线性层
-                        model = replace_linear_with_mixed_precision(model, mixed_precision_loader, use_cache=True)
-                        
-                        mixed_precision_loaded = True
-                        logger.info(f"True mixed precision weights loaded successfully: {stats['loaded']} weights replaced")
-                        logger.info(f"Total memory saved: {stats['memory_saved_mb']:.2f}MB")
-                    else:
-                        logger.warning("No mixed precision weights loaded, falling back to standard loading")
+                    mixed_precision_loaded = True
+                    logger.info(f"True mixed precision weights loaded successfully: {stats['loaded']} weights replaced")
+                    logger.info(f"Total memory saved: {stats['memory_saved_mb']:.2f}MB")
                 else:
-                    logger.info("No mixed precision config found, using standard loading")
-            except Exception as e:
-                logger.warning(f"True mixed precision loading failed: {e}, falling back to standard loading")
+                    logger.warning("No mixed precision weights loaded, falling back to standard loading")
+            else:
+                logger.info("No mixed precision config found, using standard loading")
             
             # If mixed precision loading failed, use standard loading
             if not mixed_precision_loaded:

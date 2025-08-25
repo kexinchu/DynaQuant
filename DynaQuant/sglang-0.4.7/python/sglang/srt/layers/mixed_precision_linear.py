@@ -62,6 +62,8 @@ class MixedPrecisionLinear(nn.Module):
         
         # 初始化权重（占位符，实际权重从压缩格式加载）
         self.register_parameter('weight', None)
+
+        logger.info(f"True mixed precision linear initialized: {self.weight_name}")
     
     def _get_compressed_weight(self) -> Optional[CompressedWeight]:
         """获取压缩权重"""

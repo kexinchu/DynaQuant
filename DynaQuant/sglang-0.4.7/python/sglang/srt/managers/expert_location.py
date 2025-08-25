@@ -359,9 +359,9 @@ def compute_logical_to_rank_dispatch_physical_map(
                 :, layer_id, logical_expert_id
             ]
 
-            print(f"candidate_physical_expert_ids: {candidate_physical_expert_ids}")
-            print(f"output_partial: {output_partial}")
-            print(f"logical_expert_id: {logical_expert_id}")
+            # print(f"candidate_physical_expert_ids: {candidate_physical_expert_ids}")
+            # print(f"output_partial: {output_partial}")
+            # print(f"logical_expert_id: {logical_expert_id}")
 
             for gpu_id in range(num_gpus):
                 same_gpu_physical_expert_ids = [

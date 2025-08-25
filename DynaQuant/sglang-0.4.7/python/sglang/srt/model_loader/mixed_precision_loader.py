@@ -87,7 +87,16 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             config: SGLang模型配置
             mixed_precision_config: 混合精度配置
         """
-        super().__init__(config)
+        # 创建LoadConfig
+        from sglang.srt.configs.load_config import LoadConfig
+        load_config = LoadConfig(
+            load_format="auto",
+            download_dir=None,  # 使用默认缓存目录
+            model_loader_extra_config={},
+            ignore_patterns=None  # 使用默认忽略模式
+        )
+        
+        super().__init__(load_config)
         self.mixed_precision_config = mixed_precision_config
         self.weight_cache = {}  # 缓存已加载的权重文件
         self.compressed_weights = {}  # 存储压缩权重
