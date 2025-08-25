@@ -395,15 +395,15 @@ class DefaultModelLoader(BaseModelLoader):
                     mixed_precision_loader = create_true_mixed_precision_loader(model_config, config_path)
                     set_global_true_mixed_precision_loader(mixed_precision_loader)
                     
-                    # 加载量化权重（保持压缩格式）
+                    # 先加载基础模型（通常是低精度模型），然后替换指定层
                     stats = mixed_precision_loader.load_model_weights(model)
                     
-                    if stats['loaded'] > 0:
+                    if stats['loaded'] > 0 or stats.get('base_model_loaded', False):
                         # 替换线性层为混合精度线性层
                         model = replace_linear_with_mixed_precision(model, mixed_precision_loader, use_cache=True)
                         
                         mixed_precision_loaded = True
-                        logger.info(f"True mixed precision weights loaded successfully: {stats['loaded']} weights loaded")
+                        logger.info(f"True mixed precision weights loaded successfully: {stats['loaded']} weights replaced")
                         logger.info(f"Total memory saved: {stats['memory_saved_mb']:.2f}MB")
                     else:
                         logger.warning("No mixed precision weights loaded, falling back to standard loading")

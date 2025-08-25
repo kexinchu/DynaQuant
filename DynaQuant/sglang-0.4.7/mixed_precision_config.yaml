@@ -1,31 +1,44 @@
-# 真正的混合精度配置文件
-# 支持多种量化格式共存，保持压缩格式以节省GPU存储
+# 混合精度配置文件
+# 支持先加载低精度模型，再替换指定层为高精度
+# 支持safetensors索引文件和默认策略
 
 mixed_precision:
-  # 不同精度权重的路径
+  # 基础模型路径（通常是低精度模型，用于初始加载以避免OOM）
+  base_model_path: "/dcar-vepfs-trans-models/Qwen3-30B-A3B-FP8"
+  
+  # 不同精度的模型路径
   fp16_path: "/dcar-vepfs-trans-models/Qwen3-30B-A3B"
   fp8_path: "/dcar-vepfs-trans-models/Qwen3-30B-A3B-FP8"
   gptq_int4_path: "/dcar-vepfs-trans-models/Qwen3-30B-A3B-GPTQ-Int4"
   
-  # 权重映射配置
-  # 格式: "权重名称": "精度类型"
+  # 权重映射配置 - 只需要指定专家层的精度，其他层默认使用FP16
   weight_mapping:
-    # 注意力层使用FP16（保持高精度）
-    "model.layers.0.self_attn.q_proj.weight": "fp16"
-    "model.layers.0.self_attn.k_proj.weight": "fp16"
-    "model.layers.0.self_attn.v_proj.weight": "fp16"
-    "model.layers.0.self_attn.o_proj.weight": "fp16"
-    
-    # MLP层使用FP8（中等精度）
-    "model.layers.0.mlp.gate_proj.weight": "fp8"
-    "model.layers.0.mlp.up_proj.weight": "fp8"
-    "model.layers.0.mlp.down_proj.weight": "fp8"
-    
-    # 专家层使用GPTQ-Int4（高压缩比）
+    # 专家层使用GPTQ-Int4（低精度，节省内存）
+    # 注意：只需要指定专家层，其他层会自动使用FP16
     "model.layers.0.mlp.experts.0.gate_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.0.up_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.0.down_proj.weight": "gptq_int4"
-    
+    "model.layers.0.mlp.experts.1.gate_proj.weight": "gptq_int4"
+    "model.layers.0.mlp.experts.1.up_proj.weight": "gptq_int4"
+    "model.layers.0.mlp.experts.1.down_proj.weight": "gptq_int4"
+
+# 加载策略配置
+loading_strategy:
+  # 是否启用混合精度加载
+  enabled: true
+  
+  # 基础模型精度（用于初始加载）
+  base_precision: "fp8"
+  
+  # 内存优化策略
+  memory_optimization:
+    # 是否启用压缩权重缓存
+    enable_cache: true
+    # 缓存大小限制（MB）
+    cache_size_limit: 1024
+    # 是否启用动态反量化
+    enable_dynamic_dequantization: true
+
 # 推理配置
 inference:
   max_seq_length: 4096
