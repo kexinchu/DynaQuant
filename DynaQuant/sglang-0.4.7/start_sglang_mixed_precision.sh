@@ -197,7 +197,7 @@ main() {
     check_files "$model_path" "$config_path"
     
     # 检查CUDA
-    device=$(check_cuda "$device")
+    check_cuda "$device"
     
     # 显示配置信息
     print_info "启动配置:"

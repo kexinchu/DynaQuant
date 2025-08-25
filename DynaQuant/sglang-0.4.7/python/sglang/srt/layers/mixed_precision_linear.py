@@ -221,11 +221,12 @@ class MixedPrecisionLinear(nn.Module):
                 self._cached_weight = weight
         
         # 确保偏置具有相同的数据类型
+        bias = self.bias
         if self.bias is not None and self.bias.dtype != input.dtype:
-            self.bias = self.bias.to(input.dtype)
+            bias = self.bias.to(input.dtype)
         
         # 执行线性变换
-        output = F.linear(input, weight, self.bias)
+        output = F.linear(input, weight, bias)
         
         return output
     

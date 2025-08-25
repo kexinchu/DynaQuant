@@ -71,7 +71,10 @@ class ModelConfig:
 
         # Parse args
         self.maybe_pull_model_tokenizer_from_remote()
-        self.model_override_args = json.loads(model_override_args)
+        if model_override_args is None:
+            self.model_override_args = {}
+        else:
+            self.model_override_args = json.loads(model_override_args)
         kwargs = {}
         if override_config_file and override_config_file.strip():
             kwargs["_configuration_file"] = override_config_file.strip()
