@@ -370,29 +370,68 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             k_weight = weights[k_name]
             v_weight = weights[v_name]
             
-            # 合并qkv权重 - 按照SGLang的QKVParallelLinear期望的格式
-            # QKV权重在最后一个维度上连接
-            qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
-            original_shape = qkv_weight.shape
+            # 检查权重形状兼容性
+            logger.debug(f"QKV weights shapes - q: {q_weight.shape}, k: {k_weight.shape}, v: {v_weight.shape}")
             
-            # 创建压缩权重对象
-            compressed_weight = CompressedWeight(
-                format=WeightFormat(precision),
-                data=qkv_weight,
-                metadata={
-                    'q_weight': q_weight,
-                    'k_weight': k_weight,
-                    'v_weight': v_weight,
-                    'is_merged': True,
-                    'q_size': q_weight.shape[-1],
-                    'kv_size': k_weight.shape[-1]
-                },
-                original_shape=original_shape,
-                compressed_size=qkv_weight.numel() * qkv_weight.element_size()
-            )
+            # 验证权重形状是否兼容
+            if q_weight.shape[0] != k_weight.shape[0] or q_weight.shape[0] != v_weight.shape[0]:
+                logger.error(f"QKV weights have incompatible shapes: q{q_weight.shape}, k{k_weight.shape}, v{v_weight.shape}")
+                logger.error(f"All weights must have the same first dimension (input size)")
+                return None
             
-            # logger.info(f"Merged qkv weight {weight_name} from {q_name}, {k_name}, {v_name}, shape: {original_shape}")
-            return compressed_weight
+            # 检查是否可以直接连接（所有权重都是2D且形状兼容）
+            if len(q_weight.shape) == 2 and len(k_weight.shape) == 2 and len(v_weight.shape) == 2:
+                try:
+                    # 检查权重形状是否匹配SGLang的期望
+                    # SGLang期望: [hidden_size, (num_heads + 2*num_kv_heads) * head_size]
+                    q_size = q_weight.shape[-1]
+                    k_size = k_weight.shape[-1]
+                    v_size = v_weight.shape[-1]
+                    
+                    logger.debug(f"QKV sizes - q: {q_size}, k: {k_size}, v: {v_size}")
+                    
+                    # 验证形状兼容性
+                    if q_weight.shape[0] != k_weight.shape[0] or q_weight.shape[0] != v_weight.shape[0]:
+                        logger.error(f"QKV weights have incompatible input dimensions")
+                        return None
+                    
+                    # 合并qkv权重 - 按照SGLang的QKVParallelLinear期望的格式
+                    # 注意：这里需要确保合并后的形状正确
+                    qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
+                    original_shape = qkv_weight.shape
+                    
+                    logger.debug(f"Successfully merged QKV weights, final shape: {original_shape}")
+                    logger.debug(f"Expected total size: {q_size + k_size + v_size}, actual: {qkv_weight.shape[-1]}")
+                    
+                    # 创建压缩权重对象
+                    compressed_weight = CompressedWeight(
+                        format=WeightFormat(precision),
+                        data=qkv_weight,
+                        metadata={
+                            'q_weight': q_weight,
+                            'k_weight': k_weight,
+                            'v_weight': v_weight,
+                            'is_merged': True,
+                            'q_size': q_size,
+                            'k_size': k_size,
+                            'v_size': v_size,
+                            'total_size': q_size + k_size + v_size
+                        },
+                        original_shape=original_shape,
+                        compressed_size=qkv_weight.numel() * qkv_weight.element_size()
+                    )
+                    
+                    logger.info(f"Merged qkv weight {weight_name} from {q_name}, {k_name}, {v_name}, shape: {original_shape}")
+                    return compressed_weight
+                    
+                except Exception as e:
+                    logger.error(f"Failed to merge QKV weights: {e}")
+                    logger.error(f"Q: {q_weight.shape}, K: {k_weight.shape}, V: {v_weight.shape}")
+                    logger.error(f"Error details: {str(e)}")
+                    return None
+            else:
+                logger.error(f"QKV weights are not 2D tensors: q{q_weight.shape}, k{k_weight.shape}, v{v_weight.shape}")
+                return None
         else:
             # 如果找不到分离的权重，检查是否有直接的qkv_proj权重
             if weight_name in weights:
