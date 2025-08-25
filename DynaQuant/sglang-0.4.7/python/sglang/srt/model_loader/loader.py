@@ -394,6 +394,15 @@ class DefaultModelLoader(BaseModelLoader):
                 mixed_precision_loader = create_true_mixed_precision_loader(model_config, config_path)
                 set_global_true_mixed_precision_loader(mixed_precision_loader)
                 
+                # 验证基础模型路径
+                base_model_path = mixed_precision_loader.mixed_precision_config.base_model_path
+                if base_model_path and os.path.exists(base_model_path):
+                    logger.info(f"Using base model path for selective layer initialization: {base_model_path}")
+                    # 使用精确的层级初始化，而不是重新初始化整个模型
+                    mixed_precision_loader.initialize_specific_layers(model, base_model_path)
+                else:
+                    logger.warning(f"Base model path not found: {base_model_path}, using original model path")
+                
                 # 先加载基础模型（通常是低精度模型），然后替换指定层
                 stats = mixed_precision_loader.load_model_weights(model)
                 

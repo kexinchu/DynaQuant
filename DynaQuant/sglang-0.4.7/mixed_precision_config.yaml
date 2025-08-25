@@ -1,6 +1,7 @@
 # 混合精度配置文件
 # 支持先加载低精度模型，再替换指定层为高精度
 # 支持safetensors索引文件和默认策略
+# 兼容不同量化精度的权重名称差异
 
 mixed_precision:
   # 基础模型路径（通常是低精度模型，用于初始加载以避免OOM）
@@ -11,16 +12,22 @@ mixed_precision:
   fp8_path: "/dcar-vepfs-trans-models/Qwen3-30B-A3B-FP8"
   gptq_int4_path: "/dcar-vepfs-trans-models/Qwen3-30B-A3B-GPTQ-Int4"
   
-  # 权重映射配置 - 只需要指定专家层的精度，其他层默认使用FP16
+  # 权重映射配置 - 基于实际权重名称
+  # 系统会自动处理不同量化精度的权重名称差异
   weight_mapping:
     # 专家层使用GPTQ-Int4（低精度，节省内存）
-    # 注意：只需要指定专家层，其他层会自动使用FP16
+    # 注意：权重名称需要与实际模型结构匹配
     "model.layers.0.mlp.experts.0.gate_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.0.up_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.0.down_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.1.gate_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.1.up_proj.weight": "gptq_int4"
     "model.layers.0.mlp.experts.1.down_proj.weight": "gptq_int4"
+    
+    # 可以添加更多层的配置
+    # "model.layers.1.mlp.experts.0.gate_proj.weight": "gptq_int4"
+    # "model.layers.1.mlp.experts.0.up_proj.weight": "gptq_int4"
+    # "model.layers.1.mlp.experts.0.down_proj.weight": "gptq_int4"
 
 # 加载策略配置
 loading_strategy:
