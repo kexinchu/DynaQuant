@@ -517,3 +517,281 @@ python3 test_enhanced_features.py
 ## 🙏 致谢
 
 感谢SGLang团队提供的高性能LLM推理框架，以及开源社区对GPTQ和MoE技术的贡献。
+
+
+# 混合精度TP/DP使用指南
+
+本指南介绍如何使用张量并行(TP=4)和数据并行(DP=2)的混合精度推理。
+
+## 🎯 概述
+
+- **张量并行(TP=4)**: 将模型权重分割到4个GPU上，减少每个GPU的内存使用
+- **数据并行(DP=2)**: 在2个TP组之间进行数据并行，提高吞吐量
+- **混合精度**: 支持多种量化格式共存，保持压缩格式以节省GPU存储
+- **总进程数**: 8个进程 (TP=4 × DP=2)
+
+## 🚀 快速开始
+
+### 1. 环境准备
+
+确保您的环境满足以下要求：
+
+```bash
+# 检查CUDA环境
+nvidia-smi
+
+# 检查PyTorch
+python3 -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+
+# 检查GPU数量 (至少需要8个GPU用于TP=4, DP=2)
+nvidia-smi --list-gpus | wc -l
+```
+
+### 2. 配置文件准备
+
+确保您有以下文件：
+
+```bash
+# 模型路径
+MODEL_PATH="/path/to/your/model"
+
+# 混合精度配置文件
+MIXED_PRECISION_CONFIG="mixed_precision_config.yaml"
+
+# 检查文件是否存在
+ls -la $MODEL_PATH
+ls -la $MIXED_PRECISION_CONFIG
+```
+
+### 3. 启动混合精度TP/DP服务器
+
+#### 方法1: 使用启动脚本 (推荐)
+
+```bash
+# 基本启动
+./start_mixed_precision_tp_dp.sh \
+  -m /path/to/your/model \
+  -c mixed_precision_config.yaml
+
+# 自定义TP/DP配置
+./start_mixed_precision_tp_dp.sh \
+  -m /path/to/your/model \
+  -c mixed_precision_config.yaml \
+  -t 4 -d 2 \
+  --test
+
+# 自定义分布式地址
+./start_mixed_precision_tp_dp.sh \
+  -m /path/to/your/model \
+  -c mixed_precision_config.yaml \
+  -a "192.168.1.100:50000"
+```
+
+#### 方法2: 手动启动单个进程
+
+```bash
+# 启动8个进程 (rank 0-7)
+for rank in {0..7}; do
+  python3 launch_mixed_precision_tp_dp.py \
+    --model /path/to/your/model \
+    --mixed-precision-config mixed_precision_config.yaml \
+    --tp-size 4 \
+    --dp-size 2 \
+    --rank $rank \
+    --world-size 8 \
+    --dist-init-addr "127.0.0.1:50000" \
+    --dtype auto &
+done
+
+# 等待所有进程启动
+wait
+```
+
+## 📋 配置说明
+
+### 混合精度配置文件
+
+```yaml
+# mixed_precision_config.yaml
+mixed_precision:
+  # 不同精度权重的路径
+  fp16_path: "/path/to/fp16/weights"
+  fp8_path: "/path/to/fp8/weights"
+  gptq_int4_path: "/path/to/gptq_int4/weights"
+  
+  # 权重映射配置
+  weight_mapping:
+    # 注意力层使用FP16（保持高精度）
+    "model.layers.0.self_attn.q_proj.weight": "fp16"
+    "model.layers.0.self_attn.k_proj.weight": "fp16"
+    "model.layers.0.self_attn.v_proj.weight": "fp16"
+    "model.layers.0.self_attn.o_proj.weight": "fp16"
+    
+    # MLP层使用FP8（中等精度）
+    "model.layers.0.mlp.gate_proj.weight": "fp8"
+    "model.layers.0.mlp.up_proj.weight": "fp8"
+    "model.layers.0.mlp.down_proj.weight": "fp8"
+    
+    # 专家层使用GPTQ-Int4（高压缩比）
+    "model.layers.0.mlp.experts.0.gate_proj.weight": "gptq_int4"
+    "model.layers.0.mlp.experts.0.up_proj.weight": "gptq_int4"
+    "model.layers.0.mlp.experts.0.down_proj.weight": "gptq_int4"
+```
+
+### 启动参数说明
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `-m, --model` | 模型路径 | 必需 |
+| `-c, --config` | 混合精度配置文件 | 必需 |
+| `-t, --tp-size` | 张量并行大小 | 4 |
+| `-d, --dp-size` | 数据并行大小 | 2 |
+| `-a, --dist-addr` | 分布式初始化地址 | 127.0.0.1:50000 |
+| `--dtype` | 数据类型 | auto |
+| `--test` | 运行测试模式 | false |
+
+## 🔧 架构说明
+
+### 进程分布
+
+```
+TP=4, DP=2 配置 (总共8个进程):
+
+TP Group 0 (GPU 0-3): 进程 rank 0,1,2,3
+TP Group 1 (GPU 4-7): 进程 rank 4,5,6,7
+
+每个TP组内部进行张量并行，两个TP组之间进行数据并行。
+```
+
+### 内存使用
+
+- **张量并行**: 每个GPU只加载模型权重的1/4
+- **混合精度**: 不同层使用不同精度，进一步节省内存
+- **压缩格式**: GPTQ-Int4等压缩格式保持压缩状态
+
+### 性能优势
+
+1. **内存效率**: 张量并行减少每个GPU的内存使用
+2. **计算效率**: 数据并行提高吞吐量
+3. **存储效率**: 混合精度保持压缩格式，节省存储空间
+
+## 🐛 故障排除
+
+### 常见错误
+
+#### 1. "tensor model parallel group is not initialized"
+
+**原因**: 分布式环境未正确初始化
+
+**解决方案**:
+```bash
+# 确保所有进程同时启动
+# 检查分布式地址是否正确
+# 确保网络连接正常
+```
+
+#### 2. "pipeline model parallel group is not initialized"
+
+**原因**: 模型并行组未正确初始化
+
+**解决方案**:
+```bash
+# 检查TP_SIZE和DP_SIZE的乘积是否等于WORLD_SIZE
+# 确保所有进程使用相同的配置
+```
+
+#### 3. CUDA内存不足
+
+**原因**: GPU内存不足
+
+**解决方案**:
+```bash
+# 减少TP_SIZE或DP_SIZE
+# 使用更激进的量化配置
+# 增加GPU数量
+```
+
+### 调试技巧
+
+```bash
+# 1. 检查进程状态
+ps aux | grep launch_mixed_precision_tp_dp
+
+# 2. 检查GPU使用情况
+nvidia-smi
+
+# 3. 检查网络连接
+netstat -an | grep 50000
+
+# 4. 查看日志
+tail -f /tmp/mixed_precision_*.log
+```
+
+## 📊 性能监控
+
+### 内存使用监控
+
+```python
+# 获取混合精度统计
+from sglang.srt.layers.mixed_precision_linear import get_mixed_precision_memory_stats
+
+stats = get_mixed_precision_memory_stats()
+print(f"内存节省: {stats['memory_saved_mb']:.2f}MB")
+print(f"压缩比: {stats['compression_ratio']:.2f}x")
+```
+
+### 性能指标
+
+- **内存使用**: 每个GPU的内存使用量
+- **压缩比**: 混合精度相对于FP16的压缩比
+- **吞吐量**: 每秒处理的token数量
+- **延迟**: 单个请求的处理时间
+
+## 🔄 扩展配置
+
+### 多节点部署
+
+```bash
+# 节点0 (GPU 0-3)
+./start_mixed_precision_tp_dp.sh \
+  -m /path/to/model \
+  -c mixed_precision_config.yaml \
+  -a "node0:50000" \
+  --rank 0
+
+# 节点1 (GPU 4-7)
+./start_mixed_precision_tp_dp.sh \
+  -m /path/to/model \
+  -c mixed_precision_config.yaml \
+  -a "node0:50000" \
+  --rank 4
+```
+
+### 自定义量化配置
+
+```yaml
+# 更激进的量化配置
+mixed_precision:
+  weight_mapping:
+    # 更多层使用Int4量化
+    "model.layers.*.mlp.experts.*.gate_proj.weight": "gptq_int4"
+    "model.layers.*.mlp.experts.*.up_proj.weight": "gptq_int4"
+    "model.layers.*.mlp.experts.*.down_proj.weight": "gptq_int4"
+```
+
+## 📝 最佳实践
+
+1. **GPU数量**: 确保有足够的GPU支持TP×DP配置
+2. **网络带宽**: 多节点部署需要高带宽网络
+3. **内存管理**: 监控GPU内存使用，避免OOM
+4. **负载均衡**: 确保请求均匀分布到所有DP组
+5. **监控告警**: 设置内存和性能监控告警
+
+## 🆘 获取帮助
+
+如果遇到问题，请：
+
+1. 检查本文档的故障排除部分
+2. 查看启动脚本的日志输出
+3. 确认环境配置是否正确
+4. 联系技术支持团队

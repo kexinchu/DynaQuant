@@ -1,57 +1,93 @@
 #!/usr/bin/env python3
 """
-SGLang混合精度服务器启动脚本
-真正集成到SGLang架构中，使用SGLang的API和优化
+支持张量并行(TP=4)和数据并行(DP=2)的混合精度启动脚本
 """
 
 import os
 import sys
 import argparse
 import logging
-import json
-import time
+import torch
+import torch.distributed as dist
 from pathlib import Path
-from typing import Dict, Any, Optional
 
 # 添加SGLang路径
 sys.path.insert(0, str(Path(__file__).parent / "python"))
 
-# SGLang核心导入
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.configs.device_config import DeviceConfig
 from sglang.srt.configs.load_config import LoadConfig, LoadFormat
 from sglang.srt.model_loader.loader import DefaultModelLoader
-from sglang.srt.model_loader.sglang_mixed_precision_loader import (
-    get_global_mixed_precision_loader,
-    SGLangMixedPrecisionLoader
-)
+from sglang.srt.distributed.parallel_state import initialize_model_parallel
+from sglang.srt.model_parallel import tensor_parallel
 
 # 设置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class SGLangMixedPrecisionServer:
-    """SGLang混合精度服务器"""
+def init_distributed(tp_size: int, dp_size: int, rank: int, world_size: int, 
+                    dist_init_addr: str = "127.0.0.1:50000"):
+    """初始化分布式环境"""
+    logger.info(f"Initializing distributed environment: TP={tp_size}, DP={dp_size}, rank={rank}, world_size={world_size}")
+    
+    # 设置环境变量
+    os.environ["MASTER_ADDR"] = dist_init_addr.split(":")[0]
+    os.environ["MASTER_PORT"] = dist_init_addr.split(":")[1]
+    os.environ["WORLD_SIZE"] = str(world_size)
+    os.environ["RANK"] = str(rank)
+    os.environ["LOCAL_RANK"] = str(rank % torch.cuda.device_count())
+    
+    # 初始化PyTorch分布式
+    dist.init_process_group(
+        backend="nccl",
+        init_method=f"tcp://{dist_init_addr}",
+        world_size=world_size,
+        rank=rank
+    )
+    
+    # 设置CUDA设备
+    local_rank = rank % torch.cuda.device_count()
+    torch.cuda.set_device(local_rank)
+    
+    logger.info(f"Distributed initialized: rank={rank}, local_rank={local_rank}, device={torch.cuda.current_device()}")
+    
+    # 初始化模型并行
+    initialize_model_parallel(tensor_model_parallel_size=tp_size, pipeline_model_parallel_size=1)
+    
+    logger.info("Model parallel initialized successfully")
+
+
+class MixedPrecisionTPDPServer:
+    """支持张量并行和数据并行的混合精度服务器"""
     
     def __init__(self, model_path: str, mixed_precision_config_path: str, 
-                 device: str = "cuda", dtype: str = "auto"):
+                 tp_size: int = 4, dp_size: int = 2, rank: int = 0, world_size: int = 8,
+                 dist_init_addr: str = "127.0.0.1:50000", dtype: str = "auto"):
         """
-        初始化SGLang混合精度服务器
+        初始化混合精度TP/DP服务器
         
         Args:
             model_path: 模型路径
             mixed_precision_config_path: 混合精度配置文件路径
-            device: 设备
+            tp_size: 张量并行大小
+            dp_size: 数据并行大小
+            rank: 当前进程的rank
+            world_size: 总进程数
+            dist_init_addr: 分布式初始化地址
             dtype: 数据类型
         """
         self.model_path = model_path
         self.mixed_precision_config_path = mixed_precision_config_path
-        self.device = device
+        self.tp_size = tp_size
+        self.dp_size = dp_size
+        self.rank = rank
+        self.world_size = world_size
+        self.dist_init_addr = dist_init_addr
         self.dtype = dtype
+        
+        # 初始化分布式环境
+        init_distributed(tp_size, dp_size, rank, world_size, dist_init_addr)
         
         # SGLang配置
         self.model_config = ModelConfig(
@@ -61,7 +97,7 @@ class SGLangMixedPrecisionServer:
             trust_remote_code=True
         )
         
-        self.device_config = DeviceConfig(device=device)
+        self.device_config = DeviceConfig(device=f"cuda:{rank % torch.cuda.device_count()}")
         self.load_config = LoadConfig(load_format=LoadFormat.AUTO)
         
         # 模型加载器
@@ -70,15 +106,17 @@ class SGLangMixedPrecisionServer:
         # 模型实例
         self.model = None
         
-        logger.info(f"SGLang mixed precision server initialized")
+        logger.info(f"Mixed precision TP/DP server initialized")
         logger.info(f"Model path: {model_path}")
         logger.info(f"Mixed precision config: {mixed_precision_config_path}")
-        logger.info(f"Device: {device}")
+        logger.info(f"TP size: {tp_size}, DP size: {dp_size}")
+        logger.info(f"Rank: {rank}, World size: {world_size}")
+        logger.info(f"Device: {self.device_config.device}")
         logger.info(f"Data type: {dtype}")
     
-    def load_model(self) -> Dict[str, Any]:
+    def load_model(self):
         """加载模型"""
-        logger.info("Loading model with SGLang mixed precision...")
+        logger.info("Loading model with mixed precision TP/DP...")
         
         try:
             # 使用SGLang的模型加载器加载模型
@@ -87,15 +125,17 @@ class SGLangMixedPrecisionServer:
                 device_config=self.device_config
             )
             
-            # 获取混合精度加载器统计信息
-            mixed_precision_loader = get_global_mixed_precision_loader()
-            if mixed_precision_loader:
-                logger.info("Mixed precision loader available")
-                # 可以在这里添加更多统计信息
-            else:
-                logger.info("Standard SGLang loading used")
+            # 应用张量并行
+            if self.tp_size > 1:
+                logger.info(f"Applying tensor parallelism with TP={self.tp_size}")
+                device_mesh = torch.distributed.init_device_mesh(
+                    f"cuda:{self.rank % torch.cuda.device_count()}", 
+                    (self.tp_size,)
+                )
+                tensor_parallel(self.model, device_mesh)
+                logger.info("Tensor parallelism applied successfully")
             
-            logger.info("Model loaded successfully with SGLang")
+            logger.info("Model loaded successfully with mixed precision TP/DP")
             return {"status": "success", "model_loaded": True}
             
         except Exception as e:
@@ -103,8 +143,8 @@ class SGLangMixedPrecisionServer:
             raise
     
     def generate_text(self, prompt: str, max_length: int = 100, 
-                     temperature: float = 0.7) -> Dict[str, Any]:
-        """生成文本（使用SGLang的推理引擎）"""
+                     temperature: float = 0.7):
+        """生成文本"""
         try:
             # 这里应该使用SGLang的推理API
             # 由于SGLang的推理需要更复杂的设置，这里提供一个基础实现
@@ -147,107 +187,104 @@ class SGLangMixedPrecisionServer:
             return {
                 "generated_text": generated_text,
                 "input_length": len(input_ids[0]),
-                "output_length": len(outputs[0]) - len(input_ids[0])
+                "output_length": len(outputs[0]),
+                "rank": self.rank
             }
             
         except Exception as e:
             logger.error(f"Error generating text: {e}")
-            return {"error": str(e)}
+            raise
     
-    def get_mixed_precision_stats(self) -> Dict[str, Any]:
-        """获取混合精度统计信息"""
-        mixed_precision_loader = get_global_mixed_precision_loader()
-        if mixed_precision_loader:
-            return {
-                "mixed_precision_enabled": True,
-                "weight_mappings": len(mixed_precision_loader.mixed_precision_config.weight_mapping),
-                "config": {
-                    "fp16_path": mixed_precision_loader.mixed_precision_config.fp16_path,
-                    "fp8_path": mixed_precision_loader.mixed_precision_config.fp8_path,
-                    "int4_path": mixed_precision_loader.mixed_precision_config.int4_path
+    def get_mixed_precision_stats(self):
+        """获取混合精度统计"""
+        try:
+            from sglang.srt.model_loader.mixed_precision_loader import get_global_true_mixed_precision_loader
+            from sglang.srt.layers.mixed_precision_linear import get_mixed_precision_memory_stats
+            
+            mixed_precision_loader = get_global_true_mixed_precision_loader()
+            if mixed_precision_loader:
+                memory_stats = get_mixed_precision_memory_stats()
+                return {
+                    "rank": self.rank,
+                    "mixed_precision_stats": memory_stats
                 }
+            else:
+                return {
+                    "rank": self.rank,
+                    "mixed_precision_stats": {"error": "No mixed precision loader available"}
+                }
+        except Exception as e:
+            return {
+                "rank": self.rank,
+                "mixed_precision_stats": {"error": str(e)}
             }
-        else:
-            return {"mixed_precision_enabled": False}
-    
-    def get_model_info(self) -> Dict[str, Any]:
-        """获取模型信息"""
-        if self.model is None:
-            return {"error": "Model not loaded"}
-        
-        return {
-            "model_path": self.model_path,
-            "device": str(next(self.model.parameters()).device),
-            "dtype": str(next(self.model.parameters()).dtype),
-            "parameters": sum(p.numel() for p in self.model.parameters()),
-            "trainable_parameters": sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-        }
 
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="SGLang Mixed Precision Server")
-    parser.add_argument("--model", type=str, required=True,
-                       help="Model path")
-    parser.add_argument("--mixed-precision-config", type=str, required=True,
-                       help="Mixed precision configuration file path")
-    parser.add_argument("--device", type=str, default="cuda",
-                       help="Device to use (cuda/cpu)")
-    parser.add_argument("--dtype", type=str, default="auto",
-                       help="Data type (auto/fp16/fp32)")
-    parser.add_argument("--port", type=int, default=8080,
-                       help="Server port")
-    parser.add_argument("--host", type=str, default="127.0.0.1",
-                       help="Server host")
-    parser.add_argument("--test", action="store_true",
-                       help="Run test generation")
+    parser = argparse.ArgumentParser(description="启动混合精度TP/DP服务器")
+    parser.add_argument("--model", type=str, required=True, help="模型路径")
+    parser.add_argument("--mixed-precision-config", type=str, required=True, help="混合精度配置文件路径")
+    parser.add_argument("--tp-size", type=int, default=4, help="张量并行大小")
+    parser.add_argument("--dp-size", type=int, default=2, help="数据并行大小")
+    parser.add_argument("--rank", type=int, default=0, help="当前进程的rank")
+    parser.add_argument("--world-size", type=int, default=8, help="总进程数")
+    parser.add_argument("--dist-init-addr", type=str, default="127.0.0.1:50000", help="分布式初始化地址")
+    parser.add_argument("--dtype", type=str, default="auto", help="数据类型")
+    parser.add_argument("--test", action="store_true", help="运行测试")
     
     args = parser.parse_args()
     
-    # 创建服务器实例
-    server = SGLangMixedPrecisionServer(
-        model_path=args.model,
-        mixed_precision_config_path=args.mixed_precision_config,
-        device=args.device,
-        dtype=args.dtype
-    )
+    # 验证参数
+    if args.tp_size * args.dp_size != args.world_size:
+        logger.error(f"TP size ({args.tp_size}) * DP size ({args.dp_size}) must equal world size ({args.world_size})")
+        sys.exit(1)
     
-    # 加载模型
     try:
-        stats = server.load_model()
-        logger.info("Model loaded successfully")
-        logger.info(f"Loading stats: {json.dumps(stats, indent=2)}")
+        # 创建服务器
+        server = MixedPrecisionTPDPServer(
+            model_path=args.model,
+            mixed_precision_config_path=args.mixed_precision_config,
+            tp_size=args.tp_size,
+            dp_size=args.dp_size,
+            rank=args.rank,
+            world_size=args.world_size,
+            dist_init_addr=args.dist_init_addr,
+            dtype=args.dtype
+        )
         
-        # 获取模型信息
-        model_info = server.get_model_info()
-        logger.info(f"Model info: {json.dumps(model_info, indent=2)}")
+        # 加载模型
+        server.load_model()
         
-        # 获取混合精度统计
-        mixed_precision_stats = server.get_mixed_precision_stats()
-        logger.info(f"Mixed precision stats: {json.dumps(mixed_precision_stats, indent=2)}")
-        
-        # 测试生成
+        # 运行测试
         if args.test:
-            test_prompt = "Hello, how are you today?"
-            logger.info(f"Testing generation with prompt: {test_prompt}")
+            logger.info("Running test generation...")
+            result = server.generate_text("Hello, how are you?", max_length=50)
+            logger.info(f"Test generation result: {result}")
             
-            result = server.generate_text(test_prompt, max_length=50)
-            logger.info(f"Generation result: {json.dumps(result, indent=2)}")
+            # 获取混合精度统计
+            stats = server.get_mixed_precision_stats()
+            logger.info(f"Mixed precision stats: {stats}")
         
-        # 这里可以启动HTTP服务器或集成到SGLang的现有服务器中
-        logger.info(f"SGLang mixed precision server ready on {args.host}:{args.port}")
-        logger.info("Use the server methods to interact with the model")
+        logger.info("Server ready for inference")
         
         # 保持服务器运行
-        logger.info("Server is running. Press Ctrl+C to stop.")
         while True:
-            time.sleep(1)
-            
-    except KeyboardInterrupt:
-        logger.info("Server stopped by user")
+            try:
+                # 这里可以添加HTTP服务器或其他接口
+                import time
+                time.sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Shutting down server...")
+                break
+                
     except Exception as e:
         logger.error(f"Server error: {e}")
         sys.exit(1)
+    finally:
+        # 清理分布式环境
+        if dist.is_initialized():
+            dist.destroy_process_group()
 
 
 if __name__ == "__main__":
