@@ -24,10 +24,12 @@ from sglang.srt.configs.load_config import LoadConfig
 from sglang.srt.utils import get_bool_env_var
 
 # SGLang量化支持导入 - 复用现有量化功能
-from sglang.srt.layers.quantization import (
-    Fp8Config, GPTQConfig, AWQConfig, BlockInt8Config, W8A8Int8Config,
-    QuantizationConfig
-)
+from sglang.srt.layers.quantization.base_config import QuantizationConfig
+from sglang.srt.layers.quantization.fp8 import Fp8Config
+from sglang.srt.layers.quantization.gptq import GPTQConfig
+from sglang.srt.layers.quantization.awq import AWQConfig
+from sglang.srt.layers.quantization.blockwise_int8 import BlockInt8Config
+from sglang.srt.layers.quantization.w8a8_int8 import W8A8Int8Config
 from sglang.srt.layers.linear import LinearBase, LinearMethodBase
 
 logger = logging.getLogger(__name__)
