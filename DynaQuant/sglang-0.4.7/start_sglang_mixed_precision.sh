@@ -126,9 +126,11 @@ start_process() {
     
     # 设置环境变量
     export CUDA_VISIBLE_DEVICES=$local_rank
+    export NCCL_DEBUG=INFO
+    export NCCL_ASYNC_ERROR_HANDLING=1
     
     # 启动进程
-    python3 launch_mixed_precision_tp_dp.py \
+    python3 launch_sglang_mixed_precision.py \
         --model "$MODEL_PATH" \
         --mixed-precision-config "$MIXED_PRECISION_CONFIG" \
         --tp-size "$TP_SIZE" \
@@ -137,7 +139,7 @@ start_process() {
         --world-size "$WORLD_SIZE" \
         --dist-init-addr "$DIST_INIT_ADDR" \
         --dtype "$DTYPE" \
-        ${TEST_MODE:+--test} &
+        ${TEST_MODE:+--test} > "mixed_precision_rank_${rank}.log" 2>&1 &
     
     local pid=$!
     PIDS+=($pid)
@@ -152,15 +154,38 @@ start_all_processes() {
     echo "分布式地址: $DIST_INIT_ADDR"
     echo ""
     
+    # 清理之前的日志文件
+    rm -f mixed_precision_rank_*.log
+    
     # 启动所有进程
     for ((rank=0; rank<WORLD_SIZE; rank++)); do
         start_process $rank
-        sleep 2  # 等待进程启动
+        sleep 1  # 减少等待时间，让进程更快启动
+    done
+    
+    # 等待所有进程初始化
+    echo -e "${BLUE}等待所有进程初始化...${NC}"
+    sleep 10
+    
+    # 检查进程状态
+    local running=0
+    for pid in "${PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            ((running++))
+        fi
     done
     
     echo ""
     echo -e "${GREEN}所有进程已启动${NC}"
     echo "进程PID: ${PIDS[@]}"
+    echo "运行中进程: $running/$WORLD_SIZE"
+    
+    # 显示日志文件位置
+    echo ""
+    echo -e "${BLUE}日志文件:${NC}"
+    for ((rank=0; rank<WORLD_SIZE; rank++)); do
+        echo "  Rank $rank: mixed_precision_rank_${rank}.log"
+    done
 }
 
 # 清理进程
@@ -193,11 +218,24 @@ monitor_processes() {
     trap cleanup EXIT INT TERM
     
     # 监控循环
+    local iteration=0
     while true; do
         local running=0
-        for pid in "${PIDS[@]}"; do
+        local failed=0
+        
+        for i in "${!PIDS[@]}"; do
+            local pid=${PIDS[$i]}
             if kill -0 "$pid" 2>/dev/null; then
                 ((running++))
+            else
+                ((failed++))
+                echo -e "${RED}进程 rank=$i (PID: $pid) 已停止${NC}"
+                
+                # 检查日志文件中的错误
+                if [[ -f "mixed_precision_rank_${i}.log" ]]; then
+                    echo -e "${YELLOW}Rank $i 日志摘要:${NC}"
+                    tail -n 10 "mixed_precision_rank_${i}.log" | head -n 5
+                fi
             fi
         done
         
@@ -206,7 +244,19 @@ monitor_processes() {
             break
         fi
         
-        echo -e "${GREEN}运行中进程: $running/$WORLD_SIZE${NC}"
+        if [[ $failed -gt 0 ]]; then
+            echo -e "${YELLOW}运行中进程: $running/$WORLD_SIZE, 失败: $failed${NC}"
+        else
+            echo -e "${GREEN}运行中进程: $running/$WORLD_SIZE${NC}"
+        fi
+        
+        # 每10次迭代显示一次GPU状态
+        if [[ $((iteration % 10)) -eq 0 ]]; then
+            echo -e "${BLUE}GPU状态:${NC}"
+            nvidia-smi --query-gpu=index,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits | head -n 4
+        fi
+        
+        ((iteration++))
         sleep 10
     done
 }

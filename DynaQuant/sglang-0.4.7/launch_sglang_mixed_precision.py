@@ -38,24 +38,44 @@ def init_distributed(tp_size: int, dp_size: int, rank: int, world_size: int,
     os.environ["RANK"] = str(rank)
     os.environ["LOCAL_RANK"] = str(rank % torch.cuda.device_count())
     
-    # 初始化PyTorch分布式
-    dist.init_process_group(
-        backend="nccl",
-        init_method=f"tcp://{dist_init_addr}",
-        world_size=world_size,
-        rank=rank
-    )
+    # 等待所有进程准备就绪
+    import time
+    time.sleep(rank * 0.1)  # 减少错开时间
     
-    # 设置CUDA设备
-    local_rank = rank % torch.cuda.device_count()
-    torch.cuda.set_device(local_rank)
-    
-    logger.info(f"Distributed initialized: rank={rank}, local_rank={local_rank}, device={torch.cuda.current_device()}")
-    
-    # 初始化模型并行
-    initialize_model_parallel(tensor_model_parallel_size=tp_size, pipeline_model_parallel_size=1)
-    
-    logger.info("Model parallel initialized successfully")
+    try:
+        # 设置更长的超时时间
+        timeout = torch.distributed.default_timeout
+        if hasattr(torch.distributed, 'default_timeout'):
+            timeout = torch.distributed.default_timeout
+        else:
+            timeout = torch.distributed.default_timeout = torch.distributed.DistributedTimeout(300)  # 5分钟
+        
+        # 初始化PyTorch分布式
+        dist.init_process_group(
+            backend="nccl",
+            init_method=f"tcp://{dist_init_addr}",
+            world_size=world_size,
+            rank=rank,
+            timeout=timeout
+        )
+        
+        # 设置CUDA设备
+        local_rank = rank % torch.cuda.device_count()
+        torch.cuda.set_device(local_rank)
+        
+        logger.info(f"Distributed initialized: rank={rank}, local_rank={local_rank}, device={torch.cuda.current_device()}")
+        
+        # 等待所有进程完成分布式初始化
+        dist.barrier()
+        
+        # 初始化模型并行
+        initialize_model_parallel(tensor_model_parallel_size=tp_size, pipeline_model_parallel_size=1)
+        
+        logger.info("Model parallel initialized successfully")
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize distributed environment for rank {rank}: {e}")
+        raise
 
 
 class MixedPrecisionTPDPServer:
