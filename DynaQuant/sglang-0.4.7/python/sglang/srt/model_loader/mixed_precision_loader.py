@@ -9,7 +9,7 @@ import os
 import torch
 import yaml
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -112,7 +112,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         try:
             weights = load_file(file_path)
             self.weight_cache[file_path] = weights
-            logger.info(f"Loaded safetensors file: {file_path}")
+            # logger.info(f"Loaded safetensors file: {file_path}")
             return weights
         except Exception as e:
             logger.error(f"Failed to load safetensors file {file_path}: {e}")
@@ -148,7 +148,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             if 'weight_map' in index_data:
                 weight_to_file = index_data['weight_map']
             
-            logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
+            # logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
             return weight_to_file
         except Exception as e:
             logger.error(f"Failed to load safetensors index {index_file}: {e}")
@@ -160,7 +160,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         # 处理qkv_proj -> q_proj, k_proj, v_proj的转换
         if "qkv_proj" in weight_name:
-            base_name = weight_name.replace("qkv_proj", "")
+            base_name = weight_name.replace("qkv_proj.weight", "")
             normalized_names = [
                 base_name + "q_proj.weight",
                 base_name + "k_proj.weight", 
@@ -242,10 +242,10 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 file_name = weight_to_file[normalized_name]
                 file_path = os.path.join(base_path, file_name)
                 if os.path.exists(file_path):
-                    if normalized_name != weight_name:
-                        logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
-                    else:
-                        logger.info(f"Found weight {weight_name} in index file: {file_path}")
+                    # if normalized_name != weight_name:
+                    #     logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
+                    # else:
+                    #     logger.info(f"Found weight {weight_name} in index file: {file_path}")
                     return file_path
                 else:
                     logger.warning(f"Weight file from index not found: {file_path}")
@@ -337,7 +337,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
     
     def _load_qkv_weight(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
         """加载qkv权重，将分离的q_proj, k_proj, v_proj合并"""
-        base_name = weight_name.replace("qkv_proj", "")
+        base_name = weight_name.replace("qkv_proj.weight", "")
         q_name = base_name + "q_proj.weight"
         k_name = base_name + "k_proj.weight"
         v_name = base_name + "v_proj.weight"
@@ -366,7 +366,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 compressed_size=qkv_weight.numel() * qkv_weight.element_size()
             )
             
-            logger.info(f"Merged qkv weight {weight_name} from {q_name}, {k_name}, {v_name}, shape: {original_shape}")
+            # logger.info(f"Merged qkv weight {weight_name} from {q_name}, {k_name}, {v_name}, shape: {original_shape}")
             return compressed_weight
         else:
             logger.warning(f"Separate qkv weights not found: {q_name}, {k_name}, {v_name}")

@@ -543,7 +543,7 @@ class ModelRunner:
         monkey_patch_vllm_parallel_state()
         monkey_patch_isinstance_for_vllm_base_layer()
 
-        print(f"loader config: {self.load_config}; model config: {self.model_config}")
+        # print(f"loader config: {self.load_config}; model config: {self.model_config}")
 
         with self.memory_saver_adapter.region():
             # 这里加载全部的model，尝试拆分混合精度
