@@ -12,16 +12,15 @@ import logging
 from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
+import torch.nn as nn
 
 # SGLang核心导入 - 复用现有功能
 from sglang.srt.model_loader.loader import DefaultModelLoader
 from sglang.srt.model_loader.weight_utils import (
-    safetensors_weights_iterator, pt_weights_iterator,
-    download_weights_from_hf, filter_files_not_needed_for_inference
+    safetensors_weights_iterator, pt_weights_iterator
 )
 from sglang.srt.configs.model_config import ModelConfig
 from sglang.srt.configs.load_config import LoadConfig
-from sglang.srt.utils import get_bool_env_var
 
 # SGLang量化支持导入 - 复用现有量化功能
 from sglang.srt.layers.quantization.base_config import QuantizationConfig
@@ -29,7 +28,6 @@ from sglang.srt.layers.quantization.fp8 import Fp8Config
 from sglang.srt.layers.quantization.gptq import GPTQConfig
 from sglang.srt.layers.quantization.awq import AWQConfig
 from sglang.srt.layers.quantization.blockwise_int8 import BlockInt8Config
-from sglang.srt.layers.quantization.w8a8_int8 import W8A8Int8Config
 from sglang.srt.layers.linear import LinearBase, LinearMethodBase
 
 logger = logging.getLogger(__name__)
@@ -112,14 +110,13 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
     
     def _init_quantization_configs(self):
         """初始化量化配置 - 复用SGLang的量化配置"""
-        # 复用SGLang的量化配置
+        # 复用SGLang的量化配置，使用正确的构造函数参数
         self.quantization_configs = {
             "fp8": Fp8Config(
-                weight_bits=8,
-                group_size=128,
-                desc_act=True,
-                lm_head_quantized=False,
-                dynamic={}
+                is_checkpoint_fp8_serialized=True,
+                activation_scheme="dynamic",
+                ignored_layers=None,
+                weight_block_size=None
             ),
             "gptq_int4": GPTQConfig(
                 weight_bits=4,
@@ -131,16 +128,14 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             "awq_int4": AWQConfig(
                 weight_bits=4,
                 group_size=128,
-                desc_act=True,
-                lm_head_quantized=False,
-                dynamic={}
+                zero_point=True,
+                modules_to_not_convert=None
             ),
             "int8": BlockInt8Config(
-                weight_bits=8,
-                group_size=128,
-                desc_act=True,
-                lm_head_quantized=False,
-                dynamic={}
+                is_checkpoint_int8_serialized=True,
+                activation_scheme="dynamic",
+                ignored_layers=None,
+                weight_block_size=[128, 128]
             )
         }
         
@@ -169,34 +164,69 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         # 复用SGLang的权重文件查找逻辑
         try:
+            # 创建临时的ModelConfig
+            temp_model_config = ModelConfig(
+                model_path=base_path,
+                dtype=torch.float16,
+                trust_remote_code=True
+            )
+            
             # 使用SGLang的权重迭代器来查找权重文件
-            source = DefaultModelLoader.Source.init_new(
-                ModelConfig(model_path=base_path), None
-            )
+            source = DefaultModelLoader.Source.init_new(temp_model_config, None)
             
-            # 复用SGLang的权重文件准备逻辑
-            model_path, weight_files, use_safetensors = self._prepare_weights(
-                source.model_path, source.revision, source.fall_back_to_pt
-            )
-            
-            # 在权重文件中查找目标权重
-            for weight_file in weight_files:
-                if use_safetensors:
-                    # 复用SGLang的safetensors加载逻辑
-                    for name, weight in safetensors_weights_iterator(weight_file):
-                        if name == weight_name:
-                            return weight_file
-                else:
-                    # 复用SGLang的PyTorch加载逻辑
-                    for name, weight in pt_weights_iterator(weight_file):
-                        if name == weight_name:
-                            return weight_file
+            # 使用SGLang的权重迭代器查找权重
+            for name, weight in self._get_weights_iterator(source):
+                if name == weight_name:
+                    # 找到权重后，返回对应的文件路径
+                    # 这里需要从权重迭代器中获取文件路径信息
+                    # 由于SGLang的权重迭代器不直接提供文件路径，我们需要其他方法
+                    return self._get_weight_file_path(base_path, weight_name)
             
             logger.warning(f"Weight {weight_name} not found in any files for precision {precision}")
             return None
             
         except Exception as e:
             logger.error(f"Error finding weight file for {weight_name} with precision {precision}: {e}")
+            return None
+    
+    def _get_weight_file_path(self, base_path: str, weight_name: str) -> Optional[str]:
+        """获取权重文件路径"""
+        try:
+            # 检查safetensors索引文件
+            index_file = os.path.join(base_path, "model.safetensors.index.json")
+            if os.path.exists(index_file):
+                import json
+                with open(index_file, 'r', encoding='utf-8') as f:
+                    index_data = json.load(f)
+                
+                weight_map = index_data.get('weight_map', {})
+                if weight_name in weight_map:
+                    file_name = weight_map[weight_name]
+                    file_path = os.path.join(base_path, file_name)
+                    if os.path.exists(file_path):
+                        return file_path
+            
+            # 检查单个safetensors文件
+            model_file = os.path.join(base_path, "model.safetensors")
+            if os.path.exists(model_file):
+                return model_file
+            
+            # 检查PyTorch文件
+            model_file = os.path.join(base_path, "pytorch_model.bin")
+            if os.path.exists(model_file):
+                return model_file
+            
+            # 检查分片的PyTorch文件
+            import glob
+            pytorch_files = glob.glob(os.path.join(base_path, "pytorch_model-*.bin"))
+            if pytorch_files:
+                # 返回第一个文件，实际使用时需要检查权重是否在该文件中
+                return pytorch_files[0]
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting weight file path for {weight_name}: {e}")
             return None
     
     def load_weight(self, weight_name: str, precision: str) -> Optional[CompressedWeight]:
@@ -206,7 +236,11 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             return None
         
         try:
-            # 复用SGLang的权重加载逻辑
+            # 对于需要多个组件的量化权重，我们需要加载整个文件
+            if precision in ["gptq_int4", "awq_int4"]:
+                return self._load_quantized_weight_from_file(weight_name, weight_file, precision)
+            
+            # 对于单个权重文件，使用原有的逻辑
             if weight_file.endswith('.safetensors'):
                 # 复用SGLang的safetensors加载
                 for name, weight in safetensors_weights_iterator(weight_file):
@@ -225,6 +259,25 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
             return None
     
+    def _load_quantized_weight_from_file(self, weight_name: str, weight_file: str, precision: str) -> Optional[CompressedWeight]:
+        """从文件中加载量化权重（需要多个组件）"""
+        try:
+            # 加载整个文件的所有权重
+            weights = {}
+            if weight_file.endswith('.safetensors'):
+                for name, weight in safetensors_weights_iterator(weight_file):
+                    weights[name] = weight
+            else:
+                for name, weight in pt_weights_iterator(weight_file):
+                    weights[name] = weight
+            
+            # 使用量化权重加载方法
+            return self._load_quantized_weight(weight_name, weights, precision)
+            
+        except Exception as e:
+            logger.error(f"Failed to load quantized weight from file {weight_file}: {e}")
+            return None
+    
     def _process_weight(self, weight_name: str, weight: torch.Tensor, precision: str) -> Optional[CompressedWeight]:
         """处理权重 - 复用SGLang的权重处理逻辑"""
         try:
@@ -233,8 +286,17 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 return self._load_qkv_weight_for_sglang(weight_name, {weight_name: weight}, precision)
             
             # 处理量化权重的特殊情况
-            if precision in ["gptq_int4", "awq_int4"]:
-                return self._load_quantized_weight(weight_name, {weight_name: weight}, precision)
+            if precision in ["gptq_int4", "awq_int4", "fp8"]:
+                # 对于量化权重，我们需要完整的权重字典来查找相关组件
+                # 这里我们只能处理单个权重，所以对于需要多个组件的量化方法，
+                # 应该在load_weight方法中处理，而不是在这里
+                if precision == "fp8":
+                    # FP8权重可能只有单个权重文件
+                    return self._load_fp8_weight_compressed(weight_name, {weight_name: weight})
+                else:
+                    # GPTQ和AWQ需要多个组件，这里无法处理
+                    logger.warning(f"Cannot process {precision} weight {weight_name} in single weight mode")
+                    return None
             
             # 复用SGLang的权重形状验证逻辑
             original_shape = weight.shape
@@ -385,11 +447,12 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
     
     def _load_fp8_weight_compressed(self, weight_name: str, weights: Dict[str, torch.Tensor]) -> Optional[CompressedWeight]:
         """加载FP8权重 - 保持压缩格式"""
-        if weight_name in weights:
-            weight_data = weights[weight_name]
-            scale_name = weight_name + "_scale_inv"
-            scale_data = weights.get(scale_name, None)
-            
+        # 检查权重和scale_inv是否存在
+        weight_data = weights.get(weight_name)
+        scale_name = weight_name + "_scale_inv"
+        scale_data = weights.get(scale_name, None)
+        
+        if weight_data is not None:
             original_shape = weight_data.shape
             
             # 创建压缩权重对象 - 保持压缩格式
@@ -742,6 +805,119 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         except Exception as e:
             logger.error(f"Error sharding weight {weight_name} for tensor parallel: {e}")
             return weight
+
+
+    def initialize_specific_layers(self, model: torch.nn.Module, base_model_path: str):
+        """初始化特定层 - 使用基础模型路径"""
+        logger.info("Initializing specific layers from base model...")
+        
+        try:
+            # 创建临时的ModelConfig用于基础模型
+            temp_model_config = ModelConfig(
+                model_path=base_model_path,
+                dtype=torch.float16,
+                trust_remote_code=True
+            )
+            
+            # 使用SGLang的权重迭代器加载基础模型权重
+            source = DefaultModelLoader.Source.init_new(temp_model_config, None)
+            
+            # 获取需要初始化的层列表
+            layers_to_initialize = set()
+            for weight_name in self.mixed_precision_config.weight_mapping.keys():
+                # 提取层名称（去掉.weight后缀）
+                layer_name = weight_name.replace('.weight', '')
+                layers_to_initialize.add(layer_name)
+            
+            logger.info(f"Found {len(layers_to_initialize)} layers to initialize")
+            
+            # 加载基础模型权重并初始化特定层
+            initialized_count = 0
+            for name, weight in self._get_weights_iterator(source):
+                # 检查是否是需要的层
+                layer_name = name.replace('.weight', '')
+                if layer_name in layers_to_initialize:
+                    # 初始化该层的权重
+                    if self._initialize_layer_weight(model, name, weight):
+                        initialized_count += 1
+                        logger.debug(f"Initialized layer: {layer_name}")
+            
+            logger.info(f"Successfully initialized {initialized_count} layers from base model")
+            
+        except Exception as e:
+            logger.error(f"Error initializing specific layers: {e}")
+    
+    def _initialize_layer_weight(self, model: torch.nn.Module, weight_name: str, weight: torch.Tensor) -> bool:
+        """初始化单个层的权重"""
+        try:
+            # 根据权重名称找到对应的模块
+            module_names = weight_name.split('.')
+            current_module = model
+            
+            # 遍历模块路径
+            for module_name in module_names[:-1]:  # 除了最后一个（权重名称）
+                if hasattr(current_module, module_name):
+                    current_module = getattr(current_module, module_name)
+                else:
+                    logger.warning(f"Module {module_name} not found in {current_module}")
+                    return False
+            
+            # 设置权重
+            weight_param_name = module_names[-1]  # 权重参数名称
+            if hasattr(current_module, weight_param_name):
+                weight_param = getattr(current_module, weight_param_name)
+                if isinstance(weight_param, nn.Parameter):
+                    weight_param.data = weight
+                    return True
+                else:
+                    logger.warning(f"{weight_param_name} is not a Parameter in {current_module}")
+                    return False
+            else:
+                logger.warning(f"Weight {weight_param_name} not found in {current_module}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error initializing layer weight {weight_name}: {e}")
+            return False
+    
+    def load_model_weights(self, model: torch.nn.Module) -> Dict[str, Any]:
+        """加载模型权重 - 返回加载统计信息"""
+        logger.info("Loading mixed precision model weights...")
+        
+        stats = {
+            'loaded': 0,
+            'total': len(self.mixed_precision_config.weight_mapping),
+            'memory_saved_mb': 0.0,
+            'base_model_loaded': False
+        }
+        
+        try:
+            # 加载混合精度权重
+            for weight_name, precision in self.mixed_precision_config.weight_mapping.items():
+                compressed_weight = self.load_weight(weight_name, precision)
+                if compressed_weight:
+                    # 存储压缩权重供后续使用
+                    self.compressed_weights[weight_name] = compressed_weight
+                    stats['loaded'] += 1
+                    
+                    # 计算内存节省
+                    original_size = compressed_weight.original_shape[0] * compressed_weight.original_shape[1] * 2  # FP16
+                    compressed_size = compressed_weight.compressed_size
+                    memory_saved = original_size - compressed_size
+                    stats['memory_saved_mb'] += memory_saved / (1024 * 1024)  # 转换为MB
+                    
+                    logger.debug(f"Loaded {weight_name} with precision {precision}")
+                else:
+                    logger.warning(f"Failed to load {weight_name} with precision {precision}")
+            
+            logger.info(f"Mixed precision weights loaded: {stats['loaded']}/{stats['total']}")
+            logger.info(f"Memory saved: {stats['memory_saved_mb']:.2f}MB")
+            
+            return stats
+            
+        except Exception as e:
+            logger.error(f"Error loading model weights: {e}")
+            return stats
 
 
 # 全局混合精度加载器实例

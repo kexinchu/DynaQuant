@@ -11,12 +11,7 @@ import logging
 from typing import Optional, Dict, Any
 
 # SGLang量化支持导入 - 使用实际可用的类
-from sglang.srt.layers.quantization.base_config import QuantizationConfig
-from sglang.srt.layers.quantization.fp8 import Fp8Config
-from sglang.srt.layers.quantization.gptq import GPTQConfig
-from sglang.srt.layers.quantization.awq import AWQConfig
-from sglang.srt.layers.quantization.blockwise_int8 import BlockInt8Config
-from sglang.srt.layers.quantization.w8a8_int8 import W8A8Int8Config
+from sglang.srt.layers.quantization.fp8 import Fp8Config, Fp8LinearMethod
 from sglang.srt.layers.linear import LinearBase, LinearMethodBase
 
 # 尝试导入vllm的量化方法（如果可用）
@@ -39,9 +34,6 @@ except ImportError:
         def apply(self, layer, x, bias=None):
             raise NotImplementedError("AWQLinearMethod requires vllm")
 
-# 导入SGLang自己的FP8线性方法
-from sglang.srt.layers.quantization.fp8 import Fp8LinearMethod
-
 logger = logging.getLogger(__name__)
 
 
@@ -59,8 +51,16 @@ class MixedPrecisionLinear(LinearBase):
         """初始化量化方法"""
         self.quantization_methods = {}
         
+        # 创建FP8配置
+        fp8_config = Fp8Config(
+            is_checkpoint_fp8_serialized=True,
+            activation_scheme="dynamic",
+            ignored_layers=None,
+            weight_block_size=None
+        )
+        
         # 添加SGLang自己的FP8方法
-        self.quantization_methods['fp8'] = Fp8LinearMethod()
+        self.quantization_methods['fp8'] = Fp8LinearMethod(fp8_config)
         
         # 添加vllm的方法（如果可用）
         if VLLM_AVAILABLE:
@@ -280,9 +280,11 @@ class MixedPrecisionLinear(LinearBase):
         return 1.0
 
 
-def replace_linear_with_mixed_precision(model: nn.Module, mixed_precision_loader) -> nn.Module:
+def replace_linear_with_mixed_precision(model: nn.Module, mixed_precision_loader, use_cache: bool = True) -> nn.Module:
     """将模型中的线性层替换为混合精度线性层"""
     logger.info("Replacing linear layers with mixed precision layers...")
+    
+    replaced_count = 0
     
     for name, module in model.named_modules():
         if isinstance(module, nn.Linear):
@@ -301,21 +303,37 @@ def replace_linear_with_mixed_precision(model: nn.Module, mixed_precision_loader
                 )
                 
                 # 加载压缩权重
-                compressed_weight = mixed_precision_loader.load_weight(weight_name, precision)
+                if use_cache and weight_name in mixed_precision_loader.compressed_weights:
+                    compressed_weight = mixed_precision_loader.compressed_weights[weight_name]
+                else:
+                    compressed_weight = mixed_precision_loader.load_weight(weight_name, precision)
+                
                 if compressed_weight:
                     mixed_layer.set_compressed_weight(compressed_weight)
                     logger.info(f"Replaced {name} with mixed precision layer (precision: {precision})")
+                    replaced_count += 1
                 else:
                     logger.warning(f"Failed to load compressed weight for {name}")
                 
-                # 替换模块
+                # 替换模块 - 使用正确的父模块查找方法
                 parent_name = '.'.join(name.split('.')[:-1])
+                child_name = name.split('.')[-1]
+                
                 if parent_name:
-                    parent = dict(model.named_modules())[parent_name]
-                    setattr(parent, name.split('.')[-1], mixed_layer)
+                    # 找到父模块
+                    parent_module = model
+                    for part in parent_name.split('.'):
+                        if hasattr(parent_module, part):
+                            parent_module = getattr(parent_module, part)
+                        else:
+                            logger.error(f"Parent module {parent_name} not found")
+                            break
+                    else:
+                        # 成功找到父模块，替换子模块
+                        setattr(parent_module, child_name, mixed_layer)
                 else:
                     # 根级别的线性层
-                    setattr(model, name, mixed_layer)
+                    setattr(model, child_name, mixed_layer)
     
-    logger.info("Mixed precision layer replacement completed")
+    logger.info(f"Mixed precision layer replacement completed: {replaced_count} layers replaced")
     return model
