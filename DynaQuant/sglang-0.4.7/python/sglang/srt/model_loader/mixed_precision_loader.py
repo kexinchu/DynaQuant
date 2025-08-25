@@ -173,11 +173,16 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         # 处理不同精度的权重名称差异
         if precision in ["fp8", "int8"]:
-            # FP8/Int8模型可能有weight_scale_inv后缀
+            # FP8/Int8模型同时存在weight和weight_scale_inv
             additional_names = []
             for name in normalized_names:
-                if not name.endswith("_scale_inv"):
+                if name.endswith(".weight"):
+                    # 对于.weight格式，添加weight_scale_inv
                     additional_names.append(name + "_scale_inv")
+                elif name.endswith("_scale_inv"):
+                    # 对于.weight_scale_inv格式，添加.weight
+                    base_name = name.replace("_scale_inv", "")
+                    additional_names.append(base_name)
             normalized_names.extend(additional_names)
         
         # 处理GPTQ-Int4的权重名称差异
@@ -187,12 +192,23 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             for name in normalized_names:
                 if name.endswith(".weight"):
                     base_name = name.replace(".weight", "")
+                    # GPTQ-Int4的必需组件
                     gptq_names.extend([
                         base_name + ".qweight",
                         base_name + ".qzeros", 
-                        base_name + ".scales",
-                        base_name + ".g_idx"  # 可选组件
+                        base_name + ".scales"
                     ])
+                    # 可选组件（某些模型可能没有）
+                    gptq_names.append(base_name + ".g_idx")
+                elif name.endswith("_scale_inv"):
+                    # 处理FP8格式的GPTQ权重
+                    base_name = name.replace("_scale_inv", "")
+                    gptq_names.extend([
+                        base_name + ".qweight",
+                        base_name + ".qzeros", 
+                        base_name + ".scales"
+                    ])
+                    gptq_names.append(base_name + ".g_idx")
             if gptq_names:
                 normalized_names = gptq_names
         
@@ -259,9 +275,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         logger.info(f"Tried normalized names: {normalized_names}")
         
         # 输出索引文件中的权重名称样本（用于调试）
-        # logger.info(f"Available weights in index file (first 10):")
-        # for i, (name, file) in enumerate(list(weight_to_file.items())[:10]):
-        #     logger.info(f"  {i+1}. {name} -> {file}")
+        logger.info(f"Available weights in index file (first 10):")
+        for i, (name, file) in enumerate(list(weight_to_file.items())[:10]):
+            logger.info(f"  {i+1}. {name} -> {file}")
         
         return None
     
@@ -760,23 +776,48 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         layers_to_initialize.update(qkv_layers)
         
-        # logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
+        logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
         return list(layers_to_initialize)
     
     def _extract_layer_name_from_weight(self, weight_name: str) -> Optional[str]:
         """从权重名称中提取层名称"""
-        # 移除权重后缀
-        if weight_name.endswith('.weight'):
+        # 移除权重后缀（包括FP8的weight_scale_inv后缀）
+        if weight_name.endswith('.weight_scale_inv'):
+            layer_name = weight_name[:-18]  # 移除 '.weight_scale_inv'
+        elif weight_name.endswith('.weight'):
             layer_name = weight_name[:-7]  # 移除 '.weight'
         else:
             layer_name = weight_name
         
-        # 处理特殊情况
-        if '.q_proj.' in layer_name or '.k_proj.' in layer_name or '.v_proj.' in layer_name:
+        # 处理专家层权重名称
+        if '.experts.' in layer_name:
+            # 对于专家层，提取到专家模块级别
+            parts = layer_name.split('.')
+            for i, part in enumerate(parts):
+                if part == 'experts':
+                    # 找到experts后面的数字
+                    if i + 1 < len(parts) and parts[i + 1].isdigit():
+                        layer_name = '.'.join(parts[:i+2])  # 包含experts和数字
+                        break
+                    else:
+                        layer_name = '.'.join(parts[:i+1])  # 只包含experts
+                        break
+        
+        # 处理注意力层权重名称
+        elif '.q_proj.' in layer_name or '.k_proj.' in layer_name or '.v_proj.' in layer_name:
             # 对于分离的q_proj, k_proj, v_proj，提取到self_attn层
             parts = layer_name.split('.')
             for i, part in enumerate(parts):
                 if part == 'self_attn':
+                    layer_name = '.'.join(parts[:i+1])
+                    break
+        
+        # 处理MLP层权重名称
+        elif '.gate_proj.' in layer_name or '.up_proj.' in layer_name or '.down_proj.' in layer_name:
+            # 对于MLP层，提取到mlp层
+            parts = layer_name.split('.')
+            for i, part in enumerate(parts):
+                if part == 'mlp':
                     layer_name = '.'.join(parts[:i+1])
                     break
         
@@ -872,14 +913,44 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         """初始化MLP层"""
         logger.debug(f"Initializing MLP layer: {layer_name}")
         
-        # 处理MLP的各个投影层
+        # 检查是否是专家层
+        if '.experts.' in layer_name:
+            self._initialize_expert_layer(layer_module, layer_weights, layer_name)
+        else:
+            # 处理普通MLP的各个投影层
+            for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
+                weight_name = layer_name + "." + proj_name + ".weight"
+                if weight_name in layer_weights:
+                    weight = layer_weights[weight_name]
+                    if hasattr(layer_module, proj_name):
+                        getattr(layer_module, proj_name).weight.data = weight
+                        logger.debug(f"Set {proj_name} weight for {layer_name}")
+    
+    def _initialize_expert_layer(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
+        """初始化专家层"""
+        logger.debug(f"Initializing expert layer: {layer_name}")
+        
+        # 处理专家层的各个投影层
         for proj_name in ['gate_proj', 'up_proj', 'down_proj']:
-            weight_name = layer_name + "." + proj_name + ".weight"
-            if weight_name in layer_weights:
-                weight = layer_weights[weight_name]
-                if hasattr(layer_module, proj_name):
-                    getattr(layer_module, proj_name).weight.data = weight
-                    logger.debug(f"Set {proj_name} weight for {layer_name}")
+            # 尝试不同的权重名称格式（按优先级）
+            weight_names = [
+                layer_name + "." + proj_name + ".weight",  # FP16格式
+                layer_name + "." + proj_name + ".weight_scale_inv",  # FP8格式
+            ]
+            
+            weight_found = False
+            for weight_name in weight_names:
+                if weight_name in layer_weights:
+                    weight = layer_weights[weight_name]
+                    if hasattr(layer_module, proj_name):
+                        getattr(layer_module, proj_name).weight.data = weight
+                        logger.debug(f"Set {proj_name} weight for {layer_name} (format: {weight_name})")
+                        weight_found = True
+                        break
+            
+            if not weight_found:
+                logger.warning(f"No weight found for {proj_name} in layer {layer_name}")
+                logger.debug(f"Available weights for this layer: {[k for k in layer_weights.keys() if proj_name in k]}")
     
     def _initialize_generic_layer(self, layer_module: torch.nn.Module, layer_weights: Dict[str, torch.Tensor], layer_name: str):
         """通用层初始化"""
@@ -923,11 +994,11 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             
             logger.warning(f"No model file found in {base_model_path}")
             # logger.info(f"Available files in {base_model_path}:")
-            # try:
-            #     for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
-            #         logger.info(f"  - {f}")
-            # except Exception as e:
-            #     logger.error(f"Error listing directory: {e}")
+            try:
+                for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
+                    logger.info(f"  - {f}")
+            except Exception as e:
+                logger.error(f"Error listing directory: {e}")
             
             return None
             
