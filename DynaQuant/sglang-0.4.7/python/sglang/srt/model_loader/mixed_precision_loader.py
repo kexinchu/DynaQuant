@@ -9,7 +9,7 @@ import os
 import torch
 import yaml
 import logging
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -112,7 +112,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         try:
             weights = load_file(file_path)
             self.weight_cache[file_path] = weights
-            logger.info(f"Loaded safetensors file: {file_path}")
+            # logger.info(f"Loaded safetensors file: {file_path}")
             return weights
         except Exception as e:
             logger.error(f"Failed to load safetensors file {file_path}: {e}")
@@ -126,7 +126,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         try:
             weights = torch.load(file_path, map_location='cpu')
             self.weight_cache[file_path] = weights
-            logger.info(f"Loaded PyTorch file: {file_path}")
+            # logger.info(f"Loaded PyTorch file: {file_path}")
             return weights
         except Exception as e:
             logger.error(f"Failed to load PyTorch file {file_path}: {e}")
@@ -148,7 +148,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             if 'weight_map' in index_data:
                 weight_to_file = index_data['weight_map']
             
-            logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
+            # logger.info(f"Loaded safetensors index from {index_file}, {len(weight_to_file)} weights mapped")
             return weight_to_file
         except Exception as e:
             logger.error(f"Failed to load safetensors index {index_file}: {e}")
@@ -161,11 +161,12 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         # 处理qkv_proj -> q_proj, k_proj, v_proj的转换
         # SGLang的QKVParallelLinear期望qkv_proj.weight，但权重文件可能是分离的
         if "qkv_proj" in weight_name:
-            base_name = weight_name.replace("qkv_proj", "")
+            # 正确提取基础名称，避免双点号问题
+            base_name = weight_name.replace(".qkv_proj.weight", "")
             normalized_names = [
-                base_name + "q_proj.weight",
-                base_name + "k_proj.weight", 
-                base_name + "v_proj.weight"
+                base_name + ".q_proj.weight",
+                base_name + ".k_proj.weight", 
+                base_name + ".v_proj.weight"
             ]
             # 同时保留原始的qkv_proj.weight名称，以防权重文件中有直接的qkv_proj权重
             normalized_names.append(weight_name)
@@ -245,10 +246,10 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 file_name = weight_to_file[normalized_name]
                 file_path = os.path.join(base_path, file_name)
                 if os.path.exists(file_path):
-                    if normalized_name != weight_name:
-                        logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
-                    else:
-                        logger.info(f"Found weight {weight_name} in index file: {file_path}")
+                    # if normalized_name != weight_name:
+                    #     logger.info(f"Found normalized weight {normalized_name} for {weight_name} in index file: {file_path}")
+                    # else:
+                    #     logger.info(f"Found weight {weight_name} in index file: {file_path}")
                     return file_path
                 else:
                     logger.warning(f"Weight file from index not found: {file_path}")
@@ -341,10 +342,11 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
     
     def _load_qkv_weight_for_sglang(self, weight_name: str, weights: Dict[str, torch.Tensor], precision: str) -> Optional[CompressedWeight]:
         """为SGLang加载qkv权重，处理分离的q_proj, k_proj, v_proj合并为qkv_proj"""
-        base_name = weight_name.replace("qkv_proj", "")
-        q_name = base_name + "q_proj.weight"
-        k_name = base_name + "k_proj.weight"
-        v_name = base_name + "v_proj.weight"
+        # 正确提取基础名称，避免双点号问题
+        base_name = weight_name.replace(".qkv_proj.weight", "")
+        q_name = base_name + ".q_proj.weight"
+        k_name = base_name + ".k_proj.weight"
+        v_name = base_name + ".v_proj.weight"
         
         # 检查是否存在分离的权重
         if q_name in weights and k_name in weights and v_name in weights:
@@ -898,29 +900,29 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             # 首先尝试加载safetensors索引文件
             index_file = os.path.join(base_model_path, "model.safetensors.index.json")
             if os.path.exists(index_file):
-                logger.info(f"Loading safetensors index from {index_file}")
+                # logger.info(f"Loading safetensors index from {index_file}")
                 return self._load_safetensors_index_weights(base_model_path, index_file)
             
             # 尝试加载单个safetensors文件
             model_file = os.path.join(base_model_path, "model.safetensors")
             if os.path.exists(model_file):
-                logger.info(f"Loading single safetensors file: {model_file}")
+                # logger.info(f"Loading single safetensors file: {model_file}")
                 return self._load_safetensors_file(model_file)
             
             # 尝试加载PyTorch格式
             model_file = os.path.join(base_model_path, "pytorch_model.bin")
             if os.path.exists(model_file):
-                logger.info(f"Loading PyTorch model file: {model_file}")
+                # logger.info(f"Loading PyTorch model file: {model_file}")
                 return self._load_pytorch_file(model_file)
             
             # 尝试加载分片的PyTorch文件
             pytorch_files = [f for f in os.listdir(base_model_path) if f.startswith("pytorch_model-") and f.endswith(".bin")]
             if pytorch_files:
-                logger.info(f"Loading PyTorch sharded files: {len(pytorch_files)} files")
+                # logger.info(f"Loading PyTorch sharded files: {len(pytorch_files)} files")
                 return self._load_pytorch_sharded_files(base_model_path, pytorch_files)
             
             logger.warning(f"No model file found in {base_model_path}")
-            logger.info(f"Available files in {base_model_path}:")
+            # logger.info(f"Available files in {base_model_path}:")
             try:
                 for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
                     logger.info(f"  - {f}")
@@ -963,7 +965,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                     else:
                         logger.warning(f"File not found: {file_path}")
             
-            logger.info(f"Loaded {len(all_weights)} weights from {len(loaded_files)} files")
+            # logger.info(f"Loaded {len(all_weights)} weights from {len(loaded_files)} files")
             return all_weights
             
         except Exception as e:
@@ -987,7 +989,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 else:
                     logger.warning(f"File not found: {file_path}")
             
-            logger.info(f"Loaded {len(all_weights)} weights from {len(pytorch_files)} PyTorch files")
+            # logger.info(f"Loaded {len(all_weights)} weights from {len(pytorch_files)} PyTorch files")
             return all_weights
             
         except Exception as e:
