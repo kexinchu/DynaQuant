@@ -2,9 +2,8 @@
 
 CUDA_VISIBLE_DEVICES=0,1,2,3 \
 python3 -m sglang.launch_server \
-  --model-path /dcar-vepfs-trans-models/Qwen3-235B-A22B \
-  --tp-size 1 \
-  --dp-size 4 \
+  --model-path /dcar-vepfs-trans-models/Qwen3-30B-A3B \
+  --tp-size 1 --dp-size 4 --ep-size 1\
   --enable-ep-moe \
   --max-running-requests 32 \
   --host 127.0.0.1 --port 8080 \
@@ -18,3 +17,5 @@ python3 -m sglang.launch_server \
   --kv-cache-dtype auto \
   --allow-auto-truncate \
   --chunked-prefill-size 16384 \
+  --enable-mixed-precision \
+  --mixed-precision-config ./sglang-0.4.7/mixed_precision_config.yaml
