@@ -259,9 +259,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         logger.info(f"Tried normalized names: {normalized_names}")
         
         # 输出索引文件中的权重名称样本（用于调试）
-        logger.info(f"Available weights in index file (first 10):")
-        for i, (name, file) in enumerate(list(weight_to_file.items())[:10]):
-            logger.info(f"  {i+1}. {name} -> {file}")
+        # logger.info(f"Available weights in index file (first 10):")
+        # for i, (name, file) in enumerate(list(weight_to_file.items())[:10]):
+        #     logger.info(f"  {i+1}. {name} -> {file}")
         
         return None
     
@@ -760,7 +760,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         layers_to_initialize.update(qkv_layers)
         
-        logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
+        # logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
         return list(layers_to_initialize)
     
     def _extract_layer_name_from_weight(self, weight_name: str) -> Optional[str]:
@@ -923,11 +923,11 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             
             logger.warning(f"No model file found in {base_model_path}")
             # logger.info(f"Available files in {base_model_path}:")
-            try:
-                for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
-                    logger.info(f"  - {f}")
-            except Exception as e:
-                logger.error(f"Error listing directory: {e}")
+            # try:
+            #     for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
+            #         logger.info(f"  - {f}")
+            # except Exception as e:
+            #     logger.error(f"Error listing directory: {e}")
             
             return None
             
