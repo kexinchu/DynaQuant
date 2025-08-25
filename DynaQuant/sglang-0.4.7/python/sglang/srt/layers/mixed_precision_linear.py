@@ -167,6 +167,7 @@ class MixedPrecisionLinear(LinearBase):
             original_scales = getattr(self, 'scales', None)
             original_g_idx = getattr(self, 'g_idx', None)
             
+            # 设置GPTQ参数
             self.qweight = nn.Parameter(qweight)
             self.qzeros = nn.Parameter(qzeros)
             self.scales = nn.Parameter(scales)
@@ -228,6 +229,7 @@ class MixedPrecisionLinear(LinearBase):
             original_scales = getattr(self, 'scales', None)
             original_qweight_scale = getattr(self, 'qweight_scale', None)
             
+            # 设置AWQ参数
             self.qweight = nn.Parameter(qweight)
             self.qzeros = nn.Parameter(qzeros)
             self.scales = nn.Parameter(scales)
@@ -287,6 +289,7 @@ def replace_linear_with_mixed_precision(model: nn.Module, mixed_precision_loader
     replaced_count = 0
     
     for name, module in model.named_modules():
+        # 检查是否是标准线性层
         if isinstance(module, nn.Linear):
             # 检查是否有对应的混合精度权重
             weight_name = name + ".weight"
@@ -336,4 +339,22 @@ def replace_linear_with_mixed_precision(model: nn.Module, mixed_precision_loader
                     setattr(model, child_name, mixed_layer)
     
     logger.info(f"Mixed precision layer replacement completed: {replaced_count} layers replaced")
+    return model
+
+
+def replace_all_with_mixed_precision(model: nn.Module, mixed_precision_loader, use_cache: bool = True) -> nn.Module:
+    """将模型中的所有层替换为混合精度层（包括EPMoE模块）"""
+    logger.info("Replacing all layers with mixed precision layers...")
+    
+    # 首先替换EPMoE模块
+    try:
+        from sglang.srt.layers.mixed_precision_epmoe import replace_epmoe_with_mixed_precision
+        model = replace_epmoe_with_mixed_precision(model, mixed_precision_loader)
+    except ImportError as e:
+        logger.warning(f"Could not import EPMoE replacement module: {e}")
+    
+    # 然后替换线性层
+    model = replace_linear_with_mixed_precision(model, mixed_precision_loader, use_cache)
+    
+    logger.info("All mixed precision layer replacement completed")
     return model

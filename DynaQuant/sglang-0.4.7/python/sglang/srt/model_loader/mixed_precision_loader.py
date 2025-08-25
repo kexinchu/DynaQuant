@@ -393,7 +393,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             logger.info(f"Loaded compressed GPTQ weight {weight_name}, shape: {original_shape}")
             return compressed_weight
         else:
-            logger.warning(f"Missing GPTQ components for {weight_name}")
+            logger.warning(f"GPTQ components not found for {weight_name}")
             return None
     
     def _load_awq_weight_compressed(self, weight_name: str, weights: Dict[str, torch.Tensor]) -> Optional[CompressedWeight]:
@@ -442,7 +442,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             logger.info(f"Loaded compressed AWQ weight {weight_name}, shape: {original_shape}")
             return compressed_weight
         else:
-            logger.warning(f"Missing AWQ components for {weight_name}")
+            logger.warning(f"AWQ components not found for {weight_name}")
             return None
     
     def _load_fp8_weight_compressed(self, weight_name: str, weights: Dict[str, torch.Tensor]) -> Optional[CompressedWeight]:
@@ -855,12 +855,31 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             current_module = model
             
             # 遍历模块路径
-            for module_name in module_names[:-1]:  # 除了最后一个（权重名称）
+            for i, module_name in enumerate(module_names[:-1]):  # 除了最后一个（权重名称）
                 if hasattr(current_module, module_name):
                     current_module = getattr(current_module, module_name)
                 else:
-                    logger.warning(f"Module {module_name} not found in {current_module}")
-                    return False
+                    # 检查是否是数字模块名（可能是专家编号）
+                    if module_name.isdigit():
+                        # 尝试查找数字索引的模块
+                        try:
+                            expert_id = int(module_name)
+                            # 检查是否是ModuleList或ModuleDict
+                            if isinstance(current_module, (nn.ModuleList, nn.ModuleDict)):
+                                if expert_id < len(current_module):
+                                    current_module = current_module[expert_id]
+                                else:
+                                    logger.debug(f"Expert {expert_id} not found in module list/dict, skipping")
+                                    return False
+                            else:
+                                logger.debug(f"Module {module_name} (expert number) not found in {current_module}, skipping")
+                                return False
+                        except (ValueError, IndexError):
+                            logger.debug(f"Could not access expert {module_name}, skipping")
+                            return False
+                    else:
+                        logger.warning(f"Module {module_name} not found in {current_module}")
+                        return False
             
             # 设置权重
             weight_param_name = module_names[-1]  # 权重参数名称
