@@ -776,7 +776,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         layers_to_initialize.update(qkv_layers)
         
-        logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
+        # logger.info(f"Layers to initialize: {list(layers_to_initialize)}")
         return list(layers_to_initialize)
     
     def _extract_layer_name_from_weight(self, weight_name: str) -> Optional[str]:
@@ -860,6 +860,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 if hasattr(module, name):
                     module = getattr(module, name)
                 else:
+                    print(f"module: {module}, name: {name}")
                     return None
             return module
         except Exception as e:
@@ -994,11 +995,11 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             
             logger.warning(f"No model file found in {base_model_path}")
             # logger.info(f"Available files in {base_model_path}:")
-            try:
-                for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
-                    logger.info(f"  - {f}")
-            except Exception as e:
-                logger.error(f"Error listing directory: {e}")
+            # try:
+            #     for f in os.listdir(base_model_path)[:10]:  # 只显示前10个文件
+            #         logger.info(f"  - {f}")
+            # except Exception as e:
+            #     logger.error(f"Error listing directory: {e}")
             
             return None
             
