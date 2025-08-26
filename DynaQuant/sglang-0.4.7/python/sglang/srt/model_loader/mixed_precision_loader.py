@@ -245,39 +245,39 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         retry_delay = 0.1  # 100ms
         
         for attempt in range(max_retries):
-            try:
-                # 对于需要多个组件的量化权重，我们需要加载整个文件
-                if precision in ["gptq_int4", "awq_int4"]:
-                    return self._load_quantized_weight_from_file(weight_name, weight_file, precision)
-                
-                # 对于单个权重文件，使用原有的逻辑
-                if weight_file.endswith('.safetensors'):
-                    # 复用SGLang的safetensors加载
-                    for name, weight in safetensors_weights_iterator(weight_file):
-                        if name == weight_name:
-                            return self._process_weight(weight_name, weight, precision)
-                else:
-                    # 复用SGLang的PyTorch加载
-                    for name, weight in pt_weights_iterator(weight_file):
-                        if name == weight_name:
-                            return self._process_weight(weight_name, weight, precision)
-                
-                logger.warning(f"Weight {weight_name} not found in {weight_file}")
-                return None
+            # try:
+            # 对于需要多个组件的量化权重，我们需要加载整个文件
+            if precision in ["gptq_int4", "awq_int4"]:
+                return self._load_quantized_weight_from_file(weight_name, weight_file, precision)
+            
+            # 对于单个权重文件，使用原有的逻辑
+            if weight_file.endswith('.safetensors'):
+                # 复用SGLang的safetensors加载
+                for name, weight in safetensors_weights_iterator(weight_file):
+                    if name == weight_name:
+                        return self._process_weight(weight_name, weight, precision)
+            else:
+                # 复用SGLang的PyTorch加载
+                for name, weight in pt_weights_iterator(weight_file):
+                    if name == weight_name:
+                        return self._process_weight(weight_name, weight, precision)
+            
+            logger.warning(f"Weight {weight_name} not found in {weight_file}")
+            return None
                     
-            except OSError as e:
-                if "No such device" in str(e) and attempt < max_retries - 1:
-                    logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
-                    import time
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # 指数退避
-                    continue
-                else:
-                    logger.error(f"Failed to load weight {weight_name} with precision {precision} after {attempt + 1} attempts: {e}")
-                    return None
-            except Exception as e:
-                logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
-                return None
+            # except OSError as e:
+            #     if "No such device" in str(e) and attempt < max_retries - 1:
+            #         logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
+            #         import time
+            #         time.sleep(retry_delay)
+            #         retry_delay *= 2  # 指数退避
+            #         continue
+            #     else:
+            #         logger.error(f"Failed to load weight {weight_name} with precision {precision} after {attempt + 1} attempts: {e}")
+            #         return None
+            # except Exception as e:
+            #     logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
+            #     return None
         
         return None
     
@@ -287,32 +287,32 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         retry_delay = 0.1  # 100ms
         
         for attempt in range(max_retries):
-            try:
-                # 加载整个文件的所有权重
-                weights = {}
-                if weight_file.endswith('.safetensors'):
-                    for name, weight in safetensors_weights_iterator(weight_file):
-                        weights[name] = weight
-                else:
-                    for name, weight in pt_weights_iterator(weight_file):
-                        weights[name] = weight
+            # try:
+            # 加载整个文件的所有权重
+            weights = {}
+            if weight_file.endswith('.safetensors'):
+                for name, weight in safetensors_weights_iterator(weight_file):
+                    weights[name] = weight
+            else:
+                for name, weight in pt_weights_iterator(weight_file):
+                    weights[name] = weight
+            
+            # 使用量化权重加载方法
+            return self._load_quantized_weight(weight_name, weights, precision)
                 
-                # 使用量化权重加载方法
-                return self._load_quantized_weight(weight_name, weights, precision)
-                
-            except OSError as e:
-                if "No such device" in str(e) and attempt < max_retries - 1:
-                    logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
-                    import time
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # 指数退避
-                    continue
-                else:
-                    logger.error(f"Failed to load quantized weight from file {weight_file} after {attempt + 1} attempts: {e}")
-                    return None
-            except Exception as e:
-                logger.error(f"Failed to load quantized weight from file {weight_file}: {e}")
-                return None
+            # except OSError as e:
+            #     if "No such device" in str(e) and attempt < max_retries - 1:
+            #         logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
+            #         import time
+            #         time.sleep(retry_delay)
+            #         retry_delay *= 2  # 指数退避
+            #         continue
+            #     else:
+            #         logger.error(f"Failed to load quantized weight from file {weight_file} after {attempt + 1} attempts: {e}")
+            #         return None
+            # except Exception as e:
+            #     logger.error(f"Failed to load quantized weight from file {weight_file}: {e}")
+            #     return None
         
         return None
     

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# python3 gen_expert_fp8_mapping.py /dcar-vepfs-trans-models/Qwen3-235B-A22B-FP8/model.safetensors.index.json --precision FP8 --indent 4 > ./sglang-0.4.7/mixed_precision_config.yaml
+# python3 gen_expert_fp8_mapping.py /dcar-vepfs-trans-models/Qwen3-235B-A22B-FP8/model.safetensors.index.json --precision fp8 --indent 4 > ./sglang-0.4.7/mixed_precision_config.yaml
 import argparse, json, re, sys
 
 def iter_param_names(index_path: str):
@@ -21,7 +21,7 @@ def iter_param_names(index_path: str):
 def main():
     ap = argparse.ArgumentParser("Generate expert precision lines from safetensors index")
     ap.add_argument("index", help="path to model.safetensors.index.json")
-    ap.add_argument("--precision", default="FP8", help='value on the right, e.g. FP8 / gptq_int4')
+    ap.add_argument("--precision", default="fp8", help='value on the right, e.g. fp8 / gptq_int4')
     ap.add_argument("--indent", type=int, default=0, help="spaces to indent each line")
     args = ap.parse_args()
 
@@ -48,7 +48,7 @@ mixed_precision:\n\
     pat = re.compile(r"experts?")  # 匹配 expert 或 experts
     count = 0
     for name in sorted(set(iter_param_names(args.index))):
-        if not pat.search(name):
+        if pat.search(name):
             continue
         # 只要 expert 下的常见权重；如果你想更严格，可加 endswith(".weight")
         print(" " * args.indent + f"\"{name}\": \"{args.precision}\"")
