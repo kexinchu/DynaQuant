@@ -74,6 +74,10 @@ class TrueMixedPrecisionConfig:
     def __post_init__(self):
         if self.weight_mapping is None:
             self.weight_mapping = {}
+        # 确保weight_mapping是字典类型
+        if not isinstance(self.weight_mapping, dict):
+            logger.warning(f"weight_mapping must be a dict, got {type(self.weight_mapping)}")
+            self.weight_mapping = {}
 
 
 class TrueMixedPrecisionLoader(DefaultModelLoader):
@@ -220,7 +224,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             import glob
             pytorch_files = glob.glob(os.path.join(base_path, "pytorch_model-*.bin"))
             if pytorch_files:
-                # 返回第一个文件，实际使用时需要检查权重是否在该文件中
+                # 对于分片文件，我们需要检查权重是否在特定文件中
+                # 这里暂时返回第一个文件，但实际使用时需要更精确的检查
+                logger.debug(f"Found {len(pytorch_files)} PyTorch shard files, using first one")
                 return pytorch_files[0]
             
             return None
@@ -235,48 +241,80 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         if not weight_file:
             return None
         
-        try:
-            # 对于需要多个组件的量化权重，我们需要加载整个文件
-            if precision in ["gptq_int4", "awq_int4"]:
-                return self._load_quantized_weight_from_file(weight_name, weight_file, precision)
-            
-            # 对于单个权重文件，使用原有的逻辑
-            if weight_file.endswith('.safetensors'):
-                # 复用SGLang的safetensors加载
-                for name, weight in safetensors_weights_iterator(weight_file):
-                    if name == weight_name:
-                        return self._process_weight(weight_name, weight, precision)
-            else:
-                # 复用SGLang的PyTorch加载
-                for name, weight in pt_weights_iterator(weight_file):
-                    if name == weight_name:
-                        return self._process_weight(weight_name, weight, precision)
-            
-            logger.warning(f"Weight {weight_name} not found in {weight_file}")
-            return None
+        max_retries = 3
+        retry_delay = 0.1  # 100ms
+        
+        for attempt in range(max_retries):
+            try:
+                # 对于需要多个组件的量化权重，我们需要加载整个文件
+                if precision in ["gptq_int4", "awq_int4"]:
+                    return self._load_quantized_weight_from_file(weight_name, weight_file, precision)
                 
-        except Exception as e:
-            logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
-            return None
+                # 对于单个权重文件，使用原有的逻辑
+                if weight_file.endswith('.safetensors'):
+                    # 复用SGLang的safetensors加载
+                    for name, weight in safetensors_weights_iterator(weight_file):
+                        if name == weight_name:
+                            return self._process_weight(weight_name, weight, precision)
+                else:
+                    # 复用SGLang的PyTorch加载
+                    for name, weight in pt_weights_iterator(weight_file):
+                        if name == weight_name:
+                            return self._process_weight(weight_name, weight, precision)
+                
+                logger.warning(f"Weight {weight_name} not found in {weight_file}")
+                return None
+                    
+            except OSError as e:
+                if "No such device" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # 指数退避
+                    continue
+                else:
+                    logger.error(f"Failed to load weight {weight_name} with precision {precision} after {attempt + 1} attempts: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
+                return None
+        
+        return None
     
     def _load_quantized_weight_from_file(self, weight_name: str, weight_file: str, precision: str) -> Optional[CompressedWeight]:
         """从文件中加载量化权重（需要多个组件）"""
-        try:
-            # 加载整个文件的所有权重
-            weights = {}
-            if weight_file.endswith('.safetensors'):
-                for name, weight in safetensors_weights_iterator(weight_file):
-                    weights[name] = weight
-            else:
-                for name, weight in pt_weights_iterator(weight_file):
-                    weights[name] = weight
-            
-            # 使用量化权重加载方法
-            return self._load_quantized_weight(weight_name, weights, precision)
-            
-        except Exception as e:
-            logger.error(f"Failed to load quantized weight from file {weight_file}: {e}")
-            return None
+        max_retries = 3
+        retry_delay = 0.1  # 100ms
+        
+        for attempt in range(max_retries):
+            try:
+                # 加载整个文件的所有权重
+                weights = {}
+                if weight_file.endswith('.safetensors'):
+                    for name, weight in safetensors_weights_iterator(weight_file):
+                        weights[name] = weight
+                else:
+                    for name, weight in pt_weights_iterator(weight_file):
+                        weights[name] = weight
+                
+                # 使用量化权重加载方法
+                return self._load_quantized_weight(weight_name, weights, precision)
+                
+            except OSError as e:
+                if "No such device" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
+                    import time
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # 指数退避
+                    continue
+                else:
+                    logger.error(f"Failed to load quantized weight from file {weight_file} after {attempt + 1} attempts: {e}")
+                    return None
+            except Exception as e:
+                logger.error(f"Failed to load quantized weight from file {weight_file}: {e}")
+                return None
+        
+        return None
     
     def _process_weight(self, weight_name: str, weight: torch.Tensor, precision: str) -> Optional[CompressedWeight]:
         """处理权重 - 复用SGLang的权重处理逻辑"""
