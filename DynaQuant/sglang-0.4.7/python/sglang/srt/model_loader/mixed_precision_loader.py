@@ -149,6 +149,18 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         """获取量化配置"""
         return self.quantization_configs.get(precision)
     
+    def _get_weight_format_enum(self, precision: str) -> WeightFormat:
+        """获取权重格式枚举"""
+        precision_mapping = {
+            "fp16": WeightFormat.FP16,
+            "fp8": WeightFormat.FP8,
+            "int4": WeightFormat.INT4,
+            "int8": WeightFormat.INT8,
+            "gptq_int4": WeightFormat.GPTQ_INT4,
+            "awq_int4": WeightFormat.AWQ_INT4
+        }
+        return precision_mapping.get(precision, WeightFormat.FP16)
+    
     def _find_weight_file(self, weight_name: str, precision: str) -> Optional[str]:
         """根据权重名称和精度查找对应的权重文件 - 复用SGLang的权重查找逻辑"""
         # 根据精度确定路径
@@ -168,23 +180,8 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         
         # 复用SGLang的权重文件查找逻辑
         try:
-            # 创建临时的ModelConfig
-            temp_model_config = ModelConfig(
-                model_path=base_path,
-                dtype=torch.float16,
-                trust_remote_code=True
-            )
-            
-            # 使用SGLang的权重迭代器来查找权重文件
-            source = DefaultModelLoader.Source.init_new(temp_model_config, None)
-            
-            # 使用SGLang的权重迭代器查找权重
-            for name, weight in self._get_weights_iterator(source):
-                if name == weight_name:
-                    # 找到权重后，返回对应的文件路径
-                    # 这里需要从权重迭代器中获取文件路径信息
-                    # 由于SGLang的权重迭代器不直接提供文件路径，我们需要其他方法
-                    return self._get_weight_file_path(base_path, weight_name)
+            # 直接使用文件路径查找，避免复杂的权重迭代器
+            return self._get_weight_file_path(base_path, weight_name)
             
             logger.warning(f"Weight {weight_name} not found in any files for precision {precision}")
             return None
@@ -245,7 +242,6 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         retry_delay = 0.1  # 100ms
         
         for attempt in range(max_retries):
-            # try:
             # 对于需要多个组件的量化权重，我们需要加载整个文件
             if precision in ["gptq_int4", "awq_int4"]:
                 return self._load_quantized_weight_from_file(weight_name, weight_file, precision)
@@ -264,20 +260,6 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             
             logger.warning(f"Weight {weight_name} not found in {weight_file}")
             return None
-                    
-            # except OSError as e:
-            #     if "No such device" in str(e) and attempt < max_retries - 1:
-            #         logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
-            #         import time
-            #         time.sleep(retry_delay)
-            #         retry_delay *= 2  # 指数退避
-            #         continue
-            #     else:
-            #         logger.error(f"Failed to load weight {weight_name} with precision {precision} after {attempt + 1} attempts: {e}")
-            #         return None
-            # except Exception as e:
-            #     logger.error(f"Failed to load weight {weight_name} with precision {precision}: {e}")
-            #     return None
         
         return None
     
@@ -287,7 +269,6 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         retry_delay = 0.1  # 100ms
         
         for attempt in range(max_retries):
-            # try:
             # 加载整个文件的所有权重
             weights = {}
             if weight_file.endswith('.safetensors'):
@@ -298,21 +279,12 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                     weights[name] = weight
             
             # 使用量化权重加载方法
-            return self._load_quantized_weight(weight_name, weights, precision)
-                
-            # except OSError as e:
-            #     if "No such device" in str(e) and attempt < max_retries - 1:
-            #         logger.warning(f"Device access error on attempt {attempt + 1} for {weight_name}: {e}")
-            #         import time
-            #         time.sleep(retry_delay)
-            #         retry_delay *= 2  # 指数退避
-            #         continue
-            #     else:
-            #         logger.error(f"Failed to load quantized weight from file {weight_file} after {attempt + 1} attempts: {e}")
-            #         return None
-            # except Exception as e:
-            #     logger.error(f"Failed to load quantized weight from file {weight_file}: {e}")
-            #     return None
+            result = self._load_quantized_weight(weight_name, weights, precision)
+            if result is not None:
+                return result
+            
+            # 如果加载失败，记录警告并继续重试
+            logger.warning(f"Failed to load quantized weight {weight_name} on attempt {attempt + 1}")
         
         return None
     
@@ -347,8 +319,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 original_shape = weight.shape
             
             # 创建压缩权重对象
+            format_enum = self._get_weight_format_enum(precision)
             compressed_weight = CompressedWeight(
-                format=WeightFormat(precision),
+                format=format_enum,
                 data=weight,
                 metadata={},
                 original_shape=original_shape,
@@ -522,7 +495,23 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
         k_name = base_name + ".k_proj.weight"
         v_name = base_name + ".v_proj.weight"
         
-        # 检查是否存在分离的权重
+        # 首先检查是否存在qkv_proj权重（Qwen3Moe的情况）
+        if weight_name in weights:
+            qkv_weight = weights[weight_name]
+            logger.debug(f"Found qkv_proj weight directly: {weight_name}")
+            
+            # 创建压缩权重对象
+            format_enum = self._get_weight_format_enum(precision)
+            compressed_weight = CompressedWeight(
+                format=format_enum,
+                data=qkv_weight,
+                metadata={},
+                original_shape=qkv_weight.shape,
+                compressed_size=qkv_weight.numel() * qkv_weight.element_size()
+            )
+            return compressed_weight
+        
+        # 检查是否存在分离的权重（其他模型的情况）
         if q_name in weights and k_name in weights and v_name in weights:
             q_weight = weights[q_name]
             k_weight = weights[k_name]
@@ -581,8 +570,9 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                     logger.warning(f"Padded QKV weights to max input size {max_input_size}")
             
             # 创建压缩权重对象
+            format_enum = self._get_weight_format_enum(precision)
             compressed_weight = CompressedWeight(
-                format=WeightFormat(precision),
+                format=format_enum,
                 data=qkv_weight,
                 metadata={},
                 original_shape=qkv_weight.shape,
@@ -871,14 +861,30 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
             
             # 加载基础模型权重并初始化特定层
             initialized_count = 0
-            for name, weight in self._get_weights_iterator(source):
-                # 检查是否是需要的层
-                layer_name = name.replace('.weight', '')
-                if layer_name in layers_to_initialize:
-                    # 初始化该层的权重
-                    if self._initialize_layer_weight(model, name, weight):
-                        initialized_count += 1
-                        logger.debug(f"Initialized layer: {layer_name}")
+            
+            # 使用SGLang的权重迭代器
+            try:
+                for name, weight in safetensors_weights_iterator(os.path.join(base_model_path, "model.safetensors")):
+                    # 检查是否是需要的层
+                    layer_name = name.replace('.weight', '')
+                    if layer_name in layers_to_initialize:
+                        # 初始化该层的权重
+                        if self._initialize_layer_weight(model, name, weight):
+                            initialized_count += 1
+                            logger.debug(f"Initialized layer: {layer_name}")
+            except Exception as e:
+                logger.warning(f"Could not load from safetensors, trying PyTorch format: {e}")
+                try:
+                    for name, weight in pt_weights_iterator(os.path.join(base_model_path, "pytorch_model.bin")):
+                        # 检查是否是需要的层
+                        layer_name = name.replace('.weight', '')
+                        if layer_name in layers_to_initialize:
+                            # 初始化该层的权重
+                            if self._initialize_layer_weight(model, name, weight):
+                                initialized_count += 1
+                                logger.debug(f"Initialized layer: {layer_name}")
+                except Exception as e2:
+                    logger.error(f"Could not load base model weights: {e2}")
             
             logger.info(f"Successfully initialized {initialized_count} layers from base model")
             
