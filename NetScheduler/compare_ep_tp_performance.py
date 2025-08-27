@@ -28,8 +28,7 @@ class PerformanceComparison:
             'gpu_memory_usage': {},
             'gpu_utilization': {},
             'deployment_type': {},
-            'model_loading': {},
-            'internal_state': {}
+            'model_loading': {}
         }
         
         # GPU内存使用对比
@@ -73,34 +72,6 @@ class PerformanceComparison:
         print(f"  TP类型: {comparison['deployment_type']['tp_type']}")
         print(f"  EP分布: {comparison['deployment_type']['ep_distribution']}")
         print(f"  TP分布: {comparison['deployment_type']['tp_distribution']}")
-        
-        # 内部状态对比
-        ep_internal = ep_deployment.get('internal_state', {})
-        tp_internal = tp_deployment.get('internal_state', {})
-        
-        if ep_internal or tp_internal:
-            comparison['internal_state'] = {
-                'ep_verification': ep_internal.get('verification_result', {}),
-                'tp_verification': tp_internal.get('verification_result', {}),
-                'ep_parallel_state': ep_internal.get('parallel_state', {}),
-                'tp_parallel_state': tp_internal.get('parallel_state', {}),
-                'ep_environment': ep_internal.get('environment_info', {}),
-                'tp_environment': tp_internal.get('environment_info', {})
-            }
-            
-            print(f"\n内部状态验证对比:")
-            ep_valid = ep_internal.get('verification_result', {}).get('is_valid', False)
-            tp_valid = tp_internal.get('verification_result', {}).get('is_valid', False)
-            print(f"  EP验证结果: {'✅ 通过' if ep_valid else '❌ 失败'}")
-            print(f"  TP验证结果: {'✅ 通过' if tp_valid else '❌ 失败'}")
-            
-            if not ep_valid:
-                ep_error = ep_internal.get('verification_result', {}).get('error_message', '未知错误')
-                print(f"  EP错误信息: {ep_error}")
-            
-            if not tp_valid:
-                tp_error = tp_internal.get('verification_result', {}).get('error_message', '未知错误')
-                print(f"  TP错误信息: {tp_error}")
         
         return comparison
     

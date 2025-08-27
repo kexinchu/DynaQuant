@@ -14,12 +14,10 @@ import random
 import string
 import threading
 import statistics
-from typing import List, Dict, Any
+import sys
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
-
-# 导入内部状态检查器
-from sglang_internal_state_checker import SGLangInternalStateChecker
 
 @dataclass
 class TestResult:
@@ -41,53 +39,223 @@ class DeploymentInfo:
     model_loaded: bool
     expert_distribution: Dict[str, Any]  # expert分布信息
     parallel_config: Dict[str, Any]     # 并行配置信息
-    internal_state: Dict[str, Any]      # 内部状态信息
+    internal_state_verification: Dict[str, Any]  # 内部状态验证结果
 
-def verify_tp_deployment_with_internal_state(port: int = 8081) -> DeploymentInfo:
-    """使用内部状态检查器验证TP部署配置"""
-    print("=== 使用内部状态检查器验证 Tensor Parallel 部署配置 ===")
+class SGLangInternalStateChecker:
+    """SGLang内部状态检查器"""
     
-    # 创建内部状态检查器
-    checker = SGLangInternalStateChecker()
+    def __init__(self, sglang_path: str = "sglang-0.4.7"):
+        self.sglang_path = sglang_path
+        self.api_process = None
     
-    try:
-        # 设置内部状态API
-        print("设置内部状态API...")
-        checker.add_internal_state_api()
+    def setup_internal_state_api(self):
+        """设置内部状态API"""
+        print("=== 设置SGLang内部状态检查功能 ===")
         
-        # 安装依赖
-        print("安装依赖...")
-        checker.install_dependencies()
+        # 检查sglang_internal_state_checker.py是否存在
+        checker_script = "sglang_internal_state_checker.py"
+        if not os.path.exists(checker_script):
+            print(f"❌ 找不到 {checker_script}，请确保该文件存在")
+            return False
         
-        # 重新安装SGLang
-        print("重新安装SGLang...")
-        checker.reinstall_sglang()
+        try:
+            # 运行设置命令
+            result = subprocess.run([
+                sys.executable, checker_script, "--action", "setup", "--sglang-path", self.sglang_path
+            ], capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                print("✅ SGLang内部状态检查功能设置完成")
+                return True
+            else:
+                print(f"❌ 设置失败: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"❌ 设置过程中出错: {e}")
+            return False
+    
+    def start_internal_api_server(self, port: int = 8082):
+        """启动内部状态API服务器"""
+        print(f"=== 启动内部状态API服务器 (端口: {port}) ===")
         
-        # 启动内部API服务器
-        print("启动内部API服务器...")
-        api_server_process = checker.start_internal_api_server()
+        try:
+            checker_script = "sglang_internal_state_checker.py"
+            if not os.path.exists(checker_script):
+                print(f"❌ 找不到 {checker_script}")
+                return None
+            
+            # 启动API服务器
+            self.api_process = subprocess.Popen([
+                sys.executable, checker_script, "--action", "verify", "--deployment-type", "tp", "--api-port", str(port)
+            ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            # 等待服务器启动
+            time.sleep(5)
+            
+            # 检查服务器是否启动成功
+            try:
+                response = requests.get(f"http://127.0.0.1:{port}/internal/health", timeout=5)
+                if response.status_code == 200:
+                    print(f"✅ 内部状态API服务器启动成功: http://127.0.0.1:{port}")
+                    return True
+                else:
+                    print(f"❌ 内部状态API服务器启动失败: HTTP {response.status_code}")
+                    return False
+            except Exception as e:
+                print(f"❌ 内部状态API服务器启动失败: {e}")
+                return False
+        except Exception as e:
+            print(f"❌ 启动内部状态API服务器失败: {e}")
+            return False
+    
+    def stop_internal_api_server(self):
+        """停止内部状态API服务器"""
+        if self.api_process:
+            try:
+                self.api_process.terminate()
+                self.api_process.wait(timeout=10)
+                print("✅ 内部状态API服务器已停止")
+            except Exception as e:
+                print(f"⚠️ 停止内部状态API服务器时出错: {e}")
+                try:
+                    self.api_process.kill()
+                except:
+                    pass
+            finally:
+                self.api_process = None
+    
+    def get_internal_parallel_state(self, api_port: int = 8082) -> Optional[Dict[str, Any]]:
+        """获取内部并行状态"""
+        try:
+            response = requests.get(f"http://127.0.0.1:{api_port}/internal/parallel_state", timeout=10)
+            if response.status_code == 200:
+                return response.json()['data']
+            else:
+                print(f"❌ 获取并行状态失败: HTTP {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"❌ 获取并行状态失败: {e}")
+            return None
+    
+    def get_internal_environment_info(self, api_port: int = 8082) -> Optional[Dict[str, Any]]:
+        """获取内部环境信息"""
+        try:
+            response = requests.get(f"http://127.0.0.1:{api_port}/internal/environment", timeout=10)
+            if response.status_code == 200:
+                return response.json()['data']
+            else:
+                print(f"❌ 获取环境信息失败: HTTP {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"❌ 获取环境信息失败: {e}")
+            return None
+    
+    def verify_tp_deployment_with_internal_state(self, api_port: int = 8082) -> Dict[str, Any]:
+        """使用内部状态验证TP部署"""
+        print("=== 使用内部状态验证 TP 部署 ===")
         
-        # 等待API服务器启动
-        time.sleep(5)
+        # 获取内部状态
+        parallel_state = self.get_internal_parallel_state(api_port)
+        environment_info = self.get_internal_environment_info(api_port)
         
-        # 获取内部并行状态
-        print("获取内部并行状态...")
-        parallel_state = checker.get_internal_parallel_state()
-        environment_info = checker.get_internal_environment_info()
+        verification_result = {
+            'deployment_type': 'tp',
+            'verification_passed': False,
+            'details': {},
+            'warnings': [],
+            'recommendations': []
+        }
         
-        # 验证TP部署
-        print("验证TP部署配置...")
-        verification_result = checker.verify_deployment_with_internal_state('tp')
+        # 1. 检查并行状态
+        if parallel_state:
+            print(f"并行状态信息:")
+            print(f"  Tensor Parallel World Size: {parallel_state.get('tensor_parallel_world_size', 'unknown')}")
+            print(f"  Tensor Parallel Rank: {parallel_state.get('tensor_parallel_rank', 'unknown')}")
+            print(f"  Data Parallel World Size: {parallel_state.get('data_parallel_world_size', 'unknown')}")
+            print(f"  MoE Expert Parallel World Size: {parallel_state.get('moe_expert_parallel_world_size', 'unknown')}")
+            print(f"  是否已初始化: {parallel_state.get('is_initialized', False)}")
+            
+            verification_result['details']['parallel_state'] = parallel_state
+            
+            # 检查并行配置
+            if parallel_state.get('tensor_parallel_world_size', 1) > 1:
+                verification_result['details']['parallel_config_correct'] = True
+                print("  ✅ 并行配置符合TP部署特征")
+            else:
+                verification_result['details']['parallel_config_correct'] = False
+                verification_result['warnings'].append("Tensor Parallel World Size应该大于1")
+                print("  ⚠️ Tensor Parallel World Size为1，可能不符合TP部署特征")
+        else:
+            verification_result['warnings'].append("无法获取并行状态信息")
         
-        # 获取GPU信息（备用方法）
-        gpu_info = {}
+        # 2. 检查环境信息
+        if environment_info:
+            print(f"\n环境信息:")
+            print(f"  Single Expert Mode: {environment_info.get('single_expert_mode', 'unknown')}")
+            print(f"  CUDA Visible Devices: {environment_info.get('cuda_visible_devices', 'unknown')}")
+            print(f"  Torch Distributed Backend: {environment_info.get('torch_distributed_backend', 'unknown')}")
+            print(f"  Torch Distributed World Size: {environment_info.get('torch_distributed_world_size', 'unknown')}")
+            
+            verification_result['details']['environment_info'] = environment_info
+            
+            # 检查环境配置
+            if environment_info.get('single_expert_mode') == 'tp':
+                verification_result['details']['environment_config_correct'] = True
+                print("  ✅ 环境配置符合TP部署特征 (TP模式)")
+            else:
+                verification_result['details']['environment_config_correct'] = False
+                verification_result['warnings'].append("Single Expert Mode应该为'tp'")
+                print(f"  ⚠️ Single Expert Mode为 {environment_info.get('single_expert_mode')}，可能不符合TP部署特征")
+        else:
+            verification_result['warnings'].append("无法获取环境信息")
+        
+        # 3. 综合判断
+        passed_checks = 0
+        total_checks = 0
+        
+        if 'parallel_config_correct' in verification_result['details']:
+            total_checks += 1
+            if verification_result['details']['parallel_config_correct']:
+                passed_checks += 1
+        
+        if 'environment_config_correct' in verification_result['details']:
+            total_checks += 1
+            if verification_result['details']['environment_config_correct']:
+                passed_checks += 1
+        
+        # 至少通过50%的检查才认为验证通过
+        if total_checks > 0 and (passed_checks / total_checks) >= 0.5:
+            verification_result['verification_passed'] = True
+            print(f"\n✅ TP部署验证通过 ({passed_checks}/{total_checks} 项检查通过)")
+        else:
+            verification_result['verification_passed'] = False
+            print(f"\n❌ TP部署验证失败 ({passed_checks}/{total_checks} 项检查通过)")
+        
+        verification_result['details']['check_summary'] = {
+            'passed_checks': passed_checks,
+            'total_checks': total_checks,
+            'pass_rate': (passed_checks / total_checks) if total_checks > 0 else 0
+        }
+        
+        return verification_result
+
+class DeploymentVerifier:
+    """部署验证器（兼容性保留）"""
+    
+    def __init__(self):
+        self.nvidia_smi_path = "nvidia-smi"
+        self.internal_checker = SGLangInternalStateChecker()
+    
+    def get_gpu_info(self) -> Dict[int, Dict[str, float]]:
+        """获取GPU信息"""
         try:
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=index,memory.used,memory.total,utilization.gpu", 
+                [self.nvidia_smi_path, "--query-gpu=index,memory.used,memory.total,utilization.gpu", 
                  "--format=csv,noheader,nounits"],
                 capture_output=True, text=True, timeout=10
             )
             
+            gpu_info = {}
             for line in result.stdout.strip().split('\n'):
                 if line.strip():
                     parts = line.split(', ')
@@ -98,11 +266,23 @@ def verify_tp_deployment_with_internal_state(port: int = 8081) -> DeploymentInfo
                         utilization = float(parts[3])
                         
                         gpu_info[gpu_id] = {
+                            'memory_used_gb': memory_used / 1024,
+                            'memory_total_gb': memory_total / 1024,
                             'memory_usage_percent': (memory_used / memory_total) * 100,
                             'utilization_percent': utilization
                         }
+            
+            return gpu_info
         except Exception as e:
             print(f"获取GPU信息失败: {e}")
+            return {}
+    
+    def verify_tp_deployment(self, port: int = 8081) -> DeploymentInfo:
+        """验证TP部署配置"""
+        print("=== 验证 Tensor Parallel 部署配置 ===")
+        
+        # 获取GPU信息
+        gpu_info = self.get_gpu_info()
         
         # 检查服务器是否响应
         model_loaded = False
@@ -112,137 +292,67 @@ def verify_tp_deployment_with_internal_state(port: int = 8081) -> DeploymentInfo
         except:
             pass
         
-        # 构建部署信息
+        # 设置并启动内部状态检查
+        internal_verification = {}
+        try:
+            # 设置内部状态API
+            if self.internal_checker.setup_internal_state_api():
+                # 启动内部状态API服务器
+                if self.internal_checker.start_internal_api_server():
+                    # 执行内部状态验证
+                    internal_verification = self.internal_checker.verify_tp_deployment_with_internal_state()
+                else:
+                    print("⚠️ 无法启动内部状态API服务器，将使用传统验证方法")
+            else:
+                print("⚠️ 无法设置内部状态API，将使用传统验证方法")
+        except Exception as e:
+            print(f"⚠️ 内部状态验证失败: {e}，将使用传统验证方法")
+        
+        # 分析TP部署特征
         deployment_info = DeploymentInfo(
             gpu_memory_usage={gpu_id: info['memory_usage_percent'] for gpu_id, info in gpu_info.items()},
             gpu_utilization={gpu_id: info['utilization_percent'] for gpu_id, info in gpu_info.items()},
             model_loaded=model_loaded,
-            expert_distribution=verification_result.get('expert_distribution', {}),
-            parallel_config=verification_result.get('parallel_config', {}),
-            internal_state={
-                'parallel_state': parallel_state,
-                'environment_info': environment_info,
-                'verification_result': verification_result
-            }
+            expert_distribution={},
+            parallel_config={},
+            internal_state_verification=internal_verification
         )
         
-        # 显示验证结果
-        print("\n=== 内部状态验证结果 ===")
-        if verification_result.get('is_valid', False):
-            print("✅ TP部署验证通过: 内部状态检查确认配置正确")
-        else:
-            print("❌ TP部署验证失败: 内部状态检查发现配置问题")
-            print(f"错误信息: {verification_result.get('error_message', '未知错误')}")
+        # 打印验证结果
+        print(f"\n=== TP部署验证结果 ===")
+        print(f"GPU数量: {len(gpu_info)}")
+        print(f"模型加载状态: {'✅ 已加载' if model_loaded else '❌ 未加载'}")
         
-        # 显示详细信息
-        if parallel_state:
-            print(f"并行组信息: {parallel_state}")
+        if gpu_info:
+            memory_usage_percentages = list(deployment_info.gpu_memory_usage.values())
+            mean_usage = statistics.mean(memory_usage_percentages)
+            std_usage = statistics.stdev(memory_usage_percentages) if len(memory_usage_percentages) > 1 else 0
+            cv_usage = (std_usage / mean_usage) * 100 if mean_usage > 0 else 0
+            
+            print(f"平均GPU内存使用率: {mean_usage:.2f}%")
+            print(f"GPU内存使用率标准差: {std_usage:.2f}%")
+            print(f"变异系数: {cv_usage:.2f}%")
+            
+            # TP部署应该显示相对均匀的内存使用（允许稍大的差异）
+            if cv_usage < 25:
+                print("✅ GPU内存使用相对均匀，符合TP部署特征")
+            else:
+                print(f"⚠️ GPU内存使用不够均匀 (CV: {cv_usage:.2f}%)")
         
-        if environment_info:
-            print(f"环境变量信息: {environment_info}")
-        
-        # 清理API服务器
-        if api_server_process:
-            api_server_process.terminate()
-            api_server_process.wait()
+        # 打印内部状态验证结果
+        if internal_verification:
+            print(f"\n=== 内部状态验证结果 ===")
+            if internal_verification.get('verification_passed', False):
+                print("✅ 内部状态验证通过")
+            else:
+                print("❌ 内部状态验证失败")
+            
+            if internal_verification.get('warnings'):
+                print("警告信息:")
+                for warning in internal_verification['warnings']:
+                    print(f"  - {warning}")
         
         return deployment_info
-        
-    except Exception as e:
-        print(f"内部状态验证失败: {e}")
-        print("回退到基础验证方法...")
-        
-        # 回退到基础验证
-        return verify_tp_deployment_fallback(port)
-
-def verify_tp_deployment_fallback(port: int = 8081) -> DeploymentInfo:
-    """回退的TP部署验证方法"""
-    print("=== 使用回退方法验证 Tensor Parallel 部署配置 ===")
-    
-    # 获取GPU信息
-    gpu_info = {}
-    try:
-        result = subprocess.run(
-            ["nvidia-smi", "--query-gpu=index,memory.used,memory.total,utilization.gpu", 
-             "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=10
-        )
-        
-        for line in result.stdout.strip().split('\n'):
-            if line.strip():
-                parts = line.split(', ')
-                if len(parts) >= 4:
-                    gpu_id = int(parts[0])
-                    memory_used = float(parts[1])
-                    memory_total = float(parts[2])
-                    utilization = float(parts[3])
-                    
-                    gpu_info[gpu_id] = {
-                        'memory_usage_percent': (memory_used / memory_total) * 100,
-                        'utilization_percent': utilization
-                    }
-    except Exception as e:
-        print(f"获取GPU信息失败: {e}")
-    
-    # 检查服务器是否响应
-    model_loaded = False
-    try:
-        response = requests.get(f'http://127.0.0.1:{port}/v1/models', timeout=5)
-        model_loaded = response.status_code == 200
-    except:
-        pass
-    
-    # 分析TP部署特征
-    deployment_info = DeploymentInfo(
-        gpu_memory_usage={gpu_id: info['memory_usage_percent'] for gpu_id, info in gpu_info.items()},
-        gpu_utilization={gpu_id: info['utilization_percent'] for gpu_id, info in gpu_info.items()},
-        model_loaded=model_loaded,
-        expert_distribution={},
-        parallel_config={},
-        internal_state={}
-    )
-    
-    # 验证TP部署特征
-    if gpu_info:
-        print(f"GPU数量: {len(gpu_info)}")
-        
-        # TP部署特征：所有GPU都应该有相似的内存使用（因为expert被均匀切分）
-        memory_usage_values = list(deployment_info.gpu_memory_usage.values())
-        memory_std = statistics.stdev(memory_usage_values) if len(memory_usage_values) > 1 else 0
-        memory_mean = statistics.mean(memory_usage_values)
-        
-        print(f"平均GPU内存使用率: {memory_mean:.2f}%")
-        print(f"GPU内存使用率标准差: {memory_std:.2f}%")
-        
-        # TP部署应该显示相对均匀的内存分布
-        if memory_std < 15.0:  # 标准差小于15%认为是均匀分布（TP允许稍大的差异）
-            print("✅ TP部署验证通过: GPU内存使用相对均匀，符合expert切分分布特征")
-            deployment_info.expert_distribution = {
-                'type': 'tensor_parallel',
-                'distribution': 'uniform',
-                'memory_std': memory_std,
-                'memory_mean': memory_mean
-            }
-        else:
-            print("⚠️ TP部署验证警告: GPU内存使用不均匀，可能不是标准的TP部署")
-            deployment_info.expert_distribution = {
-                'type': 'unknown',
-                'distribution': 'non_uniform',
-                'memory_std': memory_std,
-                'memory_mean': memory_mean
-            }
-        
-        # 显示每个GPU的详细信息
-        for gpu_id, info in gpu_info.items():
-            print(f"GPU {gpu_id}: 内存使用 {info['memory_usage_percent']:.1f}%, 利用率 {info['utilization_percent']:.1f}%")
-    
-    deployment_info.parallel_config = {
-        'mode': 'tensor_parallel',
-        'tp_size': 8,
-        'dp_size': 1
-    }
-    
-    return deployment_info
 
 def generate_random_text(length: int) -> str:
     """生成指定长度的随机文本"""
@@ -500,7 +610,8 @@ def main():
     
     try:
         # 验证部署配置
-        deployment_info = verify_tp_deployment_with_internal_state(8081)
+        verifier = DeploymentVerifier()
+        deployment_info = verifier.verify_tp_deployment(8081)
         
         if not deployment_info.model_loaded:
             print("❌ 模型加载失败，请检查服务器状态")
@@ -530,7 +641,7 @@ def main():
                     'model_loaded': deployment_info.model_loaded,
                     'expert_distribution': deployment_info.expert_distribution,
                     'parallel_config': deployment_info.parallel_config,
-                    'internal_state': deployment_info.internal_state
+                    'internal_state_verification': deployment_info.internal_state_verification
                 },
                 'test_results': {
                     'query_length_test': [
@@ -565,6 +676,10 @@ def main():
     except KeyboardInterrupt:
         print("\n用户中断测试")
     finally:
+        # 清理内部API服务器
+        if hasattr(verifier, 'internal_checker') and verifier.internal_checker:
+            verifier.internal_checker.stop_internal_api_server()
+        
         # 清理服务器进程
         if server_process:
             print("关闭服务器...")

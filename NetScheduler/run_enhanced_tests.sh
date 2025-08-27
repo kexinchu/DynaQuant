@@ -55,44 +55,7 @@ check_dependencies() {
         print_info "安装命令: pip install matplotlib numpy"
     }
     
-    # 检查Flask（内部状态检查器需要）
-    python3 -c "import flask" 2>/dev/null || {
-        print_warning "Flask 包未安装，内部状态检查器将自动安装"
-    }
-    
     print_success "依赖检查完成"
-}
-
-# 设置内部状态检查器
-setup_internal_state_checker() {
-    print_info "设置内部状态检查器..."
-    
-    # 检查SGLang源码是否存在
-    if [ ! -d "sglang-0.4.7" ]; then
-        print_warning "SGLang源码目录不存在，内部状态检查器将使用回退方法"
-        return
-    fi
-    
-    # 检查内部状态检查器脚本
-    if [ ! -f "sglang_internal_state_checker.py" ]; then
-        print_error "内部状态检查器脚本不存在: sglang_internal_state_checker.py"
-        exit 1
-    fi
-    
-    print_info "内部状态检查器已准备就绪"
-}
-
-# 清理内部状态检查器
-cleanup_internal_state_checker() {
-    print_info "清理内部状态检查器..."
-    
-    # 停止可能的API服务器进程
-    pkill -f "internal_state_api.py" 2>/dev/null || true
-    
-    # 清理可能的临时文件
-    rm -f sglang_internal_state_checker_*.log 2>/dev/null || true
-    
-    print_success "内部状态检查器清理完成"
 }
 
 # 检查GPU状态
@@ -277,18 +240,14 @@ main() {
             check_dependencies
             check_gpu_status
             check_model_path
-            setup_internal_state_checker
             run_ep_test
-            cleanup_internal_state_checker
             show_summary
             ;;
         -t|--tp)
             check_dependencies
             check_gpu_status
             check_model_path
-            setup_internal_state_checker
             run_tp_test
-            cleanup_internal_state_checker
             show_summary
             ;;
         -r|--compare)
@@ -299,11 +258,9 @@ main() {
             check_dependencies
             check_gpu_status
             check_model_path
-            setup_internal_state_checker
             run_ep_test
             run_tp_test
             run_comparison
-            cleanup_internal_state_checker
             show_summary
             ;;
         --clean)
