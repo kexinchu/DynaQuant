@@ -706,9 +706,9 @@ class FusedMoE(torch.nn.Module):
             # (param_name, weight_name, expert_id, shard_id)
             (
                 (
-                    "experts.w13_"
+                    "experts.w13_weight"
                     if weight_name in [ckpt_gate_proj_name, ckpt_up_proj_name]
-                    else "experts.w2_"
+                    else "experts.w2_weight"
                 ),
                 f"experts.{expert_id}.{weight_name}.",
                 expert_id,
