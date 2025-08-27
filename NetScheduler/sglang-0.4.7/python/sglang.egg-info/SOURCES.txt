@@ -39,6 +39,7 @@ sglang/srt/conversation.py
 sglang/srt/custom_op.py
 sglang/srt/debug_utils.py
 sglang/srt/hf_transformers_utils.py
+sglang/srt/internal_state_api.py
 sglang/srt/mm_utils.py
 sglang/srt/model_parallel.py
 sglang/srt/operations.py
@@ -622,7 +623,6 @@ sglang/srt/models/mimo.py
 sglang/srt/models/mimo_mtp.py
 sglang/srt/models/minicpm.py
 sglang/srt/models/minicpm3.py
-sglang/srt/models/minicpmo.py
 sglang/srt/models/minicpmv.py
 sglang/srt/models/mistral.py
 sglang/srt/models/mixtral.py

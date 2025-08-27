@@ -577,7 +577,7 @@ def start_ep_server():
         '--dp-size', '1',  # 其他层使用DP=2
         '--enable-ep-moe',  # 启用expert parallel
         '--ep-size', '8',   # expert parallel size = 8
-        '--max-running-requests', '32',
+        '--max-running-requests', '128',
         '--host', '127.0.0.1',
         '--port', '8080',
         '--max-total-tokens', '40960',

@@ -43,8 +43,7 @@ class DeploymentInfo:
 
 class SGLangInternalStateChecker:
     """SGLang内部状态检查器"""
-    
-    def __init__(self, sglang_path: str = "sglang-0.4.7"):
+    def __init__(self, sglang_path: str = "sglang-0.4.7/python"):
         self.sglang_path = sglang_path
         self.api_process = None
     
@@ -575,7 +574,7 @@ def start_tp_server():
         '--model-path', '/dev/shm/Qwen3-30B-A3B',  # 修改为你的模型路径
         '--tp-size', '8',  # 使用TP=8进行expert切分
         '--dp-size', '1',  # 不使用DP，因为TP=8已经占用了所有GPU
-        '--max-running-requests', '64',
+        '--max-running-requests', '128',
         '--host', '127.0.0.1',
         '--port', '8081',  # 使用不同端口避免冲突
         '--max-total-tokens', '40960',

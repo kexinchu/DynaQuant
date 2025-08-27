@@ -4,11 +4,7 @@ export SGL_DISABLE_AWQ_MARLIN=1
 export SGLANG_DISABLE_SGL_KERNEL=1
 
 # 拆分Qwen3-MoE: multi-experts to single-expert
-# python3 prune_qwen3_a22b_to_single_expert.py \
-#  --src "/dcar-vepfs-trans-models/Qwen3-30B-A3B" \
-#  --dst "/dev/shm/Qwen3-30B-A3B" \
-#  --expert-id 0 \
-#  --dry-run  # 测试，注释之后开始真正的写入weights
+# python3 prune_qwen3_a22b_to_single_expert.py --src "/dcar-vepfs-trans-models/Qwen3-30B-A3B" --dst "/dev/shm/Qwen3-30B-A3B" --expert-id 0 
 
 # 场景A Expert使用DP，复制8份
 export SINGLE_EXPERT_MODE=dp

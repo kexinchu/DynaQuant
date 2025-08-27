@@ -73,7 +73,7 @@ class SGLangInternalStateChecker:
     
     def _modify_parallel_state(self):
         """修改parallel_state.py，添加状态查询函数"""
-        parallel_state_file = os.path.join(self.sglang_path, "python/sglang/srt/distributed/parallel_state.py")
+        parallel_state_file = os.path.join(self.sglang_path, "sglang/srt/distributed/parallel_state.py")
         
         # 在文件末尾添加状态查询函数
         additional_code = """
@@ -160,7 +160,7 @@ def get_environment_info() -> Dict[str, Any]:
     
     def _modify_qwen3_moe(self):
         """修改qwen3_moe.py，添加expert分布查询函数"""
-        qwen3_moe_file = os.path.join(self.sglang_path, "python/sglang/srt/models/qwen3_moe.py")
+        qwen3_moe_file = os.path.join(self.sglang_path, "sglang/srt/models/qwen3_moe.py")
         
         # 在Qwen3MoeSparseMoeBlock类中添加状态查询方法
         additional_code = """
@@ -238,7 +238,7 @@ def get_environment_info() -> Dict[str, Any]:
     def _add_api_endpoints(self):
         """添加API端点"""
         # 创建一个新的API模块
-        api_file = os.path.join(self.sglang_path, "python/sglang/srt/internal_state_api.py")
+        api_file = os.path.join(self.sglang_path, "sglang/srt/internal_state_api.py")
         
         api_code = '''#!/usr/bin/env python3
 """
@@ -400,7 +400,7 @@ if __name__ == '__main__':
         print(f"=== 启动内部状态API服务器 (端口: {port}) ===")
         
         try:
-            api_file = os.path.join(self.sglang_path, "python/sglang/srt/internal_state_api.py")
+            api_file = os.path.join(self.sglang_path, "sglang/srt/internal_state_api.py")
             
             # 启动API服务器
             process = subprocess.Popen([
