@@ -366,17 +366,21 @@ if __name__ == '__main__':
         
         self.modified_files.append(api_file)
         print(f"✅ 已创建: {api_file}")
-    
+
     def install_dependencies(self):
         """安装依赖"""
-        print("=== 安装依赖 ===")
-        
+        print("=== 检查依赖 ===")
+
         try:
-            # 安装Flask（如果还没有安装）
-            subprocess.run([sys.executable, '-m', 'pip', 'install', 'flask'], check=True)
-            print("✅ Flask依赖安装完成")
+            # 检查Python内置模块是否可用
+            import http.server
+            import urllib.parse
+            import threading
+            print("✅ Python内置HTTP服务器模块可用")
+            return True
         except Exception as e:
-            print(f"⚠️ Flask依赖安装失败: {e}")
+            print(f"❌ Python内置HTTP服务器模块不可用: {e}")
+            return False
     
     def reinstall_sglang(self):
         """重新安装sglang"""

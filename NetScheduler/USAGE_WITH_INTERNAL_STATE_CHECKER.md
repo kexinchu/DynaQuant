@@ -22,11 +22,18 @@
 ls -la sglang-0.4.7/
 ```
 
-### 2. 安装依赖
+### 2. 检查依赖
 ```bash
-# 安装Flask（内部状态API需要）
-pip install flask
+# 检查Python内置模块（内部状态API使用Python内置的http.server）
+python -c "import http.server, urllib.parse, threading; print('✅ 依赖检查通过')"
 ```
+
+## 依赖要求
+
+- Python 3.7+
+- SGLang 0.4.7
+- requests（用于HTTP请求）
+- Python内置模块：http.server, urllib.parse, threading
 
 ## 使用方法
 
@@ -84,7 +91,7 @@ python sglang_internal_state_checker.py --action verify --deployment-type tp
 测试文件会自动执行以下步骤：
 - 检查`sglang_internal_state_checker.py`是否存在
 - 运行设置命令，修改SGLang源码添加内部状态API
-- 安装必要的依赖（Flask）
+- 检查Python内置模块是否可用
 
 ### 2. 内部状态验证阶段
 - 启动内部状态API服务器（端口8082）
