@@ -1,0 +1,684 @@
+{
+  "deployment_info": {
+    "gpu_memory_usage": {
+      "0": 3.764138508853491,
+      "1": 3.8131826588059794,
+      "2": 3.8131826588059794,
+      "3": 3.8131826588059794,
+      "4": 3.8131826588059794,
+      "5": 3.8131826588059794,
+      "6": 3.8131826588059794,
+      "7": 3.567961909043537
+    },
+    "gpu_utilization": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 0.0,
+      "7": 0.0
+    },
+    "model_loaded": true,
+    "expert_distribution": {},
+    "parallel_config": {},
+    "internal_state_verification": {}
+  },
+  "test_results": {
+    "query_length_test": [
+      {
+        "query_length": 128,
+        "qps": 1,
+        "ttft_ms": 2825.139355659485,
+        "tpot_ms": 263.67967319488525,
+        "overall_latency_ms": 9417.131185531616,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 128,
+        "qps": 1,
+        "ttft_ms": 2579.576325416565,
+        "tpot_ms": 286.61959171295166,
+        "overall_latency_ms": 8598.58775138855,
+        "tokens_generated": 22,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 128,
+        "qps": 1,
+        "ttft_ms": 2573.8687992095947,
+        "tpot_ms": 214.48906660079956,
+        "overall_latency_ms": 8579.562664031982,
+        "tokens_generated": 29,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 128,
+        "qps": 1,
+        "ttft_ms": 2584.706139564514,
+        "tpot_ms": 241.239239692688,
+        "overall_latency_ms": 8615.687131881714,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 128,
+        "qps": 1,
+        "ttft_ms": 2566.31498336792,
+        "tpot_ms": 239.52273178100586,
+        "overall_latency_ms": 8554.383277893066,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2564.082670211792,
+        "tpot_ms": 260.12432886206585,
+        "overall_latency_ms": 8546.942234039307,
+        "tokens_generated": 24,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2554.938054084778,
+        "tpot_ms": 238.4608850479126,
+        "overall_latency_ms": 8516.460180282593,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2643.647360801697,
+        "tpot_ms": 246.7404203414917,
+        "overall_latency_ms": 8812.15786933899,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2586.573600769043,
+        "tpot_ms": 251.4724334081014,
+        "overall_latency_ms": 8621.912002563477,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2561.9579315185547,
+        "tpot_ms": 271.7228109186346,
+        "overall_latency_ms": 8539.859771728516,
+        "tokens_generated": 23,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 512,
+        "qps": 1,
+        "ttft_ms": 2563.9469146728516,
+        "tpot_ms": 221.57565929271556,
+        "overall_latency_ms": 8546.489715576172,
+        "tokens_generated": 28,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 512,
+        "qps": 1,
+        "ttft_ms": 2591.3500785827637,
+        "tpot_ms": 195.04785537719727,
+        "overall_latency_ms": 8637.833595275879,
+        "tokens_generated": 32,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 512,
+        "qps": 1,
+        "ttft_ms": 2566.1914587020874,
+        "tpot_ms": 199.59266901016235,
+        "overall_latency_ms": 8553.971529006958,
+        "tokens_generated": 31,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 512,
+        "qps": 1,
+        "ttft_ms": 2581.3360691070557,
+        "tpot_ms": 286.81511878967285,
+        "overall_latency_ms": 8604.453563690186,
+        "tokens_generated": 22,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 512,
+        "qps": 1,
+        "ttft_ms": 2550.407838821411,
+        "tpot_ms": 220.40561570061578,
+        "overall_latency_ms": 8501.359462738037,
+        "tokens_generated": 28,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 1024,
+        "qps": 1,
+        "ttft_ms": 3231.8665981292725,
+        "tpot_ms": 314.2092525959015,
+        "overall_latency_ms": 10772.888660430908,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 1024,
+        "qps": 1,
+        "ttft_ms": 3467.3920154571533,
+        "tpot_ms": 425.8200720736855,
+        "overall_latency_ms": 11557.973384857178,
+        "tokens_generated": 20,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 1024,
+        "qps": 1,
+        "ttft_ms": 2568.1512594223022,
+        "tpot_ms": 221.9389977278533,
+        "overall_latency_ms": 8560.50419807434,
+        "tokens_generated": 28,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 1024,
+        "qps": 1,
+        "ttft_ms": 2568.9666509628296,
+        "tpot_ms": 249.7606466213862,
+        "overall_latency_ms": 8563.222169876099,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 1024,
+        "qps": 1,
+        "ttft_ms": 2566.0730123519897,
+        "tpot_ms": 239.50014781951904,
+        "overall_latency_ms": 8553.576707839966,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 2048,
+        "qps": 1,
+        "ttft_ms": 2584.5444202423096,
+        "tpot_ms": 201.02012157440186,
+        "overall_latency_ms": 8615.148067474365,
+        "tokens_generated": 31,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 2048,
+        "qps": 1,
+        "ttft_ms": 2581.0232162475586,
+        "tpot_ms": 301.11937522888184,
+        "overall_latency_ms": 8603.410720825195,
+        "tokens_generated": 21,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 2048,
+        "qps": 1,
+        "ttft_ms": 2951.3583183288574,
+        "tpot_ms": 344.3251371383667,
+        "overall_latency_ms": 9837.861061096191,
+        "tokens_generated": 21,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 2048,
+        "qps": 1,
+        "ttft_ms": 2562.2737884521484,
+        "tpot_ms": 192.85931741037678,
+        "overall_latency_ms": 8540.912628173828,
+        "tokens_generated": 32,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 2048,
+        "qps": 1,
+        "ttft_ms": 2565.8090114593506,
+        "tpot_ms": 199.56292311350504,
+        "overall_latency_ms": 8552.696704864502,
+        "tokens_generated": 31,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 4096,
+        "qps": 1,
+        "ttft_ms": 2598.5944032669067,
+        "tpot_ms": 252.64112253983816,
+        "overall_latency_ms": 8661.981344223022,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 4096,
+        "qps": 1,
+        "ttft_ms": 2568.3385848999023,
+        "tpot_ms": 315.41000165437396,
+        "overall_latency_ms": 8561.128616333008,
+        "tokens_generated": 20,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 4096,
+        "qps": 1,
+        "ttft_ms": 2551.803159713745,
+        "tpot_ms": 270.64578966660935,
+        "overall_latency_ms": 8506.01053237915,
+        "tokens_generated": 23,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 4096,
+        "qps": 1,
+        "ttft_ms": 2568.0307388305664,
+        "tpot_ms": 206.62316289441338,
+        "overall_latency_ms": 8560.102462768555,
+        "tokens_generated": 30,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 4096,
+        "qps": 1,
+        "ttft_ms": 2571.7015743255615,
+        "tpot_ms": 222.245815065172,
+        "overall_latency_ms": 8572.338581085205,
+        "tokens_generated": 28,
+        "success": true,
+        "error_message": ""
+      }
+    ],
+    "qps_test": [
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2552.885341644287,
+        "tpot_ms": 258.9883679928987,
+        "overall_latency_ms": 8509.617805480957,
+        "tokens_generated": 24,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2539.09170627594,
+        "tpot_ms": 191.11442950464064,
+        "overall_latency_ms": 8463.6390209198,
+        "tokens_generated": 32,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2578.2001733779907,
+        "tpot_ms": 316.62107392361287,
+        "overall_latency_ms": 8594.000577926636,
+        "tokens_generated": 20,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2562.7053022384644,
+        "tpot_ms": 298.9822852611542,
+        "overall_latency_ms": 8542.351007461548,
+        "tokens_generated": 21,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 1,
+        "ttft_ms": 2564.5102500915527,
+        "tpot_ms": 230.14835577744705,
+        "overall_latency_ms": 8548.367500305176,
+        "tokens_generated": 27,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 2,
+        "ttft_ms": 2954.0475368499756,
+        "tpot_ms": 313.3080720901489,
+        "overall_latency_ms": 9846.825122833252,
+        "tokens_generated": 23,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 2,
+        "ttft_ms": 2973.6716508865356,
+        "tpot_ms": 365.18774660010087,
+        "overall_latency_ms": 9912.238836288452,
+        "tokens_generated": 20,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 2,
+        "ttft_ms": 2987.4666452407837,
+        "tpot_ms": 290.4481460650762,
+        "overall_latency_ms": 9958.222150802612,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 2,
+        "ttft_ms": 2986.249566078186,
+        "tpot_ms": 267.9967559300936,
+        "overall_latency_ms": 9954.16522026062,
+        "tokens_generated": 27,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 2,
+        "ttft_ms": 2575.3003120422363,
+        "tpot_ms": 240.3613624572754,
+        "overall_latency_ms": 8584.334373474121,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 4,
+        "ttft_ms": 3443.495535850525,
+        "tpot_ms": 277.06285920636407,
+        "overall_latency_ms": 11478.318452835083,
+        "tokens_generated": 30,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 4,
+        "ttft_ms": 3428.6587715148926,
+        "tpot_ms": 347.8349478348442,
+        "overall_latency_ms": 11428.862571716309,
+        "tokens_generated": 24,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 4,
+        "ttft_ms": 3447.4093437194824,
+        "tpot_ms": 277.3777632877744,
+        "overall_latency_ms": 11491.364479064941,
+        "tokens_generated": 30,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 4,
+        "ttft_ms": 3401.2079000473022,
+        "tpot_ms": 330.6729902823766,
+        "overall_latency_ms": 11337.35966682434,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 4,
+        "ttft_ms": 2592.091727256775,
+        "tpot_ms": 232.62361654868494,
+        "overall_latency_ms": 8640.305757522583,
+        "tokens_generated": 27,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 8,
+        "ttft_ms": 3669.1277503967285,
+        "tpot_ms": 372.2303514895232,
+        "overall_latency_ms": 12230.425834655762,
+        "tokens_generated": 24,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 8,
+        "ttft_ms": 3627.124571800232,
+        "tpot_ms": 338.531626701355,
+        "overall_latency_ms": 12090.415239334106,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 8,
+        "ttft_ms": 3664.9296283721924,
+        "tpot_ms": 342.0600986480713,
+        "overall_latency_ms": 12216.432094573975,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 8,
+        "ttft_ms": 3618.2104110717773,
+        "tpot_ms": 263.82784247398376,
+        "overall_latency_ms": 12060.701370239258,
+        "tokens_generated": 33,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 8,
+        "ttft_ms": 3580.585241317749,
+        "tpot_ms": 348.11245401700336,
+        "overall_latency_ms": 11935.28413772583,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 16,
+        "ttft_ms": 3616.1710023880005,
+        "tpot_ms": 421.8866169452667,
+        "overall_latency_ms": 12053.903341293335,
+        "tokens_generated": 21,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 16,
+        "ttft_ms": 3612.1883153915405,
+        "tpot_ms": 602.0313858985901,
+        "overall_latency_ms": 12040.627717971802,
+        "tokens_generated": 15,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 16,
+        "ttft_ms": 3593.4475421905518,
+        "tpot_ms": 381.1232241717252,
+        "overall_latency_ms": 11978.158473968506,
+        "tokens_generated": 23,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 16,
+        "ttft_ms": 3631.6100120544434,
+        "tpot_ms": 445.9871944628264,
+        "overall_latency_ms": 12105.366706848145,
+        "tokens_generated": 20,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 16,
+        "ttft_ms": 3574.7523307800293,
+        "tpot_ms": 347.54536549250287,
+        "overall_latency_ms": 11915.841102600098,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 32,
+        "ttft_ms": 3603.6585330963135,
+        "tpot_ms": 300.3048777580261,
+        "overall_latency_ms": 12012.195110321045,
+        "tokens_generated": 29,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 32,
+        "ttft_ms": 3608.546233177185,
+        "tpot_ms": 400.94958146413165,
+        "overall_latency_ms": 12028.48744392395,
+        "tokens_generated": 22,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 32,
+        "ttft_ms": 3627.79061794281,
+        "tpot_ms": 352.70186563332874,
+        "overall_latency_ms": 12092.6353931427,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 32,
+        "ttft_ms": 3618.3745622634888,
+        "tpot_ms": 337.7149591445923,
+        "overall_latency_ms": 12061.248540878296,
+        "tokens_generated": 26,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 32,
+        "ttft_ms": 3599.3796586990356,
+        "tpot_ms": 299.9483048915863,
+        "overall_latency_ms": 11997.932195663452,
+        "tokens_generated": 29,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 64,
+        "ttft_ms": 3601.7141819000244,
+        "tpot_ms": 350.16665657361347,
+        "overall_latency_ms": 12005.713939666748,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 64,
+        "ttft_ms": 3616.740345954895,
+        "tpot_ms": 312.55780767511436,
+        "overall_latency_ms": 12055.801153182983,
+        "tokens_generated": 28,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 64,
+        "ttft_ms": 3626.764726638794,
+        "tpot_ms": 352.60212620099384,
+        "overall_latency_ms": 12089.215755462646,
+        "tokens_generated": 25,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 64,
+        "ttft_ms": 3631.747841835022,
+        "tpot_ms": 302.64565348625183,
+        "overall_latency_ms": 12105.826139450073,
+        "tokens_generated": 29,
+        "success": true,
+        "error_message": ""
+      },
+      {
+        "query_length": 256,
+        "qps": 64,
+        "ttft_ms": 3622.218346595764,
+        "tpot_ms": 367.47142646623695,
+        "overall_latency_ms": 12074.061155319214,
+        "tokens_generated": 24,
+        "success": true,
+        "error_message": ""
+      }
+    ]
+  }
+}

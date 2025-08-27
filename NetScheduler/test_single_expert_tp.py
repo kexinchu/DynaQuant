@@ -465,7 +465,7 @@ def run_performance_test(port: int, query_lengths: List[int], qps_values: List[i
             time.sleep(1)  # QPS=1，每秒一个请求
     
     # 测试组2：固定query长度，不同QPS
-    print("\n--- 测试组2: 不同QPS (query长度=256) ---")
+    print("\n--- 测试组2: 不同QPS (query长度=4096) ---")
     for qps in qps_values:
         print(f"测试QPS: {qps}")
         
@@ -474,7 +474,7 @@ def run_performance_test(port: int, query_lengths: List[int], qps_values: List[i
             futures = []
             
             for i in range(num_requests_per_test):
-                prompt = generate_random_text(256)
+                prompt = generate_random_text(4096)
                 future = executor.submit(send_request, port, prompt)
                 futures.append(future)
                 
@@ -575,7 +575,7 @@ def start_tp_server():
         '--model-path', '/dev/shm/Qwen3-30B-A3B',  # 修改为你的模型路径
         '--tp-size', '8',  # 使用TP=8进行expert切分
         '--dp-size', '1',  # 不使用DP，因为TP=8已经占用了所有GPU
-        '--max-running-requests', '32',
+        '--max-running-requests', '64',
         '--host', '127.0.0.1',
         '--port', '8081',  # 使用不同端口避免冲突
         '--max-total-tokens', '40960',
@@ -617,59 +617,59 @@ def main():
             print("❌ 模型加载失败，请检查服务器状态")
             return
         
-        # 运行性能测试
-        query_lengths = [128, 256, 512, 1024, 2048, 4096]
-        qps_values = [1, 2, 4, 8, 16, 32, 64]
+        # # 运行性能测试
+        # query_lengths = [512, 1024, 2048, 4096, 8192, 16384]
+        # qps_values = [2, 4, 8, 16, 32, 64, 128]
         
-        results = run_performance_test(8081, query_lengths, qps_values, num_requests_per_test=5)
+        # results = run_performance_test(8081, query_lengths, qps_values, num_requests_per_test=5)
         
-        # 分析结果
-        analyze_results(results)
+        # # 分析结果
+        # analyze_results(results)
         
-        print("\n=== 测试完成 ===")
-        print("Tensor Parallel 配置:")
-        print("- Expert层: TP=8 (expert在8张GPU上切分)")
-        print("- 其他层: TP=8 (所有层都使用TP=8)")
-        print("- 切分策略: 均匀部署在8张卡上")
+        # print("\n=== 测试完成 ===")
+        # print("Tensor Parallel 配置:")
+        # print("- Expert层: TP=8 (expert在8张GPU上切分)")
+        # print("- 其他层: TP=8 (所有层都使用TP=8)")
+        # print("- 切分策略: 均匀部署在8张卡上")
         
-        # 保存结果到文件
-        with open('tp_test_results.json', 'w', encoding='utf-8') as f:
-            json.dump({
-                'deployment_info': {
-                    'gpu_memory_usage': deployment_info.gpu_memory_usage,
-                    'gpu_utilization': deployment_info.gpu_utilization,
-                    'model_loaded': deployment_info.model_loaded,
-                    'expert_distribution': deployment_info.expert_distribution,
-                    'parallel_config': deployment_info.parallel_config,
-                    'internal_state_verification': deployment_info.internal_state_verification
-                },
-                'test_results': {
-                    'query_length_test': [
-                        {
-                            'query_length': r.query_length,
-                            'qps': r.qps,
-                            'ttft_ms': r.ttft_ms,
-                            'tpot_ms': r.tpot_ms,
-                            'overall_latency_ms': r.overall_latency_ms,
-                            'tokens_generated': r.tokens_generated,
-                            'success': r.success,
-                            'error_message': r.error_message
-                        } for r in results['query_length_test']
-                    ],
-                    'qps_test': [
-                        {
-                            'query_length': r.query_length,
-                            'qps': r.qps,
-                            'ttft_ms': r.ttft_ms,
-                            'tpot_ms': r.tpot_ms,
-                            'overall_latency_ms': r.overall_latency_ms,
-                            'tokens_generated': r.tokens_generated,
-                            'success': r.success,
-                            'error_message': r.error_message
-                        } for r in results['qps_test']
-                    ]
-                }
-            }, f, indent=2, ensure_ascii=False)
+        # # 保存结果到文件
+        # with open('tp_test_results.json', 'w', encoding='utf-8') as f:
+        #     json.dump({
+        #         'deployment_info': {
+        #             'gpu_memory_usage': deployment_info.gpu_memory_usage,
+        #             'gpu_utilization': deployment_info.gpu_utilization,
+        #             'model_loaded': deployment_info.model_loaded,
+        #             'expert_distribution': deployment_info.expert_distribution,
+        #             'parallel_config': deployment_info.parallel_config,
+        #             'internal_state_verification': deployment_info.internal_state_verification
+        #         },
+        #         'test_results': {
+        #             'query_length_test': [
+        #                 {
+        #                     'query_length': r.query_length,
+        #                     'qps': r.qps,
+        #                     'ttft_ms': r.ttft_ms,
+        #                     'tpot_ms': r.tpot_ms,
+        #                     'overall_latency_ms': r.overall_latency_ms,
+        #                     'tokens_generated': r.tokens_generated,
+        #                     'success': r.success,
+        #                     'error_message': r.error_message
+        #                 } for r in results['query_length_test']
+        #             ],
+        #             'qps_test': [
+        #                 {
+        #                     'query_length': r.query_length,
+        #                     'qps': r.qps,
+        #                     'ttft_ms': r.ttft_ms,
+        #                     'tpot_ms': r.tpot_ms,
+        #                     'overall_latency_ms': r.overall_latency_ms,
+        #                     'tokens_generated': r.tokens_generated,
+        #                     'success': r.success,
+        #                     'error_message': r.error_message
+        #                 } for r in results['qps_test']
+        #             ]
+        #         }
+        #     }, f, indent=2, ensure_ascii=False)
         
         print("测试结果已保存到 tp_test_results.json")
         

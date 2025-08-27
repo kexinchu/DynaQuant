@@ -1443,3 +1443,68 @@ def monkey_patch_vllm_parallel_state(reverse: bool = False):
         setattr(vllm_parrlel_state, "get_pp_group", get_pp_group)
         setattr(vllm_parrlel_state, "get_tp_group", get_tp_group)
         setattr(vllm_parrlel_state, "get_world_group", get_world_group)
+
+
+# ==============================================================================
+# Internal State Query Functions (Added for deployment verification)
+# ==============================================================================
+
+def get_internal_parallel_state() -> Dict[str, Any]:
+    """获取内部并行状态信息"""
+    try:
+        return {
+            'tensor_parallel_world_size': get_tensor_model_parallel_world_size(),
+            'tensor_parallel_rank': get_tensor_model_parallel_rank(),
+            'data_parallel_world_size': get_data_parallel_world_size(),
+            'data_parallel_rank': get_data_parallel_rank(),
+            'pipeline_parallel_world_size': get_pipeline_parallel_world_size(),
+            'pipeline_parallel_rank': get_pipeline_parallel_rank(),
+            'moe_expert_parallel_world_size': get_moe_expert_parallel_world_size(),
+            'moe_expert_parallel_rank': get_moe_expert_parallel_rank(),
+            'is_initialized': _TP is not None,
+            'tp_group_info': {
+                'world_size': _TP.world_size if _TP else 0,
+                'rank_in_group': _TP.rank_in_group if _TP else 0,
+                'ranks': _TP.ranks if _TP else []
+            } if _TP else None
+        }
+    except Exception as e:
+        return {
+            'error': str(e),
+            'is_initialized': False
+        }
+
+def get_all_parallel_groups_info() -> Dict[str, Any]:
+    """获取所有并行组信息"""
+    groups_info = {}
+    
+    if _TP:
+        groups_info['tensor_parallel'] = {
+            'world_size': _TP.world_size,
+            'rank_in_group': _TP.rank_in_group,
+            'ranks': _TP.ranks,
+            'device': str(_TP.device)
+        }
+    
+    if _PP:
+        groups_info['pipeline_parallel'] = {
+            'world_size': _PP.world_size,
+            'rank_in_group': _PP.rank_in_group,
+            'ranks': _PP.ranks,
+            'device': str(_PP.device)
+        }
+    
+    return groups_info
+
+def get_environment_info() -> Dict[str, Any]:
+    """获取环境信息"""
+    return {
+        'single_expert_mode': os.environ.get('SINGLE_EXPERT_MODE', 'unknown'),
+        'cuda_visible_devices': os.environ.get('CUDA_VISIBLE_DEVICES', ''),
+        'sglang_disable_marlin': os.environ.get('SGLANG_DISABLE_MARLIN', ''),
+        'sgl_disable_awq_marlin': os.environ.get('SGL_DISABLE_AWQ_MARLIN', ''),
+        'sglang_disable_sgl_kernel': os.environ.get('SGLANG_DISABLE_SGL_KERNEL', ''),
+        'torch_distributed_backend': torch.distributed.get_backend() if torch.distributed.is_initialized() else 'not_initialized',
+        'torch_distributed_world_size': torch.distributed.get_world_size() if torch.distributed.is_initialized() else 0,
+        'torch_distributed_rank': torch.distributed.get_rank() if torch.distributed.is_initialized() else 0
+    }

@@ -96,6 +96,43 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
         super().__init__()
         self.tp_size = get_tensor_model_parallel_world_size()
         self.layer_id = layer_id
+
+
+    def get_expert_distribution_info(self) -> Dict[str, Any]:
+        """获取expert分布信息"""
+        try:
+            return {
+                'layer_id': self.layer_id,
+                'tp_size': self.tp_size,
+                'tp_rank': get_tensor_model_parallel_rank(),
+                'num_experts': self.num_experts,
+                'num_local_experts': self.num_local_experts,
+                'start_expert_id': self.start_expert_id,
+                'end_expert_id': self.end_expert_id,
+                'local_expert_ids': list(range(self.start_expert_id, self.end_expert_id + 1)),
+                'distribution_type': 'tp' if self.tp_size > 1 else 'dp',
+                'is_uniform': True,  # 对于单expert模型，总是均匀的
+                'expert_memory_usage': self._get_expert_memory_usage()
+            }
+        except Exception as e:
+            return {
+                'error': str(e),
+                'layer_id': self.layer_id
+            }
+    
+    def _get_expert_memory_usage(self) -> Dict[int, float]:
+        """获取expert内存使用情况"""
+        try:
+            # 这里可以添加实际的内存使用统计
+            # 由于sglang可能没有直接暴露这些信息，我们返回估算值
+            memory_usage = {}
+            for expert_id in range(self.start_expert_id, self.end_expert_id + 1):
+                # 估算每个expert的内存使用
+                memory_usage[expert_id] = 100.0 / self.tp_size  # 假设均匀分布
+            return memory_usage
+        except Exception as e:
+            return {0: 0.0}  # 返回默认值
+
         
         # 对于单expert模型，允许TP size大于expert数量
         # 因为expert会被复制到多个GPU上进行tensor parallel
