@@ -45,7 +45,7 @@ class DeploymentInfo:
 class SGLangInternalStateChecker:
     """SGLang内部状态检查器"""
     
-    def __init__(self, sglang_path: str = "sglang-0.4.7"):
+    def __init__(self, sglang_path: str = "sglang-0.4.7/python"):
         self.sglang_path = sglang_path
         self.api_process = None
     
@@ -445,6 +445,22 @@ def run_performance_test(port: int, query_lengths: List[int], qps_values: List[i
         'query_length_test': [],
         'qps_test': []
     }
+
+    # warmup
+    for length in query_lengths:
+        print(f"warmup -- 测试query长度: {length}")
+        for i in range(2):
+            prompt = generate_random_text(length)
+            result = send_request(port, prompt)
+            result.qps = 1
+            
+            if result.success:
+                print(f"  请求 {i+1}: TTFT={result.ttft_ms:.2f}ms, TPOT={result.tpot_ms:.2f}ms, "
+                      f"Overall={result.overall_latency_ms:.2f}ms")
+            else:
+                print(f"  请求 {i+1}: 失败 - {result.error_message}")
+            
+            time.sleep(1)  # QPS=1，每秒一个请求
     
     # 测试组1：不同query长度，QPS=1
     print("\n--- 测试组1: 不同query长度 (QPS=1) ---")
@@ -572,7 +588,7 @@ def start_ep_server():
     # 启动命令
     cmd = [
         'python3', '-m', 'sglang.launch_server',
-        '--model-path', '/dev/shm/Qwen3-30B-A3B',  # 修改为你的模型路径
+        '--model-path', '/dev/shm/Qwen3-235B-A22B/',  # 修改为你的模型路径
         '--tp-size', '8',  # 其他层使用TP=4
         '--dp-size', '1',  # 其他层使用DP=2
         '--enable-ep-moe',  # 启用expert parallel
@@ -619,61 +635,61 @@ def main():
             print("❌ 模型加载失败，请检查服务器状态")
             return
         
-        # # 运行性能测试
-        # query_lengths = [128, 256, 512, 1024, 2048, 4096]
-        # qps_values = [1, 2, 4, 8, 16, 32, 64]
+        # 运行性能测试
+        query_lengths = [512, 1024, 2048, 4096, 8192, 16384]
+        qps_values = [2, 4, 8, 16, 32, 64, 128]
         
-        # results = run_performance_test(8080, query_lengths, qps_values, num_requests_per_test=5)
+        results = run_performance_test(8080, query_lengths, qps_values, num_requests_per_test=5)
         
-        # # 分析结果
-        # analyze_results(results)
+        # 分析结果
+        analyze_results(results)
         
-        # print("\n=== 测试完成 ===")
-        # print("Expert Parallel 配置:")
-        # print("- Expert层: EP=8 (每个expert在8张GPU上都有备份)")
-        # print("- 其他层: TP=8, DP=1")
-        # print("- 路由策略: 随机routing")
+        print("\n=== 测试完成 ===")
+        print("Expert Parallel 配置:")
+        print("- Expert层: EP=8 (每个expert在8张GPU上都有备份)")
+        print("- 其他层: TP=8, DP=1")
+        print("- 路由策略: 随机routing")
         
-        # # 保存结果到文件
-        # with open('ep_test_results.json', 'w', encoding='utf-8') as f:
-        #     json.dump({
-        #         'deployment_info': {
-        #             'gpu_memory_usage': deployment_info.gpu_memory_usage,
-        #             'gpu_utilization': deployment_info.gpu_utilization,
-        #             'model_loaded': deployment_info.model_loaded,
-        #             'expert_distribution': deployment_info.expert_distribution,
-        #             'parallel_config': deployment_info.parallel_config,
-        #             'internal_state_verification': deployment_info.internal_state_verification
-        #         },
-        #         'test_results': {
-        #             'query_length_test': [
-        #                 {
-        #                     'query_length': r.query_length,
-        #                     'qps': r.qps,
-        #                     'ttft_ms': r.ttft_ms,
-        #                     'tpot_ms': r.tpot_ms,
-        #                     'overall_latency_ms': r.overall_latency_ms,
-        #                     'tokens_generated': r.tokens_generated,
-        #                     'success': r.success,
-        #                     'error_message': r.error_message
-        #                 } for r in results['query_length_test']
-        #             ],
-        #             'qps_test': [
-        #                 {
-        #                     'query_length': r.query_length,
-        #                     'qps': r.qps,
-        #                     'ttft_ms': r.ttft_ms,
-        #                     'tpot_ms': r.tpot_ms,
-        #                     'overall_latency_ms': r.overall_latency_ms,
-        #                     'tokens_generated': r.tokens_generated,
-        #                     'success': r.success,
-        #                     'error_message': r.error_message
-        #                 } for r in results['qps_test']
-        #             ]
-        #         }
-        #     }, f, indent=2, ensure_ascii=False)
+        # 保存结果到文件
+        with open('ep_test_results.json', 'w', encoding='utf-8') as f:
+            json.dump({
+                'deployment_info': {
+                    'gpu_memory_usage': deployment_info.gpu_memory_usage,
+                    'gpu_utilization': deployment_info.gpu_utilization,
+                    'model_loaded': deployment_info.model_loaded,
+                    'expert_distribution': deployment_info.expert_distribution,
+                    'parallel_config': deployment_info.parallel_config,
+                    'internal_state_verification': deployment_info.internal_state_verification
+                },
+                'test_results': {
+                    'query_length_test': [
+                        {
+                            'query_length': r.query_length,
+                            'qps': r.qps,
+                            'ttft_ms': r.ttft_ms,
+                            'tpot_ms': r.tpot_ms,
+                            'overall_latency_ms': r.overall_latency_ms,
+                            'tokens_generated': r.tokens_generated,
+                            'success': r.success,
+                            'error_message': r.error_message
+                        } for r in results['query_length_test']
+                    ],
+                    'qps_test': [
+                        {
+                            'query_length': r.query_length,
+                            'qps': r.qps,
+                            'ttft_ms': r.ttft_ms,
+                            'tpot_ms': r.tpot_ms,
+                            'overall_latency_ms': r.overall_latency_ms,
+                            'tokens_generated': r.tokens_generated,
+                            'success': r.success,
+                            'error_message': r.error_message
+                        } for r in results['qps_test']
+                    ]
+                }
+            }, f, indent=2, ensure_ascii=False)
         
-        # print("测试结果已保存到 ep_test_results.json")
+        print("测试结果已保存到 ep_test_results.json")
         
     except KeyboardInterrupt:
         print("\n用户中断测试")
