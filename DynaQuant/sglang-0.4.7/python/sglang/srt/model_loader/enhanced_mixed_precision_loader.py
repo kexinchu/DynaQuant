@@ -11,6 +11,7 @@ import yaml
 import logging
 import json
 import time
+import numpy as np
 from typing import Dict, Any, Optional, List, Tuple, Union
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -43,12 +44,48 @@ class ExpertActivationInfo:
     activation_count: int = 0
     last_activation_time: float = 0.0
     total_tokens_processed: int = 0
+    hot_cold_score: float = 0.0  # 新增：hot-cold分数
+    activation_history: deque = field(default_factory=lambda: deque(maxlen=1000))  # 新增：激活历史
     
-    def record_activation(self, tokens_processed: int = 1):
+    def record_activation(self, tokens_processed: int = 1, activation_strength: float = 1.0):
         """记录激活"""
         self.activation_count += 1
         self.last_activation_time = time.time()
         self.total_tokens_processed += tokens_processed
+        
+        # 新增：记录激活历史
+        activation_record = {
+            'timestamp': time.time(),
+            'tokens_processed': tokens_processed,
+            'activation_strength': activation_strength
+        }
+        self.activation_history.append(activation_record)
+        
+        # 新增：更新hot-cold分数
+        self._update_hot_cold_score()
+    
+    def _update_hot_cold_score(self, decay_factor: float = 0.95):
+        """更新hot-cold分数"""
+        if not self.activation_history:
+            self.hot_cold_score = 0.0
+            return
+        
+        current_time = time.time()
+        recent_activations = 0
+        total_weight = 0.0
+        
+        for record in self.activation_history:
+            time_diff = current_time - record['timestamp']
+            # 使用指数衰减权重
+            weight = np.exp(-time_diff / decay_factor)
+            recent_activations += record['activation_strength'] * weight
+            total_weight += weight
+        
+        if total_weight > 0:
+            # 归一化到0-1范围
+            self.hot_cold_score = min(1.0, recent_activations / total_weight)
+        else:
+            self.hot_cold_score = 0.0
 
 
 class ExpertActivationTracker:
@@ -61,14 +98,15 @@ class ExpertActivationTracker:
         self.lock = threading.RLock()
         
     def record_expert_activation(self, layer_id: int, expert_id: int, 
-                               tokens_processed: int = 1, request_id: str = None):
+                               tokens_processed: int = 1, request_id: str = None, 
+                               activation_strength: float = 1.0):
         """记录专家激活"""
         with self.lock:
             key = (layer_id, expert_id)
             if key not in self.expert_stats:
                 self.expert_stats[key] = ExpertActivationInfo(layer_id, expert_id)
             
-            self.expert_stats[key].record_activation(tokens_processed)
+            self.expert_stats[key].record_activation(tokens_processed, activation_strength)
             
             # 记录激活历史
             activation_record = {
@@ -76,7 +114,8 @@ class ExpertActivationTracker:
                 'layer_id': layer_id,
                 'expert_id': expert_id,
                 'tokens_processed': tokens_processed,
-                'request_id': request_id
+                'request_id': request_id,
+                'activation_strength': activation_strength
             }
             self.activation_history.append(activation_record)
     
@@ -105,7 +144,8 @@ class ExpertActivationTracker:
                         'expert_id': info.expert_id,
                         'activation_count': info.activation_count,
                         'last_activation_time': info.last_activation_time,
-                        'total_tokens_processed': info.total_tokens_processed
+                        'total_tokens_processed': info.total_tokens_processed,
+                        'hot_cold_score': round(info.hot_cold_score, 4)
                     }
                 return {}
             
@@ -117,7 +157,8 @@ class ExpertActivationTracker:
                     'expert_id': info.expert_id,
                     'activation_count': info.activation_count,
                     'last_activation_time': info.last_activation_time,
-                    'total_tokens_processed': info.total_tokens_processed
+                    'total_tokens_processed': info.total_tokens_processed,
+                    'hot_cold_score': round(info.hot_cold_score, 4)
                 }
             return stats
     
@@ -133,6 +174,40 @@ class ExpertActivationTracker:
                 {
                     'layer_id': expert.layer_id,
                     'expert_id': expert.expert_id,
+                    'activation_count': expert.activation_count,
+                    'total_tokens_processed': expert.total_tokens_processed,
+                    'hot_cold_score': round(expert.hot_cold_score, 4)
+                }
+                for expert in sorted_experts[:top_k]
+            ]
+    
+    def get_hot_cold_scores(self) -> Dict[str, Dict]:
+        """获取所有专家的hot-cold分数"""
+        with self.lock:
+            scores = {}
+            for key, info in self.expert_stats.items():
+                scores[f"layer_{info.layer_id}_expert_{info.expert_id}"] = {
+                    'layer_id': info.layer_id,
+                    'expert_id': info.expert_id,
+                    'hot_cold_score': round(info.hot_cold_score, 4),
+                    'activation_count': info.activation_count,
+                    'total_tokens_processed': info.total_tokens_processed
+                }
+            return scores
+    
+    def get_top_hot_experts(self, top_k: int = 20) -> List[Dict]:
+        """获取最hot的专家（按hot-cold分数排序）"""
+        with self.lock:
+            sorted_experts = sorted(
+                self.expert_stats.values(),
+                key=lambda x: x.hot_cold_score,
+                reverse=True
+            )
+            return [
+                {
+                    'layer_id': expert.layer_id,
+                    'expert_id': expert.expert_id,
+                    'hot_cold_score': round(expert.hot_cold_score, 4),
                     'activation_count': expert.activation_count,
                     'total_tokens_processed': expert.total_tokens_processed
                 }
@@ -156,7 +231,8 @@ class ExpertActivationTracker:
                 layer_stats[layer_id]['total_tokens'] += info.total_tokens_processed
                 layer_stats[layer_id]['experts'][info.expert_id] = {
                     'activation_count': info.activation_count,
-                    'total_tokens_processed': info.total_tokens_processed
+                    'total_tokens_processed': info.total_tokens_processed,
+                    'hot_cold_score': round(info.hot_cold_score, 4)
                 }
             
             return dict(layer_stats)
@@ -175,6 +251,8 @@ class ExpertActivationTracker:
                 'expert_stats': self.get_expert_stats(),
                 'layer_stats': self.get_layer_stats(),
                 'top_experts': self.get_top_experts(20),
+                'hot_cold_scores': self.get_hot_cold_scores(),
+                'top_hot_experts': self.get_top_hot_experts(20),
                 'export_time': time.time()
             }
             
@@ -182,6 +260,25 @@ class ExpertActivationTracker:
                 json.dump(stats, f, indent=2, ensure_ascii=False)
             
             logger.info(f"Expert activation stats exported to {file_path}")
+    
+    def export_hot_cold_report(self, file_path: str):
+        """导出专门的hot-cold报告"""
+        with self.lock:
+            report = {
+                'export_time': time.time(),
+                'summary': {
+                    'total_experts': len(self.expert_stats),
+                    'total_activations': len(self.activation_history)
+                },
+                'hot_cold_scores': self.get_hot_cold_scores(),
+                'top_hot_experts': self.get_top_hot_experts(50),
+                'layer_summary': self.get_layer_stats()
+            }
+            
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+            
+            logger.info(f"Hot-cold report exported to {file_path}")
 
 
 class GPTQDequantizer:
@@ -603,12 +700,22 @@ def set_global_expert_tracker(tracker: ExpertActivationTracker):
     _global_expert_tracker = tracker
 
 
+def init_global_expert_tracker() -> ExpertActivationTracker:
+    """初始化全局专家激活跟踪器"""
+    global _global_expert_tracker
+    if _global_expert_tracker is None:
+        _global_expert_tracker = ExpertActivationTracker()
+        logger.info("Global expert tracker initialized")
+    return _global_expert_tracker
+
+
 def record_expert_activation(layer_id: int, expert_id: int, 
-                           tokens_processed: int = 1, request_id: str = None):
+                           tokens_processed: int = 1, request_id: str = None, 
+                           activation_strength: float = 1.0):
     """记录专家激活（全局函数）"""
     tracker = get_global_expert_tracker()
     if tracker:
-        tracker.record_expert_activation(layer_id, expert_id, tokens_processed, request_id)
+        tracker.record_expert_activation(layer_id, expert_id, tokens_processed, request_id, activation_strength)
 
 
 def record_request(request_id: str, input_length: int, output_length: int):

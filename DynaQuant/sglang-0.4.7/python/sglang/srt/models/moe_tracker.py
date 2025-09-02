@@ -65,12 +65,12 @@ class MoEModuleWrapper(nn.Module):
                 expert_activations = output.expert_activations
                 if isinstance(expert_activations, (list, tuple)):
                     for expert_id in expert_activations:
-                        record_expert_activation(self.layer_id, expert_id)
+                        record_expert_activation(self.layer_id, expert_id, activation_strength=1.0)
                 elif isinstance(expert_activations, torch.Tensor):
                     # 如果是张量，假设是one-hot编码
                     expert_ids = torch.nonzero(expert_activations).flatten().tolist()
                     for expert_id in expert_ids:
-                        record_expert_activation(self.layer_id, expert_id)
+                        record_expert_activation(self.layer_id, expert_id, activation_strength=1.0)
             
             # 尝试从模块内部状态提取
             elif hasattr(self.original_module, 'experts'):
@@ -78,16 +78,24 @@ class MoEModuleWrapper(nn.Module):
                 if hasattr(self.original_module, '_gate_outputs'):
                     gate_outputs = self.original_module._gate_outputs
                     if isinstance(gate_outputs, torch.Tensor):
-                        # 假设gate输出是专家选择概率
-                        expert_ids = torch.argmax(gate_outputs, dim=-1).flatten().tolist()
+                        # 获取top-k专家选择
+                        top_k = getattr(self.original_module, 'top_k', 2)
+                        expert_ids = torch.topk(gate_outputs, top_k, dim=-1)[1].flatten().tolist()
                         for expert_id in expert_ids:
-                            record_expert_activation(self.layer_id, expert_id)
+                            # 计算激活强度（基于gate输出概率）
+                            try:
+                                gate_probs = torch.softmax(gate_outputs, dim=-1)
+                                activation_strength = gate_probs.max().item()
+                            except Exception as e:
+                                logger.debug(f"计算激活强度失败: {e}")
+                                activation_strength = 1.0
+                            record_expert_activation(self.layer_id, expert_id, activation_strength=activation_strength)
                 
                 elif hasattr(self.original_module, '_selected_experts'):
                     selected_experts = self.original_module._selected_experts
                     if isinstance(selected_experts, (list, tuple)):
                         for expert_id in selected_experts:
-                            record_expert_activation(self.layer_id, expert_id)
+                            record_expert_activation(self.layer_id, expert_id, activation_strength=1.0)
             
             # 尝试从输入参数中提取
             # elif len(args) > 0 and isinstance(args[0], torch.Tensor):
