@@ -382,7 +382,7 @@ def send_request(port: int, prompt: str, max_tokens: int = 100) -> TestResult:
                 'temperature': 0.7,
                 'stream': False
             },
-            timeout=60
+            timeout=600
         )
         
         end_time = time.time()
@@ -465,19 +465,29 @@ def run_performance_test(port: int, query_lengths: List[int], qps_values: List[i
     for length in query_lengths:
         print(f"测试query长度: {length}")
         
-        for i in range(num_requests_per_test):
-            prompt = generate_random_text(length)
-            result = send_request(port, prompt)
-            result.qps = 1
-            results['query_length_test'].append(result)
-            
-            if result.success:
-                print(f"  请求 {i+1}: TTFT={result.ttft_ms:.2f}ms, TPOT={result.tpot_ms:.2f}ms, "
-                      f"Overall={result.overall_latency_ms:.2f}ms")
-            else:
-                print(f"  请求 {i+1}: 失败 - {result.error_message}")
-            
-            time.sleep(1)  # QPS=1，每秒一个请求
+        for i in range(1):
+            with ThreadPoolExecutor(max_workers=16) as executor:
+                futures = []
+                
+                for i in range(max(num_requests_per_test, 16)):
+                    prompt = generate_random_text(256)
+                    future = executor.submit(send_request, port, prompt)
+                    futures.append(future)
+                    
+                    # 控制QPS
+                    time.sleep(1.0 / 16)
+                    
+                # 收集结果
+                for future in as_completed(futures):
+                    result = future.result()
+                    result.qps = 16
+                    results['query_length_test'].append(result)
+                    
+                    if result.success:
+                        print(f"  请求: TTFT={result.ttft_ms:.2f}ms, TPOT={result.tpot_ms:.2f}ms, "
+                            f"Overall={result.overall_latency_ms:.2f}ms")
+                    else:
+                        print(f"  请求: 失败 - {result.error_message}")
     
     # 测试组2：固定query长度，不同QPS
     print("\n--- 测试组2: 不同QPS (query长度=4096) ---")
@@ -485,10 +495,10 @@ def run_performance_test(port: int, query_lengths: List[int], qps_values: List[i
         print(f"测试QPS: {qps}")
         
         # 创建线程池来模拟并发请求
-        with ThreadPoolExecutor(max_workers=min(qps, 10)) as executor:
+        with ThreadPoolExecutor(max_workers=qps) as executor:
             futures = []
             
-            for i in range(num_requests_per_test):
+            for i in range(max(num_requests_per_test, qps)):
                 prompt = generate_random_text(4096)
                 future = executor.submit(send_request, port, prompt)
                 futures.append(future)
@@ -579,7 +589,7 @@ def start_tp_server():
         'SGLANG_DISABLE_MARLIN': '1',
         'SGL_DISABLE_AWQ_MARLIN': '1', 
         'SGLANG_DISABLE_SGL_KERNEL': '1',
-        'CUDA_VISIBLE_DEVICES': '0,1,2,3,4,5,6,7',
+        'CUDA_VISIBLE_DEVICES': '2,3',
         'SINGLE_EXPERT_MODE': 'tp'  # 使用TP模式，expert在8张GPU上切分
     })
     
@@ -588,12 +598,12 @@ def start_tp_server():
     cmd = [
         'python3', '-m', 'sglang.launch_server',
         '--model-path', '/dev/shm/Qwen3-235B-A22B/',  # 修改为你的模型路径
-        '--tp-size', '8',  # 使用TP=8进行expert切分
+        '--tp-size', '2',  # 使用TP=8进行expert切分
         '--dp-size', '1',  # 不使用DP，因为TP=8已经占用了所有GPU
         '--max-running-requests', '128',
         '--host', '127.0.0.1',
         '--port', '8081',  # 使用不同端口避免冲突
-        '--max-total-tokens', '40960',
+        '--max-total-tokens', '819200',
         '--dtype', 'bfloat16',
         '--trust-remote-code',
         '--attention-backend', 'torch_native',
@@ -686,7 +696,7 @@ def main():
                 }
             }, f, indent=2, ensure_ascii=False)
         
-        print("测试结果已保存到 tp_test_results.json")
+        print("测试结果已保存到 tp_test_results_8.json")
         
     except KeyboardInterrupt:
         print("\n用户中断测试")

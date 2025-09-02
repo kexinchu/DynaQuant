@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-测试方案1: Expert Parallel (EP) 方式
-- experts层使用EP方式，一个expert在8张GPU上都创建备份
-- 使用随机routing的方式承接流量
+测试方案2: Tensor Parallel (TP) 方式
+- experts层使用TP方式，一个expert在8张卡上进行TP=8切分
 - 其他层使用TP=4, DP=2的并行方式
 """
 
@@ -44,7 +43,6 @@ class DeploymentInfo:
 
 class SGLangInternalStateChecker:
     """SGLang内部状态检查器"""
-    
     def __init__(self, sglang_path: str = "sglang-0.4.7/python"):
         self.sglang_path = sglang_path
         self.api_process = None
@@ -87,7 +85,7 @@ class SGLangInternalStateChecker:
             
             # 启动API服务器
             self.api_process = subprocess.Popen([
-                sys.executable, checker_script, "--action", "verify", "--deployment-type", "ep", "--api-port", str(port)
+                sys.executable, checker_script, "--action", "verify", "--deployment-type", "tp", "--api-port", str(port)
             ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
             # 等待服务器启动
@@ -151,16 +149,16 @@ class SGLangInternalStateChecker:
             print(f"❌ 获取环境信息失败: {e}")
             return None
     
-    def verify_ep_deployment_with_internal_state(self, api_port: int = 8082) -> Dict[str, Any]:
-        """使用内部状态验证EP部署"""
-        print("=== 使用内部状态验证 EP 部署 ===")
+    def verify_tp_deployment_with_internal_state(self, api_port: int = 8082) -> Dict[str, Any]:
+        """使用内部状态验证TP部署"""
+        print("=== 使用内部状态验证 TP 部署 ===")
         
         # 获取内部状态
         parallel_state = self.get_internal_parallel_state(api_port)
         environment_info = self.get_internal_environment_info(api_port)
         
         verification_result = {
-            'deployment_type': 'ep',
+            'deployment_type': 'tp',
             'verification_passed': False,
             'details': {},
             'warnings': [],
@@ -179,13 +177,13 @@ class SGLangInternalStateChecker:
             verification_result['details']['parallel_state'] = parallel_state
             
             # 检查并行配置
-            if parallel_state.get('moe_expert_parallel_world_size', 1) > 1:
+            if parallel_state.get('tensor_parallel_world_size', 1) > 1:
                 verification_result['details']['parallel_config_correct'] = True
-                print("  ✅ 并行配置符合EP部署特征")
+                print("  ✅ 并行配置符合TP部署特征")
             else:
                 verification_result['details']['parallel_config_correct'] = False
-                verification_result['warnings'].append("MoE Expert Parallel World Size应该大于1")
-                print("  ⚠️ MoE Expert Parallel World Size为1，可能不符合EP部署特征")
+                verification_result['warnings'].append("Tensor Parallel World Size应该大于1")
+                print("  ⚠️ Tensor Parallel World Size为1，可能不符合TP部署特征")
         else:
             verification_result['warnings'].append("无法获取并行状态信息")
         
@@ -200,13 +198,13 @@ class SGLangInternalStateChecker:
             verification_result['details']['environment_info'] = environment_info
             
             # 检查环境配置
-            if environment_info.get('single_expert_mode') == 'dp':
+            if environment_info.get('single_expert_mode') == 'tp':
                 verification_result['details']['environment_config_correct'] = True
-                print("  ✅ 环境配置符合EP部署特征 (DP模式)")
+                print("  ✅ 环境配置符合TP部署特征 (TP模式)")
             else:
                 verification_result['details']['environment_config_correct'] = False
-                verification_result['warnings'].append("Single Expert Mode应该为'dp'")
-                print(f"  ⚠️ Single Expert Mode为 {environment_info.get('single_expert_mode')}，可能不符合EP部署特征")
+                verification_result['warnings'].append("Single Expert Mode应该为'tp'")
+                print(f"  ⚠️ Single Expert Mode为 {environment_info.get('single_expert_mode')}，可能不符合TP部署特征")
         else:
             verification_result['warnings'].append("无法获取环境信息")
         
@@ -227,10 +225,10 @@ class SGLangInternalStateChecker:
         # 至少通过50%的检查才认为验证通过
         if total_checks > 0 and (passed_checks / total_checks) >= 0.5:
             verification_result['verification_passed'] = True
-            print(f"\n✅ EP部署验证通过 ({passed_checks}/{total_checks} 项检查通过)")
+            print(f"\n✅ TP部署验证通过 ({passed_checks}/{total_checks} 项检查通过)")
         else:
             verification_result['verification_passed'] = False
-            print(f"\n❌ EP部署验证失败 ({passed_checks}/{total_checks} 项检查通过)")
+            print(f"\n❌ TP部署验证失败 ({passed_checks}/{total_checks} 项检查通过)")
         
         verification_result['details']['check_summary'] = {
             'passed_checks': passed_checks,
@@ -278,9 +276,9 @@ class DeploymentVerifier:
             print(f"获取GPU信息失败: {e}")
             return {}
     
-    def verify_ep_deployment(self, port: int = 8080) -> DeploymentInfo:
-        """验证EP部署配置"""
-        print("=== 验证 Expert Parallel 部署配置 ===")
+    def verify_tp_deployment(self, port: int = 8081) -> DeploymentInfo:
+        """验证TP部署配置"""
+        print("=== 验证 Tensor Parallel 部署配置 ===")
         
         # 获取GPU信息
         gpu_info = self.get_gpu_info()
@@ -301,7 +299,7 @@ class DeploymentVerifier:
                 # 启动内部状态API服务器
                 if self.internal_checker.start_internal_api_server():
                     # 执行内部状态验证
-                    internal_verification = self.internal_checker.verify_ep_deployment_with_internal_state()
+                    internal_verification = self.internal_checker.verify_tp_deployment_with_internal_state()
                 else:
                     print("⚠️ 无法启动内部状态API服务器，将使用传统验证方法")
             else:
@@ -309,7 +307,7 @@ class DeploymentVerifier:
         except Exception as e:
             print(f"⚠️ 内部状态验证失败: {e}，将使用传统验证方法")
         
-        # 分析EP部署特征
+        # 分析TP部署特征
         deployment_info = DeploymentInfo(
             gpu_memory_usage={gpu_id: info['memory_usage_percent'] for gpu_id, info in gpu_info.items()},
             gpu_utilization={gpu_id: info['utilization_percent'] for gpu_id, info in gpu_info.items()},
@@ -320,7 +318,7 @@ class DeploymentVerifier:
         )
         
         # 打印验证结果
-        print(f"\n=== EP部署验证结果 ===")
+        print(f"\n=== TP部署验证结果 ===")
         print(f"GPU数量: {len(gpu_info)}")
         print(f"模型加载状态: {'✅ 已加载' if model_loaded else '❌ 未加载'}")
         
@@ -334,9 +332,9 @@ class DeploymentVerifier:
             print(f"GPU内存使用率标准差: {std_usage:.2f}%")
             print(f"变异系数: {cv_usage:.2f}%")
             
-            # EP部署应该显示相对均匀的内存使用
-            if cv_usage < 15:
-                print("✅ GPU内存使用相对均匀，符合EP部署特征")
+            # TP部署应该显示相对均匀的内存使用（允许稍大的差异）
+            if cv_usage < 25:
+                print("✅ GPU内存使用相对均匀，符合TP部署特征")
             else:
                 print(f"⚠️ GPU内存使用不够均匀 (CV: {cv_usage:.2f}%)")
         
@@ -582,9 +580,9 @@ def analyze_results(results: Dict[str, List[TestResult]]) -> None:
                   f"中位数={statistics.median(overall_values):.2f}ms, "
                   f"标准差={statistics.stdev(overall_values):.2f}ms")
 
-def start_ep_server():
-    """启动Expert Parallel服务器"""
-    print("=== 启动 Expert Parallel 服务器 ===")
+def start_tp_server():
+    """启动Tensor Parallel服务器"""
+    print("=== 启动 Tensor Parallel 服务器 ===")
     
     # 设置环境变量
     env = os.environ.copy()
@@ -592,22 +590,21 @@ def start_ep_server():
         'SGLANG_DISABLE_MARLIN': '1',
         'SGL_DISABLE_AWQ_MARLIN': '1', 
         'SGLANG_DISABLE_SGL_KERNEL': '1',
-        'CUDA_VISIBLE_DEVICES': '0,1',
-        'SINGLE_EXPERT_MODE': 'dp'  # 使用DP模式，每个GPU都有expert的完整副本
+        'CUDA_VISIBLE_DEVICES': '4,5',
+        'SINGLE_EXPERT_MODE': 'tp'  # 使用TP模式，expert在8张GPU上切分
     })
     
-    # 启动命令
+    # 启动命令 - 使用TP=8进行expert切分
+    # double check 一下TP是否正确了
     cmd = [
         'python3', '-m', 'sglang.launch_server',
         '--model-path', '/dev/shm/Qwen3-235B-A22B/',  # 修改为你的模型路径
-        '--tp-size', '2',  # 其他层使用TP=4
-        '--dp-size', '1',  # 其他层使用DP=2
-        '--enable-ep-moe',  # 启用expert parallel
-        '--ep-size', '2',   # expert parallel size = 8
+        '--tp-size', '2',  # 使用TP=8进行expert切分
+        '--dp-size', '1',  # 不使用DP，因为TP=8已经占用了所有GPU
         '--max-running-requests', '128',
         '--host', '127.0.0.1',
-        '--port', '8080',
-        '--max-total-tokens', '35981',
+        '--port', '8081',  # 使用不同端口避免冲突
+        '--max-total-tokens', '40960',
         '--dtype', 'bfloat16',
         '--trust-remote-code',
         '--attention-backend', 'torch_native',
@@ -616,8 +613,7 @@ def start_ep_server():
         '--disable-cuda-graph-padding',
         '--kv-cache-dtype', 'auto',
         '--allow-auto-truncate',
-        '--chunked-prefill-size', '16384',
-        '--ep-dispatch-algorithm', 'dynamic'
+        '--chunked-prefill-size', '16384'
     ]
     
     print(f"启动命令: {' '.join(cmd)}")
@@ -633,15 +629,15 @@ def start_ep_server():
 
 def main():
     """主函数"""
-    print("开始 Expert Parallel 测试")
+    print("开始 Tensor Parallel 测试")
     
     # 启动服务器
-    server_process = start_ep_server()
+    server_process = start_tp_server()
     
     try:
         # 验证部署配置
         verifier = DeploymentVerifier()
-        deployment_info = verifier.verify_ep_deployment(8080)
+        deployment_info = verifier.verify_tp_deployment(8081)
         
         if not deployment_info.model_loaded:
             print("❌ 模型加载失败，请检查服务器状态")
@@ -651,19 +647,19 @@ def main():
         query_lengths = [512, 1024, 2048, 4096, 8192, 16384]
         qps_values = [2, 4, 8, 16, 32, 64, 128]
         
-        results = run_performance_test(8080, query_lengths, qps_values, num_requests_per_test=5)
+        results = run_performance_test(8081, query_lengths, qps_values, num_requests_per_test=5)
         
         # 分析结果
         analyze_results(results)
         
         print("\n=== 测试完成 ===")
-        print("Expert Parallel 配置:")
-        print("- Expert层: EP=8 (每个expert在8张GPU上都有备份)")
-        print("- 其他层: TP=8, DP=1")
-        print("- 路由策略: 随机routing")
+        print("Tensor Parallel 配置:")
+        print("- Expert层: TP=8 (expert在8张GPU上切分)")
+        print("- 其他层: TP=8 (所有层都使用TP=8)")
+        print("- 切分策略: 均匀部署在8张卡上")
         
         # 保存结果到文件
-        with open('ep_test_results.json', 'w', encoding='utf-8') as f:
+        with open('tp_test_results.json', 'w', encoding='utf-8') as f:
             json.dump({
                 'deployment_info': {
                     'gpu_memory_usage': deployment_info.gpu_memory_usage,
@@ -701,7 +697,7 @@ def main():
                 }
             }, f, indent=2, ensure_ascii=False)
         
-        print("测试结果已保存到 ep_test_results_8.json")
+        print("测试结果已保存到 tp_test_results_8.json")
         
     except KeyboardInterrupt:
         print("\n用户中断测试")
