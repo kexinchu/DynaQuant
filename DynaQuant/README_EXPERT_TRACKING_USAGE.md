@@ -70,7 +70,7 @@ Expert Tracking 完整启动器
 ✓ Expert Tracking功能已启用
 
 加载ShareGPT数据集...
-✓ 成功加载 3 条ShareGPT数据
+✓ 成功加载 5 条ShareGPT数据
 
 开始使用ShareGPT数据集测试模型...
 测试数据 1/3: sample_001
@@ -102,7 +102,8 @@ Expert Tracking 完整启动器
   "summary": {
     "total_experts": 40,
     "total_activations": 1200,
-    "total_requests": 2
+    "total_requests": 2,
+    "test_results": [...]
   },
   "hot_cold_analysis": {
     "layer_0": {
@@ -111,12 +112,21 @@ Expert Tracking 完整启动器
       "max_activations": 25,
       "min_activations": 3,
       "experts": {
-        "0": {"activation_count": 25, "hot_cold_score": 1.0000},
-        "1": {"activation_count": 18, "hot_cold_score": 0.6818},
-        "2": {"activation_count": 12, "hot_cold_score": 0.4091}
+        "0": {
+          "activation_count": 25,
+          "total_tokens": 1250,
+          "hot_cold_score": 1.0000
+        },
+        "1": {
+          "activation_count": 18,
+          "total_tokens": 900,
+          "hot_cold_score": 0.6818
+        }
       }
     }
-  }
+  },
+  "expert_stats": {...},
+  "top_experts": [...]
 }
 ```
 

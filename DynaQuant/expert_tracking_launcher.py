@@ -63,7 +63,7 @@ class ExpertTrackingLauncher:
                 ["bash", script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                preexec_fn=os.setsid
+                preexec_fn=os.setsid if hasattr(os, 'setsid') else None
             )
             
             # 等待服务启动
@@ -177,6 +177,20 @@ class ExpertTrackingLauncher:
                     {"from": "human", "value": "深度学习与传统机器学习有什么区别？"},
                     {"from": "gpt", "value": "深度学习是机器学习的一个子领域..."}
                 ]
+            },
+            {
+                "id": "sample_004",
+                "conversations": [
+                    {"from": "human", "value": "请解释一下神经网络的工作原理"},
+                    {"from": "gpt", "value": "神经网络是一种模仿生物神经系统的计算模型..."}
+                ]
+            },
+            {
+                "id": "sample_005",
+                "conversations": [
+                    {"from": "human", "value": "混合精度推理有什么优势？"},
+                    {"from": "gpt", "value": "混合精度推理结合了不同精度的数值表示..."}
+                ]
             }
         ]
         
@@ -189,7 +203,7 @@ class ExpertTrackingLauncher:
             logger.info("开始使用ShareGPT数据集测试模型...")
             
             # 选择前几条数据进行测试
-            test_data = dataset[:3]  # 只测试前3条，避免过长时间
+            test_data = dataset[:min(3, len(dataset))]  # 只测试前3条，避免过长时间
             
             for i, item in enumerate(test_data):
                 if self.shutdown_event.is_set():
@@ -242,7 +256,8 @@ class ExpertTrackingLauncher:
                         'response_length': 0
                     })
                 
-                # 等待一段时间，让expert tracker记录激活情况
+                            # 等待一段时间，让expert tracker记录激活情况
+            if not self.shutdown_event.is_set():
                 time.sleep(5)
             
             logger.info("✓ ShareGPT数据集测试完成")
@@ -442,13 +457,22 @@ class ExpertTrackingLauncher:
             if self.sglang_process:
                 logger.info("停止SGLang服务...")
                 try:
-                    os.killpg(os.getpgid(self.sglang_process.pid), signal.SIGTERM)
-                    self.sglang_process.wait(timeout=10)
-                except:
+                    if hasattr(os, 'killpg') and hasattr(os, 'getpgid'):
+                        os.killpg(os.getpgid(self.sglang_process.pid), signal.SIGTERM)
+                        self.sglang_process.wait(timeout=10)
+                    else:
+                        # Windows兼容性处理
+                        self.sglang_process.terminate()
+                        self.sglang_process.wait(timeout=10)
+                except Exception as e:
+                    logger.warning(f"优雅关闭失败: {e}")
                     try:
-                        os.killpg(os.getpgid(self.sglang_process.pid), signal.SIGKILL)
-                    except:
-                        pass
+                        if hasattr(os, 'killpg') and hasattr(os, 'getpgid'):
+                            os.killpg(os.getpgid(self.sglang_process.pid), signal.SIGKILL)
+                        else:
+                            self.sglang_process.kill()
+                    except Exception as e2:
+                        logger.warning(f"强制关闭失败: {e2}")
                 
                 logger.info("✓ SGLang服务已停止")
             

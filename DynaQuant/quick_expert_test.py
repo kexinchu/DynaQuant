@@ -44,10 +44,12 @@ def test_expert_tracking():
         layers = [0, 1, 2, 3, 4]  # 5层
         experts_per_layer = 8       # 每层8个expert
         
+        # 导入random模块
+        import random
+        
         for layer_id in layers:
             for expert_id in range(experts_per_layer):
                 # 随机激活次数 (1-20)
-                import random
                 activation_count = random.randint(1, 20)
                 
                 for _ in range(activation_count):

@@ -70,22 +70,28 @@ class ExpertActivationInfo:
             self.hot_cold_score = 0.0
             return
         
-        current_time = time.time()
-        recent_activations = 0
-        total_weight = 0.0
-        
-        for record in self.activation_history:
-            time_diff = current_time - record['timestamp']
-            # 使用指数衰减权重
-            weight = np.exp(-time_diff / decay_factor)
-            recent_activations += record['activation_strength'] * weight
-            total_weight += weight
-        
-        if total_weight > 0:
-            # 归一化到0-1范围
-            self.hot_cold_score = min(1.0, recent_activations / total_weight)
-        else:
-            self.hot_cold_score = 0.0
+        try:
+            current_time = time.time()
+            recent_activations = 0.0
+            total_weight = 0.0
+            
+            for record in self.activation_history:
+                if isinstance(record, dict) and 'timestamp' in record and 'activation_strength' in record:
+                    time_diff = current_time - record['timestamp']
+                    # 使用指数衰减权重
+                    weight = np.exp(-time_diff / decay_factor)
+                    recent_activations += float(record['activation_strength']) * weight
+                    total_weight += weight
+            
+            if total_weight > 0:
+                # 归一化到0-1范围
+                self.hot_cold_score = min(1.0, recent_activations / total_weight)
+            else:
+                self.hot_cold_score = 0.0
+        except Exception as e:
+            # 如果计算失败，保持原值
+            logger.warning(f"更新hot-cold分数失败: {e}")
+            pass
 
 
 class ExpertActivationTracker:
