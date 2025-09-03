@@ -27,7 +27,7 @@ def read_chatGPT(file_path):
             answer = data["conversations"][1]["value"]
             requests.append((context, answer, session_id))
             session_id += 1
-            if session_id > 32:
+            if session_id > 100:
                 break
     return requests
 

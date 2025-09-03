@@ -105,6 +105,11 @@ class ExpertTrackingLauncher:
             # 初始化全局expert tracker
             self.expert_tracker = init_global_expert_tracker()
             logger.info("✓ Expert Tracking功能已启用")
+
+            # 测试记录功能
+            self.expert_tracker.record_expert_activation(0, 1, activation_strength=1.0)
+            test_stats = self.expert_tracker.get_expert_stats()
+            logger.info(f"✓ 测试记录成功，当前统计: {len(test_stats)} 条")
             
             return True
             
@@ -489,7 +494,7 @@ class ExpertTrackingLauncher:
                     'total_experts': len(expert_stats),
                     'total_activations': len(self.expert_tracker.activation_history),
                     'total_requests': len(self.expert_tracker.request_history),
-                    'test_results': self.test_results
+                    # 'test_results': self.test_results
                 },
                 'hot_cold_analysis': hot_cold_analysis,
                 'expert_stats': expert_stats,
@@ -629,8 +634,8 @@ def main():
     
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='Expert Tracking 启动器')
-    parser.add_argument('--workers', type=int, default=16, 
-                       help='并行工作线程数 (默认: 16)')
+    parser.add_argument('--workers', type=int, default=32, 
+                       help='并行工作线程数 (默认: 32)')
     parser.add_argument('--test-data', type=int, default=None,
                        help='测试数据数量 (默认: 使用所有可用数据)')
     
