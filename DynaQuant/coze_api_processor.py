@@ -60,25 +60,28 @@ class CozeAPIClient:
             }
         }
         
-        try:
-            logger.info(f"发送请求到Coze API，工作流ID: {self.workflow_id}")
-            response = self.session.post(
-                self.base_url,
-                json=data,
-                stream=True,
-                timeout=300
-            )
-            
-            if response.status_code == 200:
-                return self._parse_sse_response(response)
-            else:
-                logger.error(f"API请求失败，状态码: {response.status_code}")
-                logger.error(f"响应内容: {response.text}")
-                return None
-                
-        except Exception as e:
-            logger.error(f"请求异常: {e}")
+        # try:
+        logger.info(f"发送请求到Coze API，工作流ID: {self.workflow_id}")
+        response = self.session.post(
+            self.base_url,
+            json=data,
+            stream=True,
+            timeout=300
+        )
+        
+        if response.status_code == 200:
+            result = self._parse_sse_response(response)
+            if not result:
+                logger.warning("SSE解析失败，启用调试模式")
+            return result
+        else:
+            logger.error(f"API请求失败，状态码: {response.status_code}")
+            logger.error(f"响应内容: {response.text}")
             return None
+                
+        # except Exception as e:
+        #     logger.error(f"请求异常: {e}")
+        #     return None
     
     def _parse_sse_response(self, response: requests.Response) -> Optional[Dict[str, Any]]:
         """
@@ -90,42 +93,88 @@ class CozeAPIClient:
         Returns:
             解析后的结果
         """
-        try:
-            result = {}
-            
-            for line in response.iter_lines(decode_unicode=True):
-                if not line:
-                    continue
-                
-                # 解析SSE格式
-                if line.startswith('data: '):
-                    data_str = line[6:]  # 移除 'data: ' 前缀
-                    try:
-                        data_json = json.loads(data_str)
-                        
-                        # 检查是否是结束事件
-                        if data_json.get('node_type') == 'End' and data_json.get('node_is_finish'):
-                            content = data_json.get('content', '')
-                            if content:
-                                # 解析content字段中的JSON字符串
-                                try:
-                                    content_data = json.loads(content)
-                                    result = content_data
-                                    break
-                                except json.JSONDecodeError:
-                                    logger.warning("无法解析content字段的JSON内容")
-                                    continue
-                        
-                    except json.JSONDecodeError:
-                        logger.warning(f"无法解析SSE数据: {data_str}")
-                        continue
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"解析SSE响应失败: {e}")
-            return None
+        # try:
+        # 读取完整的响应内容，避免按行分割破坏JSON结构
+        raw_content = response.content.decode('utf-8', errors='ignore')
+        logger.debug(f"原始响应长度: {len(raw_content)}")
 
+        result = {}
+
+        # 按SSE事件分割（以id:开头）
+        events = []
+        current_event = {}
+        current_data = ""
+        
+        # 逐行读取响应
+        lines = raw_content.split('\n')
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            
+            line_str = line.decode('utf-8') if isinstance(line, bytes) else line
+            line_str = line_str.strip()
+            
+            if not line.startswith('data: '):
+                continue
+            elif "debug_url" in line:
+                continue
+            # 开始累积data内容
+            current_data = line[6:]  # 移除 'data: ' 前缀
+            print("line: " + current_data)
+
+        # 保存最后一个事件
+        if current_data:
+            current_event['data'] = current_data
+            events.append(current_event)
+        
+        logger.debug(f"解析到 {len(events)} 个SSE事件")
+        print(f"解析到 {len(events)} 个SSE事件")
+            
+        # 查找结束事件
+        for event in events:
+            if event.get('data'):
+                # try:
+                # 解析外层JSON
+                s_clean = re.sub(r'[\x00-\x1f\x7f]', '', event['data'])
+                data_json = json.loads(s_clean)
+                
+                # 检查是否是结束事件
+                if data_json.get('node_type') == 'End' and data_json.get('node_is_finish'):
+                    content = data_json.get('content', '')
+                    if content:
+                        # 解析content字段中的JSON字符串
+                        # try:
+                        # 处理可能的转义字符
+                        content_clean = content.replace('\\"', '"').replace('\\n', '\n')
+                        s_clean = re.sub(r'[\x00-\x1f\x7f]', '', content_clean)
+                        content_data = json.loads(s_clean)
+                        result = content_data
+                        logger.info("成功解析SSE响应内容")
+                        break
+                        # except json.JSONDecodeError as e:
+                        #     logger.warning(f"无法解析content字段的JSON内容: {e}")
+                        #     logger.debug(f"Content内容: {content[:200]}...")
+                        #     continue
+                    else:
+                        print(11111)
+                else:
+                    print(222)
+            else:
+                print(3333)
+                
+                # except json.JSONDecodeError as e:
+                #     logger.warning(f"无法解析SSE数据: {e}")
+                #     logger.debug(f"Data内容: {event['data'][:200]}...")
+                #     continue
+    
+        return result
+            
+        # except Exception as e:
+        #     logger.error(f"解析SSE响应失败: {e}")
+        #     import traceback
+        #     traceback.print_exc()
+        #     return None
 
 class ModelOutputReader:
     """模型输出文件读取器"""

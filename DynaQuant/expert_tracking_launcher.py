@@ -30,11 +30,12 @@ logger = logging.getLogger(__name__)
 class ExpertTrackingLauncher:
     """Expert Tracking 启动器"""
     
-    def __init__(self):
+    def __init__(self, max_workers: int = 16):
         self.sglang_process = None
         self.expert_tracker = None
         self.shutdown_event = threading.Event()
         self.test_results = []
+        self.max_workers = max_workers  # 最大线程数
         
         # 注册信号处理器
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -116,10 +117,7 @@ class ExpertTrackingLauncher:
         try:
             # 尝试从多个可能的路径加载数据集
             possible_paths = [
-                "sharegpt_data.json",
-                "sharegpt_data.jsonl", 
-                "data/sharegpt_data.json",
-                "datasets/sharegpt_data.json"
+                "/root/code/ShareGPT_V3_unfiltered_cleaned_split.json",
             ]
             
             dataset_path = None
@@ -198,72 +196,171 @@ class ExpertTrackingLauncher:
         return sample_data
     
     def test_with_sharegpt_data(self, dataset: List[Dict[str, Any]]):
-        """使用ShareGPT数据集测试模型"""
+        """使用ShareGPT数据集测试模型（多线程并行）"""
         try:
-            logger.info("开始使用ShareGPT数据集测试模型...")
+            logger.info("开始使用ShareGPT数据集测试模型（16线程并行）...")
             
-            # 选择前几条数据进行测试
-            test_data = dataset[:min(3, len(dataset))]  # 只测试前3条，避免过长时间
+            # 选择更多数据进行测试（多线程可以处理更多数据）
+            test_data = dataset[:min(100, len(dataset))]  # 最多max_workers条
             
-            for i, item in enumerate(test_data):
-                if self.shutdown_event.is_set():
-                    break
-                
-                logger.info(f"测试数据 {i+1}/{len(test_data)}: {item.get('id', f'item_{i}')}")
-                
-                # 提取对话内容
-                conversations = item.get('conversations', [])
-                if not conversations:
-                    continue
-                
-                # 构建测试请求
-                messages = []
-                for conv in conversations:
-                    if conv.get('from') == 'human':
-                        messages.append({
-                            "role": "user",
-                            "content": conv.get('value', '')
-                        })
-                    elif conv.get('from') == 'gpt':
-                        messages.append({
-                            "role": "assistant", 
-                            "content": conv.get('value', '')
-                        })
-                
-                if not messages:
-                    continue
-                
-                # 发送请求到模型
+            # 创建线程池
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            import threading
+            
+            # 线程安全的测试结果列表
+            test_results_lock = threading.Lock()
+            
+            def process_single_request(item_data):
+                """处理单个请求的函数"""
                 try:
+                    item_id = item_data.get('id', 'unknown')
+                    logger.debug(f"线程 {threading.current_thread().name} 处理: {item_id}")
+                    
+                    # 提取对话内容
+                    conversations = item_data.get('conversations', [])
+                    if not conversations:
+                        return {
+                            'id': item_id,
+                            'status': 'skipped',
+                            'response_length': 0,
+                            'error': 'No conversations found'
+                        }
+                    
+                    # 构建测试请求
+                    messages = []
+                    for conv in conversations:
+                        if conv.get('from') == 'human':
+                            messages.append({
+                                "role": "user",
+                                "content": conv.get('value', '')
+                            })
+                        elif conv.get('value', '') and conv.get('from') == 'gpt':
+                            messages.append({
+                                "role": "assistant", 
+                                "content": conv.get('value', '')
+                            })
+                    
+                    if not messages:
+                        return {
+                            'id': item_id,
+                            'status': 'skipped',
+                            'response_length': 0,
+                            'error': 'No valid messages found'
+                        }
+                    
+                    # 发送请求到模型
                     response = self.send_chat_request(messages)
                     if response:
-                        logger.info(f"  ✓ 请求成功，响应长度: {len(response)}")
-                        self.test_results.append({
-                            'id': item.get('id', f'item_{i}'),
+                        logger.debug(f"线程 {threading.current_thread().name} - {item_id}: ✓ 请求成功，响应长度: {len(response)}")
+                        return {
+                            'id': item_id,
                             'status': 'success',
-                            'response_length': len(response)
-                        })
+                            'response_length': len(response),
+                            'error': None
+                        }
                     else:
-                        logger.warning(f"  ⚠ 请求失败")
-                        self.test_results.append({
-                            'id': item.get('id', f'item_{i}'),
-                            'status': 'failed'
-                        })
+                        logger.warning(f"线程 {threading.current_thread().name} - {item_id}: ⚠ 请求失败")
+                        return {
+                            'id': item_id,
+                            'status': 'failed',
+                            'response_length': 0,
+                            'error': 'Request failed'
+                        }
+                        
                 except Exception as e:
-                    logger.error(f"  ✗ 请求异常: {e}")
-                    self.test_results.append({
-                        'id': item.get('id', f'item_{i}'),
-                        'response_length': 0
-                    })
-                
-                            # 等待一段时间，让expert tracker记录激活情况
-            if not self.shutdown_event.is_set():
-                time.sleep(5)
+                    logger.error(f"线程 {threading.current_thread().name} - {item_id}: ✗ 请求异常: {e}")
+                    return {
+                        'id': item_id,
+                        'status': 'error',
+                        'response_length': 0,
+                        'error': str(e)
+                    }
             
-            logger.info("✓ ShareGPT数据集测试完成")
+            # 使用配置的线程数并行处理
+            max_workers = min(self.max_workers, len(test_data))
+            logger.info(f"启动 {max_workers} 个线程并行处理 {len(test_data)} 条数据")
+            
+            with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="LLM_Worker") as executor:
+                # 提交所有任务
+                future_to_item = {
+                    executor.submit(process_single_request, item): item 
+                    for item in test_data
+                }
+                
+                # 收集结果
+                completed_count = 0
+                for future in as_completed(future_to_item):
+                    item = future_to_item[future]
+                    try:
+                        result = future.result()
+                        with test_results_lock:
+                            self.test_results.append(result)
+                        
+                        completed_count += 1
+                        logger.info(f"进度: {completed_count}/{len(test_data)} - {result['id']}: {result['status']}")
+                        
+                        # 检查是否需要停止
+                        if self.shutdown_event.is_set():
+                            logger.info("收到停止信号，取消剩余任务")
+                            break
+                            
+                    except Exception as e:
+                        logger.error(f"获取任务结果失败: {e}")
+                        with test_results_lock:
+                            self.test_results.append({
+                                'id': item.get('id', 'unknown'),
+                                'status': 'error',
+                                'response_length': 0,
+                                'error': f'Result retrieval failed: {e}'
+                            })
+            
+            # 统计测试结果
+            self._print_test_summary()
+            logger.info("✓ ShareGPT数据集多线程测试完成")
             
         except Exception as e:
-            logger.error(f"测试失败: {e}")
+            logger.error(f"多线程测试失败: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _print_test_summary(self):
+        """打印测试结果摘要"""
+        try:
+            if not self.test_results:
+                logger.info("没有测试结果")
+                return
+            
+            # 统计各种状态
+            status_counts = {}
+            total_response_length = 0
+            success_count = 0
+            
+            for result in self.test_results:
+                status = result.get('status', 'unknown')
+                status_counts[status] = status_counts.get(status, 0) + 1
+                
+                if status == 'success':
+                    success_count += 1
+                    total_response_length += result.get('response_length', 0)
+            
+            # 打印统计信息
+            logger.info("\n" + "=" * 50)
+            logger.info("测试结果摘要")
+            logger.info("=" * 50)
+            logger.info(f"总测试数: {len(self.test_results)}")
+            
+            for status, count in status_counts.items():
+                percentage = (count / len(self.test_results)) * 100
+                logger.info(f"{status}: {count} ({percentage:.1f}%)")
+            
+            if success_count > 0:
+                avg_response_length = total_response_length / success_count
+                logger.info(f"成功请求平均响应长度: {avg_response_length:.1f} 字符")
+            
+            logger.info("=" * 50)
+            
+        except Exception as e:
+            logger.error(f"打印测试摘要失败: {e}")
     
     def send_chat_request(self, messages: List[Dict[str, str]]) -> Optional[str]:
         """发送聊天请求到模型"""
@@ -283,7 +380,7 @@ class ExpertTrackingLauncher:
                     'Content-Type': 'application/json',
                     'Authorization': 'Bearer sk-local'
                 },
-                timeout=60
+                timeout=600
             )
             
             if response.status_code == 200:
@@ -528,7 +625,26 @@ class ExpertTrackingLauncher:
 
 def main():
     """主函数"""
-    launcher = ExpertTrackingLauncher()
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='Expert Tracking 启动器')
+    parser.add_argument('--workers', type=int, default=16, 
+                       help='并行工作线程数 (默认: 16)')
+    parser.add_argument('--test-data', type=int, default=None,
+                       help='测试数据数量 (默认: 使用所有可用数据)')
+    
+    args = parser.parse_args()
+    
+    print(f"启动Expert Tracking，使用 {args.workers} 个并行线程")
+    
+    # 创建启动器实例
+    launcher = ExpertTrackingLauncher(max_workers=args.workers)
+    
+    # 如果指定了测试数据数量，更新数据集选择
+    if args.test_data:
+        launcher.test_data_limit = args.test_data
+    
     launcher.run()
 
 

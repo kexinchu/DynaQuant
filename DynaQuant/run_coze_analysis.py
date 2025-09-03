@@ -55,12 +55,12 @@ def main():
     ]
     
     # 运行主程序
-    try:
-        coze_main()
-    except Exception as e:
-        print(f"运行过程中出现错误: {e}")
-        import traceback
-        traceback.print_exc()
+    # try:
+    coze_main()
+    # except Exception as e:
+    #     print(f"运行过程中出现错误: {e}")
+    #     import traceback
+    #     traceback.print_exc()
 
 if __name__ == "__main__":
     main()

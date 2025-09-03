@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Qwen3-235B-A22B模型服务测试程序
+Qwen3-235B-A22B模型服务测试程序（多线程版）
 读取测试数据文件，发送请求给模型，并记录结果到JSONL文件
 """
 
@@ -9,9 +9,13 @@ import requests
 import time
 import argparse
 import os
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from datetime import datetime
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+import random
+from load_requests import read_chatGPT
 
 # 配置日志
 logging.basicConfig(
@@ -22,74 +26,69 @@ logger = logging.getLogger(__name__)
 
 
 class QwenServiceClient:
-    """Qwen3-235B-A22B模型服务客户端"""
-    
-    def __init__(self, base_url: str = "http://127.0.0.1:8080", api_key: str = "sk-local"):
-        """
-        初始化客户端
-        
-        Args:
-            base_url: API服务器地址
-            api_key: API密钥
-        """
+    """Qwen3-235B-A22B模型服务客户端（每线程独立 Session）"""
+
+    def __init__(self, base_url: str = "http://127.0.0.1:8080", api_key: str = "sk-local", pool_size: int = 64):
         self.base_url = base_url
         self.api_key = api_key
-        self.session = requests.Session()
-        self.session.headers.update({
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {api_key}'
-        })
-    
+        self._tls = threading.local()
+        self._pool_size = pool_size
+
+    def _get_session(self) -> requests.Session:
+        s = getattr(self._tls, "session", None)
+        if s is None:
+            s = requests.Session()
+            adapter = requests.adapters.HTTPAdapter(pool_connections=self._pool_size,
+                                                    pool_maxsize=self._pool_size,
+                                                    max_retries=0)
+            s.mount("http://", adapter)
+            s.mount("https://", adapter)
+            s.headers.update({
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {self.api_key}'
+            })
+            self._tls.session = s
+        return s
+
     def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
-        """
-        发送聊天完成请求
-        
-        Args:
-            messages: 消息列表，格式为 [{"role": "user", "content": "..."}]
-            **kwargs: 其他参数如max_tokens, temperature等
-            
-        Returns:
-            模型响应结果
-        """
         data = {
             "model": "qwen3-235b-a22b",
             "messages": messages,
             **kwargs
         }
-        
+        session = self._get_session()
         try:
             start_time = time.time()
-            response = self.session.post(
+            resp = session.post(
                 f"{self.base_url}/v1/chat/completions",
                 json=data,
-                timeout=300  # 5分钟超时
+                timeout=600
             )
             end_time = time.time()
-            
-            if response.status_code == 200:
-                result = response.json()
+
+            if resp.status_code == 200:
+                result = resp.json()
                 result['request_time'] = end_time - start_time
                 return result
             else:
-                logger.error(f"请求失败，状态码: {response.status_code}")
+                logger.error(f"请求失败，状态码: {resp.status_code}")
                 return {
-                    "error": f"HTTP {response.status_code}",
-                    "response": response.text,
+                    "error": f"HTTP {resp.status_code}",
+                    "response": resp.text,
                     "request_time": end_time - start_time
                 }
-                
         except Exception as e:
             logger.error(f"请求异常: {e}")
             return {"error": str(e)}
 
+
 class TestDataProcessor:
     """测试数据处理器"""
-    
+
     def __init__(self, client: QwenServiceClient):
         self.client = client
-    
+
     def read_txt_file(self, file_path: str) -> List[str]:
-        """读取TXT文件"""
         try:
             with open(file_path, 'r', encoding='utf-8') as f:
                 lines = [line.strip() for line in f if line.strip()]
@@ -98,9 +97,8 @@ class TestDataProcessor:
         except Exception as e:
             logger.error(f"读取TXT文件失败: {e}")
             return []
-    
+
     def read_jsonl_file(self, file_path: str) -> List[Dict[str, Any]]:
-        """读取JSONL文件"""
         try:
             data = []
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -118,9 +116,8 @@ class TestDataProcessor:
         except Exception as e:
             logger.error(f"读取JSONL文件失败: {e}")
             return []
-    
+
     def process_txt_data(self, lines: List[str]) -> List[Dict[str, Any]]:
-        """处理TXT数据，转换为标准格式"""
         data = []
         for i, line in enumerate(lines):
             data.append({
@@ -132,30 +129,20 @@ class TestDataProcessor:
                 ]
             })
         return data
-    
+
     def process_jsonl_data(self, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """处理JSONL数据，转换为标准格式"""
         data = []
         for i, item in enumerate(items):
-            # 尝试从不同字段中提取内容
             content = None
             if isinstance(item, dict):
-                if "content" in item:
-                    content = item["content"]
-                elif "text" in item:
-                    content = item["text"]
-                elif "prompt" in item:
-                    content = item["prompt"]
-                elif "question" in item:
-                    content = item["question"]
-                elif "input" in item:
-                    content = item["input"]
-                else:
-                    # 如果都没有，使用整个item作为内容
+                for k in ("content", "text", "prompt", "question", "input"):
+                    if k in item:
+                        content = item[k]
+                        break
+                if content is None:
                     content = str(item)
             else:
                 content = str(item)
-            
             data.append({
                 "id": f"jsonl_{i+1:04d}",
                 "type": "jsonl",
@@ -170,34 +157,35 @@ class TestDataProcessor:
 
 class ResultRecorder:
     """结果记录器"""
-    
+
     def __init__(self, output_file: str):
         self.output_file = output_file
-        self.results = []
-    
+        self.results: List[Dict[str, Any]] = []
+
     def add_result(self, result: Dict[str, Any]):
-        """添加结果"""
         self.results.append(result)
-    
+
     def save_to_jsonl(self):
-        """保存结果到JSONL文件"""
         try:
+            # 按请求序号排序，保证输出文件顺序稳定
+            results_sorted = sorted(
+                self.results,
+                key=lambda r: r.get("processing_info", {}).get("request_number", 0)
+            )
             with open(self.output_file, 'w', encoding='utf-8') as f:
-                for result in self.results:
+                for result in results_sorted:
                     f.write(json.dumps(result, ensure_ascii=False) + '\n')
             logger.info(f"结果已保存到: {self.output_file}")
         except Exception as e:
             logger.error(f"保存结果失败: {e}")
-    
+
     def get_summary(self) -> Dict[str, Any]:
-        """获取结果摘要"""
         total_requests = len(self.results)
-        successful_requests = len([r for r in self.results if "error" not in r])
+        successful_requests = len([r for r in self.results if "error" not in r.get("model_response", {})])
         failed_requests = total_requests - successful_requests
-        
-        total_time = sum(r.get('request_time', 0) for r in self.results if "error" not in r)
+        total_time = sum(r.get('model_response', {}).get('request_time', 0)
+                         for r in self.results if "error" not in r.get("model_response", {}))
         avg_time = total_time / successful_requests if successful_requests > 0 else 0
-        
         return {
             "total_requests": total_requests,
             "successful_requests": successful_requests,
@@ -209,8 +197,7 @@ class ResultRecorder:
 
 
 def main():
-    """主函数"""
-    parser = argparse.ArgumentParser(description='Qwen3-235B-A22B模型服务测试程序')
+    parser = argparse.ArgumentParser(description='Qwen3-235B-A22B模型服务测试程序（多线程版）')
     parser.add_argument('--input', '-i', required=True, help='输入文件路径 (支持.txt和.jsonl)')
     parser.add_argument('--output', '-o', default='test_results.jsonl', help='输出文件路径')
     parser.add_argument('--host', default='127.0.0.1', help='服务主机地址')
@@ -218,21 +205,21 @@ def main():
     parser.add_argument('--max-tokens', type=int, default=4096, help='最大生成token数')
     parser.add_argument('--temperature', type=float, default=0.9, help='生成温度')
     parser.add_argument('--top-p', type=float, default=0.9, help='top-p采样参数')
-    parser.add_argument('--delay', type=float, default=1.0, help='请求间隔时间(秒)')
-    
+    parser.add_argument('--delay', type=float, default=0.0, help='并发场景的抖动（每任务随机睡 0~delay 秒）')
+    parser.add_argument('--workers', type=int, default=16, help='并发线程数（默认16）')
     args = parser.parse_args()
-    
+
     # 检查输入文件
     if not os.path.exists(args.input):
         logger.error(f"输入文件不存在: {args.input}")
         return
-    
-    # 创建客户端
+
+    # 客户端
     client = QwenServiceClient(f"http://{args.host}:{args.port}")
-    
-    # 创建数据处理器
+
+    # 数据处理器
     processor = TestDataProcessor(client)
-    
+
     # 读取数据
     if args.input.endswith('.txt'):
         lines = processor.read_txt_file(args.input)
@@ -241,31 +228,39 @@ def main():
         items = processor.read_jsonl_file(args.input)
         test_data = processor.process_jsonl_data(items)
     else:
-        logger.error("不支持的文件格式，请使用.txt或.jsonl文件")
-        return
-    
+        items = read_chatGPT(args.input)
+        test_data = []
+        for i, (context, answer, session_id) in enumerate(items):
+            test_data.append({
+                "id": f"txt_{i+1:04d}",
+                "type": "json",
+                "content": context,
+                "messages": [
+                    {"role": "user", "content": context}
+                ]
+            })
+
     if not test_data:
         logger.error("没有读取到有效的测试数据")
         return
-    
-    # 创建结果记录器
+    print(len(test_data))
+
     recorder = ResultRecorder(args.output)
-    
-    logger.info(f"开始处理 {len(test_data)} 条测试数据...")
-    
-    # 处理每条测试数据
-    for i, data in enumerate(test_data, 1):
-        logger.info(f"处理第 {i}/{len(test_data)} 条数据: {data['id']}")
-        
-        # 发送请求
+    total = len(test_data)
+    logger.info(f"开始并发处理 {total} 条测试数据，线程数={args.workers} ...")
+
+    def worker(i: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        # 抖动，平滑突刺
+        if args.delay and args.delay > 0:
+            time.sleep(random.uniform(0, args.delay))
+
         result = client.chat_completion(
             messages=data['messages'],
             max_tokens=args.max_tokens,
             temperature=args.temperature,
             top_p=args.top_p
         )
-        
-        # 构建完整结果记录
+
         record = {
             "timestamp": datetime.now().isoformat(),
             "request_id": data['id'],
@@ -282,33 +277,38 @@ def main():
             "model_response": result,
             "processing_info": {
                 "request_number": i,
-                "total_requests": len(test_data)
+                "total_requests": total
             }
         }
-        
-        # 添加原始数据（如果是JSONL格式）
         if data['type'] == 'jsonl':
             record['original_data'] = data['original_data']
-        
-        recorder.add_result(record)
-        
-        # 打印简要结果
-        if "error" not in result:
-            logger.info(f"  成功 - 生成时间: {result.get('request_time', 0):.2f}s")
-            if 'choices' in result and result['choices']:
-                content = result['choices'][0].get('message', {}).get('content', '')
-                logger.info(f"  回答: {content[:100]}{'...' if len(content) > 100 else ''}")
-        else:
-            logger.error(f"  失败 - {result.get('error', '未知错误')}")
-        
-        # 请求间隔
-        if i < len(test_data):
-            time.sleep(args.delay)
-    
-    # 保存结果
+        return record
+
+    # 并发提交
+    futures = []
+    with ThreadPoolExecutor(max_workers=args.workers) as executor:
+        for i, data in enumerate(test_data, 1):
+            futures.append(executor.submit(worker, i, data))
+
+        # 收集结果
+        for fut in as_completed(futures):
+            record = fut.result()
+            result = record["model_response"]
+            recorder.add_result(record)
+
+            # 简要日志
+            i = record["processing_info"]["request_number"]
+            rid = record["request_id"]
+            if "error" not in result:
+                logger.info(f"[{i}/{total}] {rid} 成功 - 生成时间: {result.get('request_time', 0):.2f}s")
+                if 'choices' in result and result['choices']:
+                    content = result['choices'][0].get('message', {}).get('content', '')
+                    logger.info(f"  回答: {content[:100]}{'...' if len(content) > 100 else ''}")
+            else:
+                logger.error(f"[{i}/{total}] {rid} 失败 - {result.get('error', '未知错误')}")
+
+    # 保存与摘要
     recorder.save_to_jsonl()
-    
-    # 显示摘要
     summary = recorder.get_summary()
     logger.info("=" * 60)
     logger.info("测试完成摘要:")
