@@ -59,12 +59,21 @@ class ExpertTrackingLauncher:
                 logger.error(f"启动脚本不存在: {script_path}")
                 return False
             
+            # 设置环境变量启用expert tracking
+            env = os.environ.copy()
+            env['ENABLE_EXPERT_DISTRIBUTION_METRICS'] = 'true'
+            env['ENABLE_MOE_TRACKING'] = 'true'
+            env['ENABLE_EXPERT_TRACKING'] = 'true'
+            
+            logger.info("设置环境变量启用expert tracking...")
+            
             # 启动服务
             self.sglang_process = subprocess.Popen(
                 ["bash", script_path],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                preexec_fn=os.setsid if hasattr(os, 'setsid') else None
+                preexec_fn=os.setsid if hasattr(os, 'setsid') else None,
+                env=env
             )
             
             # 等待服务启动
@@ -104,6 +113,15 @@ class ExpertTrackingLauncher:
             
             # 初始化全局expert tracker
             self.expert_tracker = init_global_expert_tracker()
+            logger.info("✓ 全局Expert Tracker已初始化")
+            
+            # 尝试通过API启用expert distribution recording
+            try:
+                self.enable_expert_distribution_recording()
+                logger.info("✓ 通过API启用expert distribution recording成功")
+            except Exception as e:
+                logger.warning(f"通过API启用失败: {e}")
+            
             logger.info("✓ Expert Tracking功能已启用")
 
             # 测试记录功能
@@ -116,6 +134,26 @@ class ExpertTrackingLauncher:
         except Exception as e:
             logger.error(f"启用Expert Tracking失败: {e}")
             return False
+    
+    def enable_expert_distribution_recording(self):
+        """通过API启用expert distribution recording"""
+        try:
+            # 等待服务完全启动
+            time.sleep(5)
+            
+            # 发送请求启用expert distribution recording
+            response = requests.post(
+                "http://127.0.0.1:8080/start_expert_distribution_record",
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                logger.info("✓ Expert distribution recording已启动")
+            else:
+                logger.warning(f"启动expert distribution recording失败: {response.status_code}")
+                
+        except Exception as e:
+            logger.warning(f"启用expert distribution recording失败: {e}")
     
     def load_sharegpt_dataset(self) -> List[Dict[str, Any]]:
         """加载ShareGPT数据集"""

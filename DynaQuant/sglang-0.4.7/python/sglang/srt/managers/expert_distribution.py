@@ -66,7 +66,56 @@ class ExpertDistributionRecorder(ABC):
         yield
 
     def on_select_experts(self, topk_ids: torch.Tensor):
-        pass
+        # 调用原有的hook
+        self._on_hook("on_select_experts", topk_ids=topk_ids)
+        
+        # 新增：我们的expert tracking hook
+        try:
+            # 检查是否有全局expert tracker
+            if hasattr(self, '_expert_tracker_hook_enabled'):
+                self._record_expert_activations(topk_ids)
+        except Exception as e:
+            # 静默处理错误，不影响原有功能
+            pass
+    
+    def _record_expert_activations(self, topk_ids: torch.Tensor):
+        """记录expert激活信息"""
+        try:
+            # 获取当前层信息
+            layer_idx = getattr(self._current_layer_idx, 'value', None)
+            if layer_idx is None:
+                return
+            
+            # 获取全局expert tracker
+            from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
+            tracker = get_global_expert_tracker()
+            if tracker is None:
+                return
+            
+            # 统计每个expert的激活情况
+            if topk_ids.numel() > 0:
+                # 获取激活的expert IDs
+                active_experts = topk_ids.flatten().tolist()
+                
+                # 计算激活强度（基于top-k权重）
+                activation_strength = 1.0 / len(active_experts) if active_experts else 1.0
+                
+                # 记录每个激活的expert
+                for expert_id in active_experts:
+                    if expert_id >= 0:  # 过滤无效ID
+                        tracker.record_expert_activation(
+                            layer_id=layer_idx,
+                            expert_id=expert_id,
+                            activation_strength=activation_strength
+                        )
+                        
+        except Exception as e:
+            # 静默处理错误
+            pass
+    
+    def enable_expert_tracking_hook(self):
+        """启用expert tracking hook"""
+        self._expert_tracker_hook_enabled = True
 
     def on_deepep_dispatch_normal(
         self,
@@ -132,6 +181,10 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                 "ExpertDistributionRecorder auto start record since enable_expert_distribution_metrics"
             )
             self.start_record()
+        
+        # 启用我们的expert tracking hook
+        self.enable_expert_tracking_hook()
+        logger.info("✓ Expert tracking hook已启用")
 
     def with_current_layer(self, layer_idx):
         return self._current_layer_idx.with_value(layer_idx)
@@ -163,7 +216,56 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
             self._accumulator.append(forward_pass_id, gatherer_key, single_pass_data)
 
     def on_select_experts(self, topk_ids: torch.Tensor):
+        # 调用原有的hook
         self._on_hook("on_select_experts", topk_ids=topk_ids)
+        
+        # 新增：我们的expert tracking hook
+        try:
+            # 检查是否有全局expert tracker
+            if hasattr(self, '_expert_tracker_hook_enabled'):
+                self._record_expert_activations(topk_ids)
+        except Exception as e:
+            # 静默处理错误，不影响原有功能
+            pass
+    
+    def _record_expert_activations(self, topk_ids: torch.Tensor):
+        """记录expert激活信息"""
+        try:
+            # 获取当前层信息
+            layer_idx = getattr(self._current_layer_idx, 'value', None)
+            if layer_idx is None:
+                return
+            
+            # 获取全局expert tracker
+            from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
+            tracker = get_global_expert_tracker()
+            if tracker is None:
+                return
+            
+            # 统计每个expert的激活情况
+            if topk_ids.numel() > 0:
+                # 获取激活的expert IDs
+                active_experts = topk_ids.flatten().tolist()
+                
+                # 计算激活强度（基于top-k权重）
+                activation_strength = 1.0 / len(active_experts) if active_experts else 1.0
+                
+                # 记录每个激活的expert
+                for expert_id in active_experts:
+                    if expert_id >= 0:  # 过滤无效ID
+                        tracker.record_expert_activation(
+                            layer_id=layer_idx,
+                            expert_id=expert_id,
+                            activation_strength=activation_strength
+                        )
+                        
+        except Exception as e:
+            # 静默处理错误
+            pass
+    
+    def enable_expert_tracking_hook(self):
+        """启用expert tracking hook"""
+        self._expert_tracker_hook_enabled = True
 
     def on_deepep_dispatch_normal(
         self,
