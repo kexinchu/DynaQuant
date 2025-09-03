@@ -1,9 +1,9 @@
 #/bin/sh
 
-CUDA_VISIBLE_DEVICES=0,1,2,3 \
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
 python3 -m sglang.launch_server \
   --model-path /dcar-vepfs-trans-models/Qwen3-235B-A22B-FP8 \
-  --tp-size 4 --dp-size 1 --ep-size 1\
+  --tp-size 4 --dp-size 2 --ep-size 1\
   --enable-ep-moe \
   --max-running-requests 32 \
   --host 127.0.0.1 --port 8080 \

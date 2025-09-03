@@ -40,15 +40,6 @@ class QwenServiceClient:
             'Authorization': f'Bearer {api_key}'
         })
     
-    def health_check(self) -> Dict[str, Any]:
-        """健康检查"""
-        try:
-            response = self.session.get(f"{self.base_url}/health", timeout=10)
-            return response.json()
-        except Exception as e:
-            logger.error(f"健康检查失败: {e}")
-            return {"error": str(e)}
-    
     def chat_completion(self, messages: List[Dict[str, str]], **kwargs) -> Dict[str, Any]:
         """
         发送聊天完成请求
@@ -90,21 +81,6 @@ class QwenServiceClient:
         except Exception as e:
             logger.error(f"请求异常: {e}")
             return {"error": str(e)}
-    
-    def test_connection(self) -> bool:
-        """测试连接"""
-        try:
-            health = self.health_check()
-            if "error" not in health:
-                logger.info("服务连接正常")
-                return True
-            else:
-                logger.error("服务连接失败")
-                return False
-        except Exception as e:
-            logger.error(f"连接测试失败: {e}")
-            return False
-
 
 class TestDataProcessor:
     """测试数据处理器"""
@@ -239,8 +215,8 @@ def main():
     parser.add_argument('--output', '-o', default='test_results.jsonl', help='输出文件路径')
     parser.add_argument('--host', default='127.0.0.1', help='服务主机地址')
     parser.add_argument('--port', default='8080', help='服务端口')
-    parser.add_argument('--max-tokens', type=int, default=512, help='最大生成token数')
-    parser.add_argument('--temperature', type=float, default=0.7, help='生成温度')
+    parser.add_argument('--max-tokens', type=int, default=4096, help='最大生成token数')
+    parser.add_argument('--temperature', type=float, default=0.9, help='生成温度')
     parser.add_argument('--top-p', type=float, default=0.9, help='top-p采样参数')
     parser.add_argument('--delay', type=float, default=1.0, help='请求间隔时间(秒)')
     
@@ -253,11 +229,6 @@ def main():
     
     # 创建客户端
     client = QwenServiceClient(f"http://{args.host}:{args.port}")
-    
-    # 测试连接
-    if not client.test_connection():
-        logger.error("无法连接到模型服务，请确保服务已启动")
-        return
     
     # 创建数据处理器
     processor = TestDataProcessor(client)

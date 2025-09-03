@@ -133,6 +133,7 @@ sglang/srt/layers/elementwise.py
 sglang/srt/layers/layernorm.py
 sglang/srt/layers/linear.py
 sglang/srt/layers/logits_processor.py
+sglang/srt/layers/mixed_precision_epmoe.py
 sglang/srt/layers/mixed_precision_linear.py
 sglang/srt/layers/multimodal.py
 sglang/srt/layers/parameter.py
@@ -627,7 +628,6 @@ sglang/srt/models/mimo.py
 sglang/srt/models/mimo_mtp.py
 sglang/srt/models/minicpm.py
 sglang/srt/models/minicpm3.py
-sglang/srt/models/minicpmo.py
 sglang/srt/models/minicpmv.py
 sglang/srt/models/mistral.py
 sglang/srt/models/mixtral.py
