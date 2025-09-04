@@ -1,0 +1,3074 @@
+{
+  "export_time": 1756942274.2332308,
+  "export_timestamp": "2025-09-03 23:31:14",
+  "summary": {
+    "total_experts": 190,
+    "total_activations": 190,
+    "total_requests": 0,
+    "test_results_count": 0
+  },
+  "hot_cold_analysis": {
+    "layer_0": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_1": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_2": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_3": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_4": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_5": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_6": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_7": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_8": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_9": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_10": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_11": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_12": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_13": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_14": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_15": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_16": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_17": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_18": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_19": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_20": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_21": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_22": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_23": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_24": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_25": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_26": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_27": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_28": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_29": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_30": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_31": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_32": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_33": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_34": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_35": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_36": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_37": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_38": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_39": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_40": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_41": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_42": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_43": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_44": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_45": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_46": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_47": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_48": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_49": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_50": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_51": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_52": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_53": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_54": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_55": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_56": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_57": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_58": {
+      "total_experts": 2,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_59": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 10,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_60": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 2,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        },
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_61": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "6": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_62": {
+      "total_experts": 4,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "7": {
+          "activation_count": 1,
+          "total_tokens": 3,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        },
+        "4": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 1,
+          "total_tokens": 8,
+          "hot_cold_score": 1.0
+        }
+      }
+    },
+    "layer_63": {
+      "total_experts": 3,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "2": {
+          "activation_count": 1,
+          "total_tokens": 4,
+          "hot_cold_score": 1.0
+        },
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        },
+        "5": {
+          "activation_count": 1,
+          "total_tokens": 9,
+          "hot_cold_score": 1.0
+        }
+      }
+    }
+  },
+  "expert_stats": {
+    "layer_0_expert_5": {
+      "layer_id": 0,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2272801,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1524
+    },
+    "layer_0_expert_6": {
+      "layer_id": 0,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2273457,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.2895
+    },
+    "layer_1_expert_4": {
+      "layer_id": 1,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227404,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.7441
+    },
+    "layer_1_expert_2": {
+      "layer_id": 1,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2274144,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.7121
+    },
+    "layer_1_expert_1": {
+      "layer_id": 1,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2274225,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.7706
+    },
+    "layer_2_expert_5": {
+      "layer_id": 2,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227469,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1578
+    },
+    "layer_2_expert_7": {
+      "layer_id": 2,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227477,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.4666
+    },
+    "layer_2_expert_6": {
+      "layer_id": 2,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2274837,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.9971
+    },
+    "layer_2_expert_2": {
+      "layer_id": 2,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.22749,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.5819
+    },
+    "layer_3_expert_5": {
+      "layer_id": 3,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2275336,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5856
+    },
+    "layer_3_expert_7": {
+      "layer_id": 3,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2275412,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1724
+    },
+    "layer_3_expert_2": {
+      "layer_id": 3,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2275484,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.6419
+    },
+    "layer_3_expert_6": {
+      "layer_id": 3,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2275546,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.3148
+    },
+    "layer_4_expert_6": {
+      "layer_id": 4,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227593,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.8954
+    },
+    "layer_4_expert_0": {
+      "layer_id": 4,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2275999,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.1292
+    },
+    "layer_4_expert_2": {
+      "layer_id": 4,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2276065,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.3007
+    },
+    "layer_5_expert_4": {
+      "layer_id": 5,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2276454,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.4102
+    },
+    "layer_5_expert_0": {
+      "layer_id": 5,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2276528,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.7737
+    },
+    "layer_5_expert_7": {
+      "layer_id": 5,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2276597,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.4783
+    },
+    "layer_5_expert_5": {
+      "layer_id": 5,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227667,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.4769
+    },
+    "layer_6_expert_6": {
+      "layer_id": 6,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2277029,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.3335
+    },
+    "layer_6_expert_1": {
+      "layer_id": 6,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.22771,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.1497
+    },
+    "layer_6_expert_5": {
+      "layer_id": 6,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2277164,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.3938
+    },
+    "layer_7_expert_1": {
+      "layer_id": 7,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2277515,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.2907
+    },
+    "layer_7_expert_0": {
+      "layer_id": 7,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2277708,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.6265
+    },
+    "layer_7_expert_3": {
+      "layer_id": 7,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227777,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.2228
+    },
+    "layer_7_expert_5": {
+      "layer_id": 7,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2277832,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.6898
+    },
+    "layer_8_expert_1": {
+      "layer_id": 8,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2278178,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.6581
+    },
+    "layer_8_expert_5": {
+      "layer_id": 8,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2278244,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.6749
+    },
+    "layer_8_expert_2": {
+      "layer_id": 8,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2278304,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.3169
+    },
+    "layer_9_expert_5": {
+      "layer_id": 9,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227865,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.3494
+    },
+    "layer_9_expert_1": {
+      "layer_id": 9,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2278726,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.1056
+    },
+    "layer_9_expert_3": {
+      "layer_id": 9,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.227882,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.8627
+    },
+    "layer_9_expert_6": {
+      "layer_id": 9,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2278888,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.1259
+    },
+    "layer_10_expert_6": {
+      "layer_id": 10,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2279282,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.7742
+    },
+    "layer_10_expert_5": {
+      "layer_id": 10,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2279358,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.1668
+    },
+    "layer_10_expert_2": {
+      "layer_id": 10,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2279422,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.4994
+    },
+    "layer_11_expert_5": {
+      "layer_id": 11,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2279773,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.7021
+    },
+    "layer_11_expert_3": {
+      "layer_id": 11,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2279859,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.7677
+    },
+    "layer_12_expert_4": {
+      "layer_id": 12,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2280245,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.6961
+    },
+    "layer_12_expert_5": {
+      "layer_id": 12,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2280433,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.4521
+    },
+    "layer_12_expert_3": {
+      "layer_id": 12,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2280517,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.9961
+    },
+    "layer_13_expert_6": {
+      "layer_id": 13,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2280905,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.8904
+    },
+    "layer_13_expert_0": {
+      "layer_id": 13,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2280977,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.1532
+    },
+    "layer_13_expert_3": {
+      "layer_id": 13,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281039,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.8643
+    },
+    "layer_14_expert_7": {
+      "layer_id": 14,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281384,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5626
+    },
+    "layer_14_expert_4": {
+      "layer_id": 14,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281458,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.506
+    },
+    "layer_14_expert_1": {
+      "layer_id": 14,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281523,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.8485
+    },
+    "layer_14_expert_3": {
+      "layer_id": 14,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281582,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.295
+    },
+    "layer_15_expert_4": {
+      "layer_id": 15,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281928,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.286
+    },
+    "layer_15_expert_1": {
+      "layer_id": 15,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2281997,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.5677
+    },
+    "layer_16_expert_5": {
+      "layer_id": 16,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2282343,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.1109
+    },
+    "layer_16_expert_6": {
+      "layer_id": 16,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228241,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.2911
+    },
+    "layer_16_expert_4": {
+      "layer_id": 16,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228247,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.6248
+    },
+    "layer_17_expert_0": {
+      "layer_id": 17,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2282794,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.3159
+    },
+    "layer_17_expert_6": {
+      "layer_id": 17,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2282865,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.1722
+    },
+    "layer_18_expert_7": {
+      "layer_id": 18,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2283187,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.3523
+    },
+    "layer_18_expert_1": {
+      "layer_id": 18,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2283387,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.2742
+    },
+    "layer_19_expert_2": {
+      "layer_id": 19,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228376,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.2437
+    },
+    "layer_19_expert_0": {
+      "layer_id": 19,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2283852,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.5378
+    },
+    "layer_20_expert_0": {
+      "layer_id": 20,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2284212,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.2856
+    },
+    "layer_20_expert_6": {
+      "layer_id": 20,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2284281,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.9041
+    },
+    "layer_20_expert_5": {
+      "layer_id": 20,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2284355,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.3536
+    },
+    "layer_21_expert_6": {
+      "layer_id": 21,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2284725,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.2992
+    },
+    "layer_21_expert_4": {
+      "layer_id": 21,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2284813,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.1996
+    },
+    "layer_21_expert_7": {
+      "layer_id": 21,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2284875,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.8812
+    },
+    "layer_22_expert_4": {
+      "layer_id": 22,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228522,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.2551
+    },
+    "layer_22_expert_2": {
+      "layer_id": 22,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2285295,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.9523
+    },
+    "layer_23_expert_5": {
+      "layer_id": 23,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2285628,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.5109
+    },
+    "layer_23_expert_3": {
+      "layer_id": 23,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2285707,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.9593
+    },
+    "layer_24_expert_0": {
+      "layer_id": 24,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286036,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.965
+    },
+    "layer_24_expert_2": {
+      "layer_id": 24,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286108,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.7304
+    },
+    "layer_25_expert_7": {
+      "layer_id": 25,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286444,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.4916
+    },
+    "layer_25_expert_4": {
+      "layer_id": 25,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286515,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.3965
+    },
+    "layer_25_expert_6": {
+      "layer_id": 25,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286594,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.779
+    },
+    "layer_25_expert_1": {
+      "layer_id": 25,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286658,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.2085
+    },
+    "layer_26_expert_1": {
+      "layer_id": 26,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2286997,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.5351
+    },
+    "layer_26_expert_2": {
+      "layer_id": 26,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2287085,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.3835
+    },
+    "layer_26_expert_3": {
+      "layer_id": 26,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2287164,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.3487
+    },
+    "layer_26_expert_5": {
+      "layer_id": 26,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2287223,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.1219
+    },
+    "layer_27_expert_2": {
+      "layer_id": 27,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228755,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.9107
+    },
+    "layer_27_expert_4": {
+      "layer_id": 27,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228762,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.7276
+    },
+    "layer_28_expert_5": {
+      "layer_id": 28,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228794,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.2818
+    },
+    "layer_28_expert_7": {
+      "layer_id": 28,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2288008,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.6767
+    },
+    "layer_29_expert_2": {
+      "layer_id": 29,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2288337,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.6527
+    },
+    "layer_29_expert_4": {
+      "layer_id": 29,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2288418,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.8216
+    },
+    "layer_30_expert_2": {
+      "layer_id": 30,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2288764,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.284
+    },
+    "layer_30_expert_5": {
+      "layer_id": 30,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2288833,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.4195
+    },
+    "layer_30_expert_0": {
+      "layer_id": 30,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.22889,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.5377
+    },
+    "layer_30_expert_1": {
+      "layer_id": 30,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2288957,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.4269
+    },
+    "layer_31_expert_1": {
+      "layer_id": 31,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2289286,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.4189
+    },
+    "layer_31_expert_0": {
+      "layer_id": 31,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2289371,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.6704
+    },
+    "layer_31_expert_3": {
+      "layer_id": 31,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.228943,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5078
+    },
+    "layer_31_expert_7": {
+      "layer_id": 31,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2289507,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.7202
+    },
+    "layer_32_expert_2": {
+      "layer_id": 32,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2289836,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.8036
+    },
+    "layer_32_expert_6": {
+      "layer_id": 32,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2289908,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.4618
+    },
+    "layer_32_expert_0": {
+      "layer_id": 32,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2289968,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.497
+    },
+    "layer_32_expert_7": {
+      "layer_id": 32,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229003,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.894
+    },
+    "layer_33_expert_0": {
+      "layer_id": 33,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2290444,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.7028
+    },
+    "layer_33_expert_3": {
+      "layer_id": 33,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2290535,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.828
+    },
+    "layer_33_expert_2": {
+      "layer_id": 33,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2290597,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.3226
+    },
+    "layer_34_expert_1": {
+      "layer_id": 34,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229134,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.7987
+    },
+    "layer_34_expert_3": {
+      "layer_id": 34,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2291427,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.5924
+    },
+    "layer_34_expert_7": {
+      "layer_id": 34,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2291496,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.2539
+    },
+    "layer_34_expert_0": {
+      "layer_id": 34,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2291589,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.9019
+    },
+    "layer_35_expert_2": {
+      "layer_id": 35,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2291965,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1065
+    },
+    "layer_35_expert_7": {
+      "layer_id": 35,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292047,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.5848
+    },
+    "layer_35_expert_1": {
+      "layer_id": 35,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292109,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.8356
+    },
+    "layer_35_expert_5": {
+      "layer_id": 35,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292187,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.781
+    },
+    "layer_36_expert_3": {
+      "layer_id": 36,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292557,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.1579
+    },
+    "layer_36_expert_1": {
+      "layer_id": 36,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292655,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5207
+    },
+    "layer_36_expert_4": {
+      "layer_id": 36,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292724,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.1633
+    },
+    "layer_36_expert_5": {
+      "layer_id": 36,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2292805,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.984
+    },
+    "layer_37_expert_2": {
+      "layer_id": 37,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229317,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.4092
+    },
+    "layer_37_expert_4": {
+      "layer_id": 37,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2293339,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.9114
+    },
+    "layer_37_expert_3": {
+      "layer_id": 37,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229341,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.9758
+    },
+    "layer_38_expert_1": {
+      "layer_id": 38,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2293801,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.7067
+    },
+    "layer_38_expert_3": {
+      "layer_id": 38,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229389,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.5361
+    },
+    "layer_39_expert_3": {
+      "layer_id": 39,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2294245,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.3198
+    },
+    "layer_39_expert_7": {
+      "layer_id": 39,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2294316,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.2425
+    },
+    "layer_39_expert_4": {
+      "layer_id": 39,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2294376,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.6969
+    },
+    "layer_39_expert_2": {
+      "layer_id": 39,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2294436,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.357
+    },
+    "layer_40_expert_5": {
+      "layer_id": 40,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2294793,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.3797
+    },
+    "layer_40_expert_4": {
+      "layer_id": 40,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229487,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.8936
+    },
+    "layer_41_expert_7": {
+      "layer_id": 41,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2295208,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5152
+    },
+    "layer_41_expert_6": {
+      "layer_id": 41,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2295277,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5996
+    },
+    "layer_42_expert_7": {
+      "layer_id": 42,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2295597,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.6779
+    },
+    "layer_42_expert_6": {
+      "layer_id": 42,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2295666,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.6896
+    },
+    "layer_43_expert_6": {
+      "layer_id": 43,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2295995,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.9412
+    },
+    "layer_43_expert_0": {
+      "layer_id": 43,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2296066,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.454
+    },
+    "layer_44_expert_1": {
+      "layer_id": 44,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2296414,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.4317
+    },
+    "layer_44_expert_7": {
+      "layer_id": 44,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2296488,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.9687
+    },
+    "layer_44_expert_2": {
+      "layer_id": 44,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229657,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.3165
+    },
+    "layer_44_expert_0": {
+      "layer_id": 44,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229663,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.7987
+    },
+    "layer_45_expert_6": {
+      "layer_id": 45,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2296963,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.6763
+    },
+    "layer_45_expert_3": {
+      "layer_id": 45,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229703,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.5193
+    },
+    "layer_45_expert_1": {
+      "layer_id": 45,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2297103,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.2452
+    },
+    "layer_46_expert_0": {
+      "layer_id": 46,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229745,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.819
+    },
+    "layer_46_expert_1": {
+      "layer_id": 46,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2297528,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.9706
+    },
+    "layer_47_expert_2": {
+      "layer_id": 47,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229786,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.6125
+    },
+    "layer_47_expert_7": {
+      "layer_id": 47,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2297933,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.886
+    },
+    "layer_47_expert_1": {
+      "layer_id": 47,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2297995,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.5814
+    },
+    "layer_48_expert_6": {
+      "layer_id": 48,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2298317,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.4745
+    },
+    "layer_48_expert_0": {
+      "layer_id": 48,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2298388,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.9488
+    },
+    "layer_49_expert_3": {
+      "layer_id": 49,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2298732,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.3672
+    },
+    "layer_49_expert_4": {
+      "layer_id": 49,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.22988,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.2526
+    },
+    "layer_50_expert_6": {
+      "layer_id": 50,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.229912,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.2722
+    },
+    "layer_50_expert_0": {
+      "layer_id": 50,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2299192,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.9599
+    },
+    "layer_50_expert_2": {
+      "layer_id": 50,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2299254,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.9162
+    },
+    "layer_51_expert_5": {
+      "layer_id": 51,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2299573,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.9792
+    },
+    "layer_51_expert_3": {
+      "layer_id": 51,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2299643,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.7611
+    },
+    "layer_51_expert_1": {
+      "layer_id": 51,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2299721,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.6504
+    },
+    "layer_52_expert_2": {
+      "layer_id": 52,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2300043,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.4339
+    },
+    "layer_52_expert_5": {
+      "layer_id": 52,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2300112,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.6911
+    },
+    "layer_52_expert_3": {
+      "layer_id": 52,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2300203,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.1751
+    },
+    "layer_53_expert_2": {
+      "layer_id": 53,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2300646,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.4135
+    },
+    "layer_53_expert_3": {
+      "layer_id": 53,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2300737,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.1072
+    },
+    "layer_54_expert_5": {
+      "layer_id": 54,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2301097,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.8864
+    },
+    "layer_54_expert_7": {
+      "layer_id": 54,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2301178,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.3279
+    },
+    "layer_55_expert_1": {
+      "layer_id": 55,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2301528,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.4653
+    },
+    "layer_55_expert_7": {
+      "layer_id": 55,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2301598,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.1298
+    },
+    "layer_55_expert_5": {
+      "layer_id": 55,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2301683,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.2645
+    },
+    "layer_55_expert_6": {
+      "layer_id": 55,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2301757,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.3425
+    },
+    "layer_56_expert_6": {
+      "layer_id": 56,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302096,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.3611
+    },
+    "layer_56_expert_7": {
+      "layer_id": 56,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302167,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.5053
+    },
+    "layer_56_expert_4": {
+      "layer_id": 56,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302232,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.8294
+    },
+    "layer_57_expert_7": {
+      "layer_id": 57,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302587,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5094
+    },
+    "layer_57_expert_3": {
+      "layer_id": 57,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302659,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.6634
+    },
+    "layer_57_expert_1": {
+      "layer_id": 57,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302723,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.2681
+    },
+    "layer_57_expert_6": {
+      "layer_id": 57,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2302783,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.1455
+    },
+    "layer_58_expert_5": {
+      "layer_id": 58,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2303147,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.9053
+    },
+    "layer_58_expert_2": {
+      "layer_id": 58,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2303312,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.6011
+    },
+    "layer_59_expert_4": {
+      "layer_id": 59,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2303722,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.7869
+    },
+    "layer_59_expert_5": {
+      "layer_id": 59,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2303789,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.4953
+    },
+    "layer_59_expert_3": {
+      "layer_id": 59,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2303848,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.1017
+    },
+    "layer_59_expert_1": {
+      "layer_id": 59,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2303908,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.1105
+    },
+    "layer_60_expert_5": {
+      "layer_id": 60,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.230425,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.7429
+    },
+    "layer_60_expert_2": {
+      "layer_id": 60,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.230432,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.8307
+    },
+    "layer_60_expert_1": {
+      "layer_id": 60,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2304397,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.5322
+    },
+    "layer_60_expert_7": {
+      "layer_id": 60,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2304459,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.4181
+    },
+    "layer_61_expert_0": {
+      "layer_id": 61,
+      "expert_id": 0,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2304819,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.2706
+    },
+    "layer_61_expert_1": {
+      "layer_id": 61,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2304893,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.9637
+    },
+    "layer_61_expert_6": {
+      "layer_id": 61,
+      "expert_id": 6,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2304955,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.8423
+    },
+    "layer_62_expert_7": {
+      "layer_id": 62,
+      "expert_id": 7,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305305,
+      "total_tokens_processed": 3,
+      "hot_cold_score": 0.9381
+    },
+    "layer_62_expert_5": {
+      "layer_id": 62,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305374,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.5106
+    },
+    "layer_62_expert_4": {
+      "layer_id": 62,
+      "expert_id": 4,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305439,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.7686
+    },
+    "layer_62_expert_3": {
+      "layer_id": 62,
+      "expert_id": 3,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305512,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.721
+    },
+    "layer_63_expert_2": {
+      "layer_id": 63,
+      "expert_id": 2,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305832,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.8366
+    },
+    "layer_63_expert_1": {
+      "layer_id": 63,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305899,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.5117
+    },
+    "layer_63_expert_5": {
+      "layer_id": 63,
+      "expert_id": 5,
+      "activation_count": 1,
+      "last_activation_time": 1756942274.2305958,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.4264
+    }
+  },
+  "top_experts": [
+    {
+      "layer_id": 0,
+      "expert_id": 5,
+      "activation_count": 1,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1524
+    },
+    {
+      "layer_id": 0,
+      "expert_id": 6,
+      "activation_count": 1,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.2895
+    },
+    {
+      "layer_id": 1,
+      "expert_id": 4,
+      "activation_count": 1,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.7441
+    },
+    {
+      "layer_id": 1,
+      "expert_id": 2,
+      "activation_count": 1,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.7121
+    },
+    {
+      "layer_id": 1,
+      "expert_id": 1,
+      "activation_count": 1,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.7706
+    },
+    {
+      "layer_id": 2,
+      "expert_id": 5,
+      "activation_count": 1,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1578
+    },
+    {
+      "layer_id": 2,
+      "expert_id": 7,
+      "activation_count": 1,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.4666
+    },
+    {
+      "layer_id": 2,
+      "expert_id": 6,
+      "activation_count": 1,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.9971
+    },
+    {
+      "layer_id": 2,
+      "expert_id": 2,
+      "activation_count": 1,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.5819
+    },
+    {
+      "layer_id": 3,
+      "expert_id": 5,
+      "activation_count": 1,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.5856
+    },
+    {
+      "layer_id": 3,
+      "expert_id": 7,
+      "activation_count": 1,
+      "total_tokens_processed": 8,
+      "hot_cold_score": 0.1724
+    },
+    {
+      "layer_id": 3,
+      "expert_id": 2,
+      "activation_count": 1,
+      "total_tokens_processed": 10,
+      "hot_cold_score": 0.6419
+    },
+    {
+      "layer_id": 3,
+      "expert_id": 6,
+      "activation_count": 1,
+      "total_tokens_processed": 9,
+      "hot_cold_score": 0.3148
+    },
+    {
+      "layer_id": 4,
+      "expert_id": 6,
+      "activation_count": 1,
+      "total_tokens_processed": 2,
+      "hot_cold_score": 0.8954
+    },
+    {
+      "layer_id": 4,
+      "expert_id": 0,
+      "activation_count": 1,
+      "total_tokens_processed": 6,
+      "hot_cold_score": 0.1292
+    },
+    {
+      "layer_id": 4,
+      "expert_id": 2,
+      "activation_count": 1,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 0.3007
+    },
+    {
+      "layer_id": 5,
+      "expert_id": 4,
+      "activation_count": 1,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.4102
+    },
+    {
+      "layer_id": 5,
+      "expert_id": 0,
+      "activation_count": 1,
+      "total_tokens_processed": 7,
+      "hot_cold_score": 0.7737
+    },
+    {
+      "layer_id": 5,
+      "expert_id": 7,
+      "activation_count": 1,
+      "total_tokens_processed": 4,
+      "hot_cold_score": 0.4783
+    },
+    {
+      "layer_id": 5,
+      "expert_id": 5,
+      "activation_count": 1,
+      "total_tokens_processed": 5,
+      "hot_cold_score": 0.4769
+    }
+  ]
+}

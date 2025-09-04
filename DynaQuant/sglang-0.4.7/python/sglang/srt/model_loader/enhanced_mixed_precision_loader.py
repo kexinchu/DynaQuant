@@ -103,6 +103,10 @@ class ExpertActivationTracker:
         self.request_history: deque = deque(maxlen=max_history)
         self.lock = threading.RLock()
         
+        # 多进程支持
+        self.process_id = os.getpid()
+        self.rank = 0  # 默认rank，在多进程环境下会被正确设置
+        
     def record_expert_activation(self, layer_id: int, expert_id: int, 
                                tokens_processed: int = 1, request_id: str = None, 
                                activation_strength: float = 1.0):
@@ -272,6 +276,8 @@ class ExpertActivationTracker:
         with self.lock:
             report = {
                 'export_time': time.time(),
+                'process_id': self.process_id,
+                'rank': self.rank,
                 'summary': {
                     'total_experts': len(self.expert_stats),
                     'total_activations': len(self.activation_history)
@@ -285,6 +291,91 @@ class ExpertActivationTracker:
                 json.dump(report, f, indent=2, ensure_ascii=False)
             
             logger.info(f"Hot-cold report exported to {file_path}")
+    
+    def get_expert_stats_by_layer(self) -> Dict[str, Dict[str, Any]]:
+        """获取按层分组的专家统计数据，计算正确的hot_cold_score"""
+        with self.lock:
+            # 按层分组
+            layer_experts = {}
+            for key, expert_stat in self.expert_stats.items():
+                layer_id, expert_id = key
+                if layer_id not in layer_experts:
+                    layer_experts[layer_id] = []
+                layer_experts[layer_id].append({
+                    'expert_id': expert_id,
+                    'activation_count': expert_stat.activation_count,
+                    'total_tokens': expert_stat.total_tokens_processed,
+                    'last_activation_time': expert_stat.last_activation_time
+                })
+            
+            # 计算每层的hot_cold_score
+            result = {}
+            for layer_id, experts in layer_experts.items():
+                if not experts:
+                    continue
+                
+                # 找到该层激活次数最多的expert
+                max_activation_count = max(expert['activation_count'] for expert in experts)
+                
+                layer_data = {
+                    'total_experts': len(experts),
+                    'max_activations': max_activation_count,
+                    'min_activations': min(expert['activation_count'] for expert in experts),
+                    'experts': {}
+                }
+                
+                for expert in experts:
+                    # 计算hot_cold_score: activation_count / max_activation_count
+                    if max_activation_count == 0:
+                        hot_cold_score = 0.0
+                    else:
+                        hot_cold_score = expert['activation_count'] / max_activation_count
+                    
+                    layer_data['experts'][str(expert['expert_id'])] = {
+                        'activation_count': expert['activation_count'],
+                        'total_tokens': expert['total_tokens'],
+                        'hot_cold_score': round(hot_cold_score, 4)
+                    }
+                
+                result[f'layer_{layer_id}'] = layer_data
+            
+            return result
+    
+    def aggregate_from_other_processes(self, other_trackers: List['ExpertActivationTracker']):
+        """从其他进程聚合统计数据"""
+        with self.lock:
+            for other_tracker in other_trackers:
+                with other_tracker.lock:
+                    # 聚合expert统计
+                    for key, other_info in other_tracker.expert_stats.items():
+                        if key in self.expert_stats:
+                            # 合并统计信息
+                            self.expert_stats[key].activation_count += other_info.activation_count
+                            self.expert_stats[key].total_tokens_processed += other_info.total_tokens_processed
+                            # 更新最后激活时间
+                            if other_info.last_activation_time > self.expert_stats[key].last_activation_time:
+                                self.expert_stats[key].last_activation_time = other_info.last_activation_time
+                            # 合并激活历史
+                            self.expert_stats[key].activation_history.extend(other_info.activation_history)
+                        else:
+                            # 创建新的统计信息
+                            self.expert_stats[key] = ExpertActivationInfo(
+                                layer_id=other_info.layer_id,
+                                expert_id=other_info.expert_id,
+                                activation_count=other_info.activation_count,
+                                total_tokens_processed=other_info.total_tokens_processed,
+                                last_activation_time=other_info.last_activation_time,
+                                hot_cold_score=other_info.hot_cold_score
+                            )
+                            self.expert_stats[key].activation_history = other_info.activation_history.copy()
+                    
+                    # 聚合激活历史
+                    self.activation_history.extend(other_tracker.activation_history)
+                    
+                    # 聚合请求历史
+                    self.request_history.extend(other_tracker.request_history)
+            
+            logger.info(f"聚合完成，当前统计: {len(self.expert_stats)} 个expert")
 
 
 class GPTQDequantizer:

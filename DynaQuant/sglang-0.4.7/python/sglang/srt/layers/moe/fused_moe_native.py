@@ -34,6 +34,12 @@ def fused_moe_forward_native(
     if apply_router_weight_on_input:
         raise NotImplementedError()
 
+    # 添加层索引信息以支持expert tracking
+    from sglang.srt.managers.expert_location_dispatch import ExpertLocationDispatchInfo
+    expert_location_dispatch_info = ExpertLocationDispatchInfo.init_new(
+        layer_id=getattr(layer, 'layer_id', 0)
+    )
+    
     topk_weights, topk_ids = select_experts(
         hidden_states=x,
         router_logits=router_logits,
@@ -47,6 +53,7 @@ def fused_moe_forward_native(
         correction_bias=correction_bias,
         routed_scaling_factor=routed_scaling_factor,
         torch_native=True,
+        expert_location_dispatch_info=expert_location_dispatch_info,
     )
 
     w13_weights = layer.w13_weight[topk_ids]
@@ -79,6 +86,12 @@ def moe_forward_native(
     activation: str = "silu",
     routed_scaling_factor: Optional[float] = None,
 ) -> torch.Tensor:
+    # 添加层索引信息以支持expert tracking
+    from sglang.srt.managers.expert_location_dispatch import ExpertLocationDispatchInfo
+    expert_location_dispatch_info = ExpertLocationDispatchInfo.init_new(
+        layer_id=getattr(layer, 'layer_id', 0)
+    )
+    
     topk_weights, topk_ids = select_experts(
         hidden_states=x,
         router_logits=router_logits,
@@ -92,6 +105,7 @@ def moe_forward_native(
         correction_bias=correction_bias,
         torch_native=True,
         routed_scaling_factor=routed_scaling_factor,
+        expert_location_dispatch_info=expert_location_dispatch_info,
     )
 
     # Ref code from https://huggingface.co/deepseek-ai/DeepSeek-V2/blob/e0828e3cc0a03408724b80c3cc92c8e072db8d01/modeling_deepseek.py#L589

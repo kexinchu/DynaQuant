@@ -67,6 +67,7 @@ class EnhancedExpertTracker:
     def __init__(self, max_history: int = 10000, decay_factor: float = 0.95):
         self.expert_stats: Dict[Tuple[int, int], ExpertHotColdStats] = {}
         self.activation_history: deque = deque(maxlen=max_history)
+        self.request_history: deque = deque(maxlen=max_history)
         self.lock = threading.RLock()
         self.decay_factor = decay_factor
     
@@ -94,6 +95,102 @@ class EnhancedExpertTracker:
             stats.activation_history.append(record)
             self.activation_history.append(record)
             stats.update_score(self.decay_factor)
+    
+    def record_request(self, request_data: Dict[str, Any]):
+        """记录请求"""
+        with self.lock:
+            self.request_history.append({
+                'timestamp': time.time(),
+                'data': request_data
+            })
+    
+    def get_expert_stats(self) -> Dict[str, Dict[str, Any]]:
+        """获取专家统计数据，返回格式化的字典"""
+        with self.lock:
+            stats = {}
+            for key, expert_stat in self.expert_stats.items():
+                layer_id, expert_id = key
+                stats[f"layer_{layer_id}_expert_{expert_id}"] = {
+                    'layer_id': layer_id,
+                    'expert_id': expert_id,
+                    'activation_count': expert_stat.total_activations,
+                    'total_tokens_processed': expert_stat.total_tokens,
+                    'hot_cold_score': round(expert_stat.hot_cold_score, 4),
+                    'last_activation_time': expert_stat.last_activation_time
+                }
+            return stats
+    
+    def get_expert_stats_by_layer(self) -> Dict[str, Dict[str, Any]]:
+        """获取按层分组的专家统计数据，计算正确的hot_cold_score"""
+        with self.lock:
+            # 按层分组
+            layer_experts = {}
+            for key, expert_stat in self.expert_stats.items():
+                layer_id, expert_id = key
+                if layer_id not in layer_experts:
+                    layer_experts[layer_id] = []
+                layer_experts[layer_id].append({
+                    'expert_id': expert_id,
+                    'activation_count': expert_stat.total_activations,
+                    'total_tokens': expert_stat.total_tokens,
+                    'last_activation_time': expert_stat.last_activation_time
+                })
+            
+            # 计算每层的hot_cold_score
+            result = {}
+            for layer_id, experts in layer_experts.items():
+                if not experts:
+                    continue
+                
+                # 找到该层激活次数最多的expert
+                max_activation_count = max(expert['activation_count'] for expert in experts)
+                
+                layer_data = {
+                    'experts': {}
+                }
+                
+                for expert in experts:
+                    # 计算hot_cold_score: activation_count / max_activation_count
+                    if max_activation_count == 0:
+                        hot_cold_score = 0.0
+                    else:
+                        hot_cold_score = expert['activation_count'] / max_activation_count
+                    
+                    layer_data['experts'][str(expert['expert_id'])] = {
+                        'activation_count': expert['activation_count'],
+                        'total_tokens': expert['total_tokens'],
+                        'hot_cold_score': round(hot_cold_score, 4)
+                    }
+                
+                result[f'layer_{layer_id}'] = layer_data
+            
+            return result
+    
+    def get_top_experts(self, top_n: int = 20) -> List[Dict[str, Any]]:
+        """获取激活次数最多的前N个专家"""
+        with self.lock:
+            if not self.expert_stats:
+                return []
+            
+            # 按激活次数排序
+            sorted_experts = sorted(
+                self.expert_stats.items(),
+                key=lambda x: x[1].total_activations,
+                reverse=True
+            )
+            
+            top_experts = []
+            for key, stats in sorted_experts[:top_n]:
+                layer_id, expert_id = key
+                top_experts.append({
+                    'layer_id': layer_id,
+                    'expert_id': expert_id,
+                    'activation_count': stats.total_activations,
+                    'total_tokens': stats.total_tokens,
+                    'hot_cold_score': round(stats.hot_cold_score, 4)
+                })
+            
+            return top_experts
     
     def get_expert_hot_cold_scores(self) -> Dict[str, Dict]:
         """获取专家hot-cold分数"""

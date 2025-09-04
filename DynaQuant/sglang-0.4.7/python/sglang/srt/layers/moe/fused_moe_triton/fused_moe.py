@@ -1794,6 +1794,12 @@ def fused_moe(
     # Check constraints.
     assert gating_output.shape[1] == w1.shape[0], "Number of experts mismatch"
 
+    # 添加层索引信息以支持expert tracking
+    from sglang.srt.managers.expert_location_dispatch import ExpertLocationDispatchInfo
+    expert_location_dispatch_info = ExpertLocationDispatchInfo.init_new(
+        layer_id=0  # 在fused_moe函数中，我们无法直接获取layer_id，使用默认值0
+    )
+    
     topk_weights, topk_ids = select_experts(
         hidden_states=hidden_states,
         router_logits=gating_output,
@@ -1805,6 +1811,7 @@ def fused_moe(
         num_fused_shared_experts=num_fused_shared_experts,
         custom_routing_function=custom_routing_function,
         routed_scaling_factor=routed_scaling_factor,
+        expert_location_dispatch_info=expert_location_dispatch_info,
     )
 
     return fused_experts(

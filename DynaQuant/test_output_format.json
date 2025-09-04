@@ -1,0 +1,106 @@
+{
+  "hot_cold_analysis": {
+    "layer_0": {
+      "total_experts": 5,
+      "max_activations": 6,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 6,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "2": {
+          "activation_count": 6,
+          "total_tokens": 6,
+          "hot_cold_score": 1.0
+        },
+        "3": {
+          "activation_count": 5,
+          "total_tokens": 5,
+          "hot_cold_score": 0.8333
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 0.1667
+        },
+        "4": {
+          "activation_count": 5,
+          "total_tokens": 5,
+          "hot_cold_score": 0.8333
+        }
+      }
+    },
+    "layer_1": {
+      "total_experts": 5,
+      "max_activations": 7,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 4,
+          "total_tokens": 4,
+          "hot_cold_score": 0.5714
+        },
+        "3": {
+          "activation_count": 6,
+          "total_tokens": 6,
+          "hot_cold_score": 0.8571
+        },
+        "2": {
+          "activation_count": 7,
+          "total_tokens": 7,
+          "hot_cold_score": 1.0
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 0.1429
+        },
+        "4": {
+          "activation_count": 5,
+          "total_tokens": 5,
+          "hot_cold_score": 0.7143
+        }
+      }
+    },
+    "layer_2": {
+      "total_experts": 5,
+      "max_activations": 5,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 3,
+          "total_tokens": 3,
+          "hot_cold_score": 0.6
+        },
+        "0": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 0.2
+        },
+        "2": {
+          "activation_count": 3,
+          "total_tokens": 3,
+          "hot_cold_score": 0.6
+        },
+        "3": {
+          "activation_count": 4,
+          "total_tokens": 4,
+          "hot_cold_score": 0.8
+        },
+        "4": {
+          "activation_count": 5,
+          "total_tokens": 5,
+          "hot_cold_score": 1.0
+        }
+      }
+    }
+  },
+  "export_time": 1756949611.9010472,
+  "summary": {
+    "total_experts": 15,
+    "total_activations": 62,
+    "total_requests": 0
+  }
+}

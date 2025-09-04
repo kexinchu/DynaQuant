@@ -14,6 +14,7 @@ import threading
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from collections import defaultdict
 import requests
 
 # 添加SGLang路径
@@ -64,8 +65,13 @@ class ExpertTrackingLauncher:
             env['ENABLE_EXPERT_DISTRIBUTION_METRICS'] = 'true'
             env['ENABLE_MOE_TRACKING'] = 'true'
             env['ENABLE_EXPERT_TRACKING'] = 'true'
+            env['EXPERT_DISTRIBUTION_RECORDER_MODE'] = 'per_token'
+            # 添加命令行参数来确保expert distribution recorder被启用
+            env['SGLANG_EXPERT_DISTRIBUTION_RECORDER_MODE'] = 'per_token'
             
             logger.info("设置环境变量启用expert tracking...")
+            logger.info(f"ENABLE_EXPERT_DISTRIBUTION_METRICS: {env['ENABLE_EXPERT_DISTRIBUTION_METRICS']}")
+            logger.info(f"EXPERT_DISTRIBUTION_RECORDER_MODE: {env['EXPERT_DISTRIBUTION_RECORDER_MODE']}")
             
             # 启动服务
             self.sglang_process = subprocess.Popen(
@@ -108,12 +114,25 @@ class ExpertTrackingLauncher:
             logger.info("启用Expert Tracking功能...")
             
             from sglang.srt.model_loader.enhanced_mixed_precision_loader import (
-                init_global_expert_tracker
+                init_global_expert_tracker, get_global_expert_tracker
             )
             
             # 初始化全局expert tracker
             self.expert_tracker = init_global_expert_tracker()
             logger.info("✓ 全局Expert Tracker已初始化")
+            
+            # 确保全局expert tracker被正确设置
+            global_tracker = get_global_expert_tracker()
+            if global_tracker is None:
+                logger.warning("全局expert tracker未正确设置，重新初始化...")
+                self.expert_tracker = init_global_expert_tracker()
+                global_tracker = get_global_expert_tracker()
+            
+            if global_tracker is not None:
+                logger.info("✓ 全局Expert Tracker已正确设置")
+            else:
+                logger.error("✗ 全局Expert Tracker设置失败")
+                return False
             
             # 尝试通过API启用expert distribution recording
             try:
@@ -129,10 +148,31 @@ class ExpertTrackingLauncher:
             test_stats = self.expert_tracker.get_expert_stats()
             logger.info(f"✓ 测试记录成功，当前统计: {len(test_stats)} 条")
             
+            # 调用调试函数
+            from sglang.srt.managers.expert_distribution import debug_expert_tracking
+            debug_expert_tracking()
+            
+            # 检查MoE实现配置
+            from sglang.srt.managers.schedule_batch import global_server_args_dict
+            from sglang.srt.layers.moe.ep_moe.layer import get_moe_impl_class
+            
+            logger.info(f"🔍 [DEBUG] MoE配置:")
+            logger.info(f"  enable_deepep_moe: {global_server_args_dict.get('enable_deepep_moe', False)}")
+            logger.info(f"  enable_ep_moe: {global_server_args_dict.get('enable_ep_moe', False)}")
+            logger.info(f"  MoE实现类: {get_moe_impl_class()}")
+            
+            # 检查expert distribution recorder配置
+            from sglang.srt.managers.expert_distribution import get_global_expert_distribution_recorder
+            recorder = get_global_expert_distribution_recorder()
+            logger.info(f"🔍 [DEBUG] Expert distribution recorder: {recorder}")
+            logger.info(f"🔍 [DEBUG] Recorder type: {type(recorder)}")
+            
             return True
             
         except Exception as e:
             logger.error(f"启用Expert Tracking失败: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def enable_expert_distribution_recording(self):
@@ -244,7 +284,7 @@ class ExpertTrackingLauncher:
             logger.info("开始使用ShareGPT数据集测试模型（16线程并行）...")
             
             # 选择更多数据进行测试（多线程可以处理更多数据）
-            test_data = dataset[:min(100, len(dataset))]  # 最多max_workers条
+            test_data = dataset[:min(24, len(dataset))]  # 最多max_workers条
             
             # 创建线程池
             from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -441,71 +481,43 @@ class ExpertTrackingLauncher:
         """计算hot-cold分数（基于激活次数）"""
         try:
             if not self.expert_tracker:
+                logger.warning("Expert tracker未初始化")
                 return {}
             
             logger.info("计算expert hot-cold分数...")
             
-            # 获取所有expert的激活次数
-            expert_stats = self.expert_tracker.get_expert_stats()
+            # 使用新的按层分组方法
+            hot_cold_analysis = self.expert_tracker.get_expert_stats_by_layer()
             
-            if not expert_stats:
+            if not hot_cold_analysis:
                 logger.warning("没有expert统计数据")
                 return {}
             
-            # 按层分组统计
-            layer_experts = {}
-            for key, info in expert_stats.items():
-                layer_id = info['layer_id']
-                if layer_id not in layer_experts:
-                    layer_experts[layer_id] = []
-                layer_experts[layer_id].append({
-                    'expert_id': info['expert_id'],
-                    'activation_count': info['activation_count'],
-                    'total_tokens': info['total_tokens_processed']
-                })
+            # 验证统计数据的完整性
+            total_experts = 0
+            total_activations = 0
+            for layer_key, layer_data in hot_cold_analysis.items():
+                layer_experts = layer_data.get('experts', {})
+                total_experts += len(layer_experts)
+                for expert_id, expert_data in layer_experts.items():
+                    total_activations += expert_data.get('activation_count', 0)
             
-            # 计算每层的hot-cold分数
-            hot_cold_analysis = {}
-            for layer_id, experts in layer_experts.items():
-                if not experts:
-                    continue
-                
-                # 按激活次数排序
-                experts.sort(key=lambda x: x['activation_count'], reverse=True)
-                
-                # 计算分数
-                max_count = experts[0]['activation_count']
-                min_count = experts[-1]['activation_count']
-                
-                layer_analysis = {
-                    'layer_id': layer_id,
-                    'total_experts': len(experts),
-                    'max_activations': max_count,
-                    'min_activations': min_count,
-                    'experts': {}
-                }
-                
-                for expert in experts:
-                    if max_count == min_count:
-                        # 如果所有expert激活次数相同
-                        hot_cold_score = 1.0
-                    else:
-                        # 线性插值计算分数
-                        hot_cold_score = (expert['activation_count'] - min_count) / (max_count - min_count)
-                    
-                    layer_analysis['experts'][expert['expert_id']] = {
-                        'activation_count': expert['activation_count'],
-                        'total_tokens': expert['total_tokens'],
-                        'hot_cold_score': round(hot_cold_score, 4)
-                    }
-                
-                hot_cold_analysis[f'layer_{layer_id}'] = layer_analysis
+            logger.info(f"✓ 计算完成，共 {len(hot_cold_analysis)} 层，{total_experts} 个expert，{total_activations} 次激活")
             
-            logger.info(f"✓ 计算完成，共 {len(hot_cold_analysis)} 层")
+            # 显示每层的统计摘要
+            for layer_key, layer_data in hot_cold_analysis.items():
+                experts = layer_data.get('experts', {})
+                if experts:
+                    max_activations = layer_data.get('max_activations', 0)
+                    min_activations = layer_data.get('min_activations', 0)
+                    logger.info(f"  {layer_key}: {len(experts)} experts, 激活范围: {min_activations}-{max_activations}")
+            
             return hot_cold_analysis
             
         except Exception as e:
             logger.error(f"计算hot-cold分数失败: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
     
     def export_expert_analysis(self):
@@ -524,6 +536,11 @@ class ExpertTrackingLauncher:
             expert_stats = self.expert_tracker.get_expert_stats()
             top_experts = self.expert_tracker.get_top_experts(20)
             
+            # 确保所有expert都被正确统计
+            logger.info(f"当前统计的expert数量: {len(expert_stats)}")
+            for key, stats in list(expert_stats.items())[:5]:  # 显示前5个
+                logger.info(f"  {key}: layer={stats['layer_id']}, expert={stats['expert_id']}, activations={stats['activation_count']}")
+            
             # 构建完整报告
             report = {
                 'export_time': time.time(),
@@ -532,7 +549,7 @@ class ExpertTrackingLauncher:
                     'total_experts': len(expert_stats),
                     'total_activations': len(self.expert_tracker.activation_history),
                     'total_requests': len(self.expert_tracker.request_history),
-                    # 'test_results': self.test_results
+                    'test_results_count': len(self.test_results) if hasattr(self, 'test_results') else 0
                 },
                 'hot_cold_analysis': hot_cold_analysis,
                 'expert_stats': expert_stats,
@@ -551,6 +568,8 @@ class ExpertTrackingLauncher:
             
         except Exception as e:
             logger.error(f"导出expert分析失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def display_analysis_summary(self, report: Dict[str, Any]):
         """显示分析摘要"""
@@ -563,27 +582,31 @@ class ExpertTrackingLauncher:
             print(f"总Expert数: {summary['total_experts']}")
             print(f"总激活次数: {summary['total_activations']}")
             print(f"总请求数: {summary['total_requests']}")
-            print(f"测试数据数: {len(summary['test_results'])}")
+            print(f"测试数据数: {summary['test_results_count']}")
             
             hot_cold_analysis = report['hot_cold_analysis']
             if hot_cold_analysis:
                 print(f"\n层数: {len(hot_cold_analysis)}")
                 
-                for layer_key, layer_info in list(hot_cold_analysis.items())[:3]:  # 显示前3层
+                for layer_key, layer_info in hot_cold_analysis.items():  # 显示所有层
                     print(f"\n{layer_key}:")
                     print(f"  Expert数: {layer_info['total_experts']}")
                     print(f"  最大激活: {layer_info['max_activations']}")
                     print(f"  最小激活: {layer_info['min_activations']}")
                     
-                    # 显示前5个expert的分数
-                    experts = list(layer_info['experts'].items())[:5]
+                    # 显示所有expert的分数
+                    experts = list(layer_info['experts'].items())
                     for expert_id, expert_info in experts:
-                        print(f"    Expert {expert_id}: {expert_info['hot_cold_score']:.4f} ({expert_info['activation_count']})")
+                        print(f"    Expert {expert_id}: activation_count={expert_info['activation_count']}, total_tokens={expert_info['total_tokens']}, hot_cold_score={expert_info['hot_cold_score']:.4f}")
+            else:
+                print("\n没有hot-cold分析数据")
             
             print("\n" + "=" * 60)
             
         except Exception as e:
             logger.error(f"显示摘要失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def cleanup(self):
         """清理资源"""

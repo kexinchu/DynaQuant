@@ -29,6 +29,9 @@ from sglang.srt.managers.expert_location_dispatch import (
 )
 from sglang.srt.managers.schedule_batch import global_server_args_dict
 from sglang.srt.utils import get_compiler_backend, is_cuda, is_hip
+import logging
+
+logger = logging.getLogger(__name__)
 
 _is_cuda = is_cuda()
 _is_hip = is_hip()
@@ -402,6 +405,22 @@ def select_experts(
             renormalize=renormalize,
         )
 
-    get_global_expert_distribution_recorder().on_select_experts(topk_ids=topk_ids)
+    # 调用原有的 expert distribution recorder hook（如果启用）
+    recorder = get_global_expert_distribution_recorder()
+    if recorder is not None:
+        try:
+            # 获取层索引
+            layer_idx = None
+            if hasattr(recorder, '_current_layer_idx') and recorder._current_layer_idx.value is not None:
+                layer_idx = recorder._current_layer_idx.value
+            elif expert_location_dispatch_info is not None and hasattr(expert_location_dispatch_info, 'layer_id'):
+                layer_idx = expert_location_dispatch_info.layer_id
+            
+            if layer_idx is not None:
+                recorder.on_select_experts(topk_ids=topk_ids, layer_idx=layer_idx)
+                logger.debug(f"✅ topk.py: 调用 expert distribution recorder hook, layer={layer_idx}")
+        except Exception as e:
+            logger.debug(f"调用 expert distribution recorder hook 失败: {e}")
+            # 静默处理错误，不影响正常推理
 
     return topk_weights, topk_ids

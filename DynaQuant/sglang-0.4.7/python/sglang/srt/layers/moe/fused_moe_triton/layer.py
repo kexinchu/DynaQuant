@@ -175,6 +175,12 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, CustomOp):
         no_combine: bool = False,
         routed_scaling_factor: Optional[float] = None,
     ) -> torch.Tensor:
+        # 添加层索引信息以支持expert tracking
+        from sglang.srt.managers.expert_location_dispatch import ExpertLocationDispatchInfo
+        expert_location_dispatch_info = ExpertLocationDispatchInfo.init_new(
+            layer_id=getattr(layer, 'layer_id', 0)
+        )
+        
         topk_weights, topk_ids = select_experts(
             hidden_states=x,
             router_logits=router_logits,
@@ -187,7 +193,12 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, CustomOp):
             custom_routing_function=custom_routing_function,
             correction_bias=correction_bias,
             routed_scaling_factor=routed_scaling_factor,
+            expert_location_dispatch_info=expert_location_dispatch_info,
         )
+        
+        # 在 expert 执行前记录激活统计
+        layer_id = getattr(layer, 'layer_id', 0)
+        self._record_expert_activations_in_fused_moe(topk_ids, layer_id)
 
         if _use_aiter:
             assert not no_combine, "unsupported"
@@ -261,6 +272,40 @@ class UnquantizedFusedMoEMethod(FusedMoEMethodBase, CustomOp):
         raise NotImplementedError("The TPU backend currently does not support MoE.")
 
     forward_native = forward_cuda
+    
+    def _record_expert_activations_in_fused_moe(self, topk_idx: torch.Tensor, layer_id: int):
+        """在 FusedMoE 中记录 expert 激活统计"""
+        try:
+            # 获取全局 expert tracker
+            from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
+            tracker = get_global_expert_tracker()
+            if tracker is None:
+                return
+            
+            # 统计激活的 expert
+            if topk_idx is not None and topk_idx.numel() > 0:
+                # 获取激活的 expert IDs
+                active_experts = topk_idx.flatten().tolist()
+                
+                # 计算每个 expert 处理的 token 数量
+                total_tokens = topk_idx.shape[0] if len(topk_idx.shape) > 1 else 1
+                top_k = topk_idx.shape[1] if len(topk_idx.shape) > 1 else 1
+                
+                # 记录每个激活的 expert
+                for expert_id in active_experts:
+                    if expert_id >= 0:  # 过滤无效 ID
+                        tracker.record_expert_activation(
+                            layer_id=layer_id,
+                            expert_id=expert_id,
+                            tokens_processed=total_tokens,
+                            activation_strength=1.0 / top_k if top_k > 0 else 1.0
+                        )
+                        
+                        logger.debug(f"FusedMoE 记录 expert 激活: layer={layer_id}, expert={expert_id}, tokens={total_tokens}")
+                        
+        except Exception as e:
+            logger.debug(f"FusedMoE 记录 expert 激活失败: {e}")
+            # 静默处理错误，不影响正常推理
 
 
 class FusedMoE(torch.nn.Module):
@@ -755,3 +800,4 @@ class FusedMoE(torch.nn.Module):
             # If we are in the row parallel case (down_proj)
             else:
                 param_data[expert_id] = loaded_weight
+

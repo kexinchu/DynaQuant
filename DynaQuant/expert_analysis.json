@@ -1,110 +1,43 @@
 {
-  "export_time": 1756870505.854629,
-  "export_timestamp": "2025-09-03 03:35:05",
+  "export_time": 1756956096.3721545,
+  "export_timestamp": "2025-09-04 03:21:36",
   "summary": {
-    "total_experts": 0,
-    "total_activations": 0,
+    "total_experts": 1,
+    "total_activations": 1,
     "total_requests": 0,
-    "test_results": [
-      {
-        "id": "DhelrJT_0",
-        "status": "success",
-        "response_length": 834,
-        "error": null
-      },
-      {
-        "id": "yn2eWCt_0",
-        "status": "success",
-        "response_length": 1257,
-        "error": null
-      },
-      {
-        "id": "IWkMGRK_0",
-        "status": "success",
-        "response_length": 1241,
-        "error": null
-      },
-      {
-        "id": "QWJhYvA_0",
-        "status": "success",
-        "response_length": 1371,
-        "error": null
-      },
-      {
-        "id": "VY7cMKG_0",
-        "status": "success",
-        "response_length": 1296,
-        "error": null
-      },
-      {
-        "id": "wNBG8Gp_33",
-        "status": "success",
-        "response_length": 1140,
-        "error": null
-      },
-      {
-        "id": "wNBG8Gp_23",
-        "status": "success",
-        "response_length": 1327,
-        "error": null
-      },
-      {
-        "id": "H1aZlSE_0",
-        "status": "success",
-        "response_length": 1358,
-        "error": null
-      },
-      {
-        "id": "hRPPgZT_0",
-        "status": "success",
-        "response_length": 1263,
-        "error": null
-      },
-      {
-        "id": "wNBG8Gp_15",
-        "status": "success",
-        "response_length": 1267,
-        "error": null
-      },
-      {
-        "id": "hRPPgZT_11",
-        "status": "success",
-        "response_length": 1343,
-        "error": null
-      },
-      {
-        "id": "wNBG8Gp_0",
-        "status": "success",
-        "response_length": 1207,
-        "error": null
-      },
-      {
-        "id": "wNBG8Gp_51",
-        "status": "success",
-        "response_length": 1276,
-        "error": null
-      },
-      {
-        "id": "i6IyJda_0",
-        "status": "success",
-        "response_length": 1372,
-        "error": null
-      },
-      {
-        "id": "A5AbcES_0",
-        "status": "success",
-        "response_length": 1139,
-        "error": null
-      },
-      {
-        "id": "hRPPgZT_17",
-        "status": "success",
-        "response_length": 1391,
-        "error": null
-      }
-    ]
+    "test_results_count": 24
   },
-  "hot_cold_analysis": {},
-  "expert_stats": {},
-  "top_experts": []
+  "hot_cold_analysis": {
+    "layer_0": {
+      "total_experts": 1,
+      "max_activations": 1,
+      "min_activations": 1,
+      "experts": {
+        "1": {
+          "activation_count": 1,
+          "total_tokens": 1,
+          "hot_cold_score": 1.0
+        }
+      }
+    }
+  },
+  "expert_stats": {
+    "layer_0_expert_1": {
+      "layer_id": 0,
+      "expert_id": 1,
+      "activation_count": 1,
+      "last_activation_time": 1756955823.6223333,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 1.0
+    }
+  },
+  "top_experts": [
+    {
+      "layer_id": 0,
+      "expert_id": 1,
+      "activation_count": 1,
+      "total_tokens_processed": 1,
+      "hot_cold_score": 1.0
+    }
+  ]
 }
