@@ -37,8 +37,9 @@ class ExpertLocationDispatchInfo:
         ep_dispatch_algorithm = global_server_args_dict["ep_dispatch_algorithm"]
         expert_location_metadata = get_global_expert_location_metadata()
 
+        # 如果没有设置ep_dispatch_algorithm，使用默认的"static"算法
         if ep_dispatch_algorithm is None:
-            return None
+            ep_dispatch_algorithm = "static"
 
         return cls(
             ep_dispatch_algorithm=ep_dispatch_algorithm,
@@ -88,6 +89,9 @@ def topk_ids_logical_to_physical(
 def _topk_ids_logical_to_physical_static(
     topk_ids: torch.Tensor, info: Optional[ExpertLocationDispatchInfo]
 ) -> torch.Tensor:
+    if info is None or info.partial_logical_to_rank_dispatch_physical_map is None:
+        # 如果没有映射信息，直接返回原始ID
+        return topk_ids
     return info.partial_logical_to_rank_dispatch_physical_map[topk_ids]
 
 

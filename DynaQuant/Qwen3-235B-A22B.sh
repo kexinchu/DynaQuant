@@ -19,6 +19,7 @@ python3 -m sglang.launch_server \
   --chunked-prefill-size 16384 \
   --expert-distribution-recorder-mode per_token \
   --enable-expert-distribution-metrics \
+  --ep-dispatch-algorithm static \
   # --enable-mixed-precision \
   # --mixed-precision-config ./sglang-0.4.7/mixed_precision_config.yaml
 

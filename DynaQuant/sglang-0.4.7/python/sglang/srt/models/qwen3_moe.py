@@ -217,7 +217,7 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
                 total_tokens = topk_idx.shape[0] if len(topk_idx.shape) > 1 else 1
                 top_k = topk_idx.shape[1] if len(topk_idx.shape) > 1 else 1
                 
-                logger.debug(f"🔍 [DEBUG] Layer {layer_id}: topk_idx shape={topk_idx.shape}, active_experts={active_experts}, total_tokens={total_tokens}")
+                logger.info(f"🔍 [EXPERT_TRACKING] Layer {layer_id}: topk_idx shape={topk_idx.shape}, active_experts={active_experts[:10]}..., total_tokens={total_tokens}")
                 
                 # 统计每个 expert 的激活次数
                 expert_activation_counts = {}
@@ -238,9 +238,9 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
                         activation_strength=1.0 / top_k if top_k > 0 else 1.0
                     )
                     
-                    logger.debug(f"✅ 记录 expert 激活: layer={layer_id}, local_expert={expert_id}, global_expert={global_expert_id}, activations={activation_count}")
+                    logger.info(f"✅ [EXPERT_TRACKING] 记录 expert 激活: layer={layer_id}, local_expert={expert_id}, global_expert={global_expert_id}, activations={activation_count}")
             else:
-                logger.debug(f"Layer {layer_id}: topk_idx 为空或无效")
+                logger.warning(f"⚠️ [EXPERT_TRACKING] Layer {layer_id}: topk_idx 为空或无效")
                         
         except Exception as e:
             logger.error(f"记录 expert 激活失败: {e}")
