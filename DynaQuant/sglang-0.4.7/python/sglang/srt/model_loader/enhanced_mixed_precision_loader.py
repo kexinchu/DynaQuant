@@ -37,69 +37,154 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ExpertActivationInfo:
-    """专家激活信息"""
-    layer_id: int
-    expert_id: int
-    activation_count: int = 0
-    last_activation_time: float = 0.0
-    total_tokens_processed: int = 0
-    hot_cold_score: float = 0.0  # 新增：hot-cold分数
-    activation_history: deque = field(default_factory=lambda: deque(maxlen=1000))  # 新增：激活历史
+class ExpertActivationSummary:
+    """专家激活摘要信息"""
+    activity: int = 0  # 实际激活/启动次数  or 激活次数
+    tokens: int = 0    # 处理的总token数量
+    hot_cold_score: float = 0.0  # hot-cold分数
+    last_activation_time: float = 0.0  # 最后激活时间
+
+
+class EfficientActivationTracker:
+    """高效的激活跟踪器，使用字典结构替代列表"""
     
-    def record_activation(self, tokens_processed: int = 1, activation_strength: float = 1.0):
+    def __init__(self):
+        # 结构: activation_info[layer_id][expert_id] = ExpertActivationSummary
+        self.activation_info: Dict[int, Dict[int, ExpertActivationSummary]] = defaultdict(lambda: defaultdict(ExpertActivationSummary))
+        self.lock = threading.RLock()
+    
+    def record_activation(self, layer_id: int, expert_id: int, 
+                         tokens_processed: int = 1, activation_strength: float = 1.0):
         """记录激活"""
-        self.activation_count += 1
-        self.last_activation_time = time.time()
-        self.total_tokens_processed += tokens_processed
-        
-        # 新增：记录激活历史
-        activation_record = {
-            'timestamp': time.time(),
-            'tokens_processed': tokens_processed,
-            'activation_strength': activation_strength
-        }
-        self.activation_history.append(activation_record)
-        
-        # 新增：更新hot-cold分数
-        self._update_hot_cold_score()
+        with self.lock:
+            summary = self.activation_info[layer_id][expert_id]
+            summary.activity += 1
+            summary.tokens += tokens_processed
+            summary.last_activation_time = time.time()
+            # hot_cold_score 将在导出时计算
+        # here is called 
     
-    def _update_hot_cold_score(self, decay_factor: float = 0.95):
-        """更新hot-cold分数"""
-        if not self.activation_history:
-            self.hot_cold_score = 0.0
-            return
-        
-        try:
-            current_time = time.time()
-            recent_activations = 0.0
-            total_weight = 0.0
+    def get_activation_info(self, layer_id: int = None, expert_id: int = None) -> Dict:
+        """获取激活信息"""
+        print(f"🔍 [EXPERT_TRACKING] 记录激活 in EfficientActivationTracker: {self.activation_info}")
+        with self.lock:
+            if layer_id is not None and expert_id is not None:
+                # 返回特定expert的信息
+                if layer_id in self.activation_info and expert_id in self.activation_info[layer_id]:
+                    summary = self.activation_info[layer_id][expert_id]
+                    return {
+                        'layer_id': layer_id,
+                        'expert_id': expert_id,
+                        'activity': summary.activity,
+                        'tokens': summary.tokens,
+                        'hot_cold_score': summary.hot_cold_score,
+                        'last_activation_time': summary.last_activation_time
+                    }
+                return {}
             
-            for record in self.activation_history:
-                if isinstance(record, dict) and 'timestamp' in record and 'activation_strength' in record:
-                    time_diff = current_time - record['timestamp']
-                    # 使用指数衰减权重
-                    weight = np.exp(-time_diff / decay_factor)
-                    recent_activations += float(record['activation_strength']) * weight
-                    total_weight += weight
+            # 返回所有信息
+            result = {}
+            for layer_id, experts in self.activation_info.items():
+                print(f"🔍 [EXPERT_TRACKING] 获取所有信息 in EfficientActivationTracker: {layer_id}, {experts}")
+                result[f'layer_{layer_id}'] = {}
+                for expert_id, summary in experts.items():
+                    result[f'layer_{layer_id}'][f'expert_{expert_id}'] = {
+                        'layer_id': layer_id,
+                        'expert_id': expert_id,
+                        'activity': summary.activity,
+                        'tokens': summary.tokens,
+                        'hot_cold_score': summary.hot_cold_score,
+                        'last_activation_time': summary.last_activation_time
+                    }
+            return result
+    
+    def calculate_hot_cold_scores(self):
+        """计算所有expert的hot-cold分数"""
+        with self.lock:
+            for layer_id, experts in self.activation_info.items():
+                if not experts:
+                    print(f"🔍 [EXPERT_TRACKING] 没有专家 in EfficientActivationTracker: {layer_id}")
+                    continue
+                
+                # 找到该层激活次数最多的expert
+                max_activity = max(summary.activity for summary in experts.values())
+                
+                for expert_id, summary in experts.items():
+                    if max_activity == 0:
+                        summary.hot_cold_score = 0.0
+                    else:
+                        summary.hot_cold_score = summary.activity / max_activity
+    
+    def get_top_experts(self, top_k: int = 10) -> List[Dict]:
+        """获取激活次数最多的expert"""
+        with self.lock:
+            all_experts = []
+            for layer_id, experts in self.activation_info.items():
+                for expert_id, summary in experts.items():
+                    all_experts.append({
+                        'layer_id': layer_id,
+                        'expert_id': expert_id,
+                        'activity': summary.activity,
+                        'tokens': summary.tokens,
+                        'hot_cold_score': summary.hot_cold_score
+                    })
             
-            if total_weight > 0:
-                # 归一化到0-1范围
-                self.hot_cold_score = min(1.0, recent_activations / total_weight)
-            else:
-                self.hot_cold_score = 0.0
-        except Exception as e:
-            # 如果计算失败，保持原值
-            logger.warning(f"更新hot-cold分数失败: {e}")
-            pass
+            # 按激活次数排序
+            all_experts.sort(key=lambda x: x['activity'], reverse=True)
+            return all_experts[:top_k]
+    
+    def get_hot_cold_scores(self) -> Dict[str, Dict]:
+        """获取所有expert的hot-cold分数"""
+        with self.lock:
+            scores = {}
+            for layer_id, experts in self.activation_info.items():
+                for expert_id, summary in experts.items():
+                    scores[f"layer_{layer_id}_expert_{expert_id}"] = {
+                        'layer_id': layer_id,
+                        'expert_id': expert_id,
+                        'hot_cold_score': round(summary.hot_cold_score, 4),
+                        'activity': summary.activity,
+                        'tokens': summary.tokens
+                    }
+            return scores
+    
+    def reset(self):
+        """重置所有数据"""
+        print(f"🔍 [EXPERT_TRACKING] 重置统计信息 in EfficientActivationTracker")
+        with self.lock:
+            self.activation_info.clear()
+    
+    def get_summary_stats(self) -> Dict:
+        """获取摘要统计"""
+        with self.lock:
+            total_experts = 0
+            total_activity = 0
+            total_tokens = 0
+            layers_count = len(self.activation_info)
+            
+            for layer_id, experts in self.activation_info.items():
+                total_experts += len(experts)
+                for summary in experts.values():
+                    total_activity += summary.activity
+                    total_tokens += summary.tokens
+            
+            return {
+                'total_layers': layers_count,
+                'total_experts': total_experts,
+                'total_activity': total_activity,
+                'total_tokens': total_tokens
+            }
+
+
+# 移除ExpertActivationInfo类，使用EfficientActivationTracker中的ExpertActivationSummary
 
 
 class ExpertActivationTracker:
-    """专家激活跟踪器"""
+    """专家激活跟踪器 - 优化版本，使用高效数据结构"""
     
     def __init__(self, max_history: int = 1000):
-        self.expert_stats: Dict[Tuple[int, int], ExpertActivationInfo] = {}
-        self.activation_history: deque = deque(maxlen=max_history)
+        # 只使用高效跟踪器，移除冗余的expert_stats
+        self.efficient_tracker = EfficientActivationTracker()
         self.request_history: deque = deque(maxlen=max_history)
         self.lock = threading.RLock()
         
@@ -110,24 +195,16 @@ class ExpertActivationTracker:
     def record_expert_activation(self, layer_id: int, expert_id: int, 
                                tokens_processed: int = 1, request_id: str = None, 
                                activation_strength: float = 1.0):
-        """记录专家激活"""
-        with self.lock:
-            key = (layer_id, expert_id)
-            if key not in self.expert_stats:
-                self.expert_stats[key] = ExpertActivationInfo(layer_id, expert_id)
-            
-            self.expert_stats[key].record_activation(tokens_processed, activation_strength)
-            
-            # 记录激活历史
-            activation_record = {
-                'timestamp': time.time(),
-                'layer_id': layer_id,
-                'expert_id': expert_id,
-                'tokens_processed': tokens_processed,
-                'request_id': request_id,
-                'activation_strength': activation_strength
-            }
-            self.activation_history.append(activation_record)
+        """记录专家激活 - 优化版本，只使用高效跟踪器"""
+        # 直接使用高效跟踪器，避免双重记录
+        self.efficient_tracker.record_activation(layer_id, expert_id, tokens_processed, activation_strength)
+    
+    def record_expert_activation_batch(self, layer_id: int, expert_id: int, 
+                                     tokens_processed: int = 1, request_id: str = None, 
+                                     activation_strength: float = 1.0):
+        """批量记录专家激活 - 优化版本，只使用高效跟踪器"""
+        # 直接使用高效跟踪器，避免双重记录
+        self.efficient_tracker.record_activation(layer_id, expert_id, tokens_processed, activation_strength)
     
     def record_request(self, request_id: str, input_length: int, output_length: int):
         """记录请求信息"""
@@ -143,115 +220,60 @@ class ExpertActivationTracker:
     
     def get_expert_stats(self, layer_id: Optional[int] = None, 
                         expert_id: Optional[int] = None) -> Dict:
-        """获取专家统计信息"""
-        with self.lock:
-            if layer_id is not None and expert_id is not None:
-                key = (layer_id, expert_id)
-                if key in self.expert_stats:
-                    info = self.expert_stats[key]
-                    return {
-                        'layer_id': info.layer_id,
-                        'expert_id': info.expert_id,
-                        'activation_count': info.activation_count,
-                        'last_activation_time': info.last_activation_time,
-                        'total_tokens_processed': info.total_tokens_processed,
-                        'hot_cold_score': round(info.hot_cold_score, 4)
-                    }
-                return {}
-            
-            # 返回所有专家统计
-            stats = {}
-            for key, info in self.expert_stats.items():
-                stats[f"layer_{info.layer_id}_expert_{info.expert_id}"] = {
-                    'layer_id': info.layer_id,
-                    'expert_id': info.expert_id,
-                    'activation_count': info.activation_count,
-                    'last_activation_time': info.last_activation_time,
-                    'total_tokens_processed': info.total_tokens_processed,
-                    'hot_cold_score': round(info.hot_cold_score, 4)
-                }
-            return stats
+        """获取专家统计信息 - 使用高效跟踪器"""
+        return self.efficient_tracker.get_activation_info(layer_id, expert_id)
     
     def get_top_experts(self, top_k: int = 10) -> List[Dict]:
-        """获取激活次数最多的专家"""
-        with self.lock:
-            sorted_experts = sorted(
-                self.expert_stats.values(),
-                key=lambda x: x.activation_count,
-                reverse=True
-            )
-            return [
-                {
-                    'layer_id': expert.layer_id,
-                    'expert_id': expert.expert_id,
-                    'activation_count': expert.activation_count,
-                    'total_tokens_processed': expert.total_tokens_processed,
-                    'hot_cold_score': round(expert.hot_cold_score, 4)
-                }
-                for expert in sorted_experts[:top_k]
-            ]
+        """获取激活次数最多的专家 - 使用高效跟踪器"""
+        return self.efficient_tracker.get_top_experts(top_k)
     
     def get_hot_cold_scores(self) -> Dict[str, Dict]:
-        """获取所有专家的hot-cold分数"""
-        with self.lock:
-            scores = {}
-            for key, info in self.expert_stats.items():
-                scores[f"layer_{info.layer_id}_expert_{info.expert_id}"] = {
-                    'layer_id': info.layer_id,
-                    'expert_id': info.expert_id,
-                    'hot_cold_score': round(info.hot_cold_score, 4),
-                    'activation_count': info.activation_count,
-                    'total_tokens_processed': info.total_tokens_processed
-                }
-            return scores
+        """获取所有专家的hot-cold分数 - 使用高效跟踪器"""
+        return self.efficient_tracker.get_hot_cold_scores()
     
     def get_top_hot_experts(self, top_k: int = 20) -> List[Dict]:
-        """获取最hot的专家（按hot-cold分数排序）"""
-        with self.lock:
-            sorted_experts = sorted(
-                self.expert_stats.values(),
-                key=lambda x: x.hot_cold_score,
-                reverse=True
-            )
-            return [
-                {
-                    'layer_id': expert.layer_id,
-                    'expert_id': expert.expert_id,
-                    'hot_cold_score': round(expert.hot_cold_score, 4),
-                    'activation_count': expert.activation_count,
-                    'total_tokens_processed': expert.total_tokens_processed
-                }
-                for expert in sorted_experts[:top_k]
-            ]
+        """获取最hot的专家（按hot-cold分数排序） - 使用高效跟踪器"""
+        # 先计算hot-cold分数，然后获取top experts
+        self.efficient_tracker.calculate_hot_cold_scores()
+        return self.efficient_tracker.get_top_experts(top_k)
     
     def get_layer_stats(self) -> Dict[int, Dict]:
-        """获取每层的统计信息"""
-        with self.lock:
-            layer_stats = defaultdict(lambda: {
-                'total_experts': 0,
-                'total_activations': 0,
-                'total_tokens': 0,
-                'experts': {}
-            })
-            
-            for key, info in self.expert_stats.items():
-                layer_id = info.layer_id
-                layer_stats[layer_id]['total_experts'] += 1
-                layer_stats[layer_id]['total_activations'] += info.activation_count
-                layer_stats[layer_id]['total_tokens'] += info.total_tokens_processed
-                layer_stats[layer_id]['experts'][info.expert_id] = {
-                    'activation_count': info.activation_count,
-                    'total_tokens_processed': info.total_tokens_processed,
-                    'hot_cold_score': round(info.hot_cold_score, 4)
-                }
-            
-            return dict(layer_stats)
+        """获取每层的统计信息 - 使用高效跟踪器"""
+        # 从高效跟踪器获取数据并转换为层统计格式
+        activation_info = self.efficient_tracker.get_activation_info()
+        layer_stats = {}
+        
+        for layer_key, layer_data in activation_info.items():
+            print(f"🔍 [EXPERT_TRACKING] 获取每层的统计信息(get_layer_stats) in ExpertActivationTracker: {layer_key}, {layer_data}")
+            if layer_key.startswith('layer_'):
+                layer_id = int(layer_key.split('_')[1])
+                if layer_id not in layer_stats:
+                    layer_stats[layer_id] = {
+                        'total_experts': 0,
+                        'total_activations': 0,
+                        'total_tokens': 0,
+                        'experts': {}
+                    }
+                
+                for expert_key, expert_data in layer_data.items():
+                    if expert_key.startswith('expert_'):
+                        expert_id = int(expert_key.split('_')[1])
+                        layer_stats[layer_id]['total_experts'] += 1
+                        layer_stats[layer_id]['total_activations'] += expert_data['activity']
+                        layer_stats[layer_id]['total_tokens'] += expert_data['tokens']
+                        layer_stats[layer_id]['experts'][expert_id] = {
+                            'activation_count': expert_data['activity'],
+                            'total_tokens_processed': expert_data['tokens'],
+                            'hot_cold_score': expert_data['hot_cold_score']
+                        }
+        
+        return layer_stats
     
     def reset_stats(self):
         """重置统计信息"""
+        print(f"🔍 [EXPERT_TRACKING] 重置统计信息 in ExpertActivationTracker")
         with self.lock:
-            self.expert_stats.clear()
-            self.activation_history.clear()
+            self.efficient_tracker.reset()
             self.request_history.clear()
     
     def export_stats(self, file_path: str):
@@ -271,20 +293,32 @@ class ExpertActivationTracker:
             
             logger.info(f"Expert activation stats exported to {file_path}")
     
+    def update_all_hot_cold_scores(self):
+        """更新所有expert的hot-cold分数（仅在导出时调用）"""
+        print(f"🔍 [EXPERT_TRACKING] 开始更新所有expert的hot-cold分数")
+        
+        # 使用高效跟踪器计算hot-cold分数
+        self.efficient_tracker.calculate_hot_cold_scores()
+        
+        print(f"✅ [EXPERT_TRACKING] 完成所有expert的hot-cold分数更新")
+    
     def export_hot_cold_report(self, file_path: str):
         """导出专门的hot-cold报告"""
+        # 在导出前先更新所有expert的hot-cold分数
+        self.update_all_hot_cold_scores()
+        
         with self.lock:
+            # 使用高效跟踪器获取数据
+            summary_stats = self.efficient_tracker.get_summary_stats()
+            
             report = {
                 'export_time': time.time(),
                 'process_id': self.process_id,
                 'rank': self.rank,
-                'summary': {
-                    'total_experts': len(self.expert_stats),
-                    'total_activations': len(self.activation_history)
-                },
-                'hot_cold_scores': self.get_hot_cold_scores(),
-                'top_hot_experts': self.get_top_hot_experts(50),
-                'layer_summary': self.get_layer_stats()
+                'summary': summary_stats,
+                'hot_cold_scores': self.efficient_tracker.get_hot_cold_scores(),
+                'top_hot_experts': self.efficient_tracker.get_top_experts(50),
+                'activation_info': self.efficient_tracker.get_activation_info()
             }
             
             with open(file_path, 'w', encoding='utf-8') as f:
@@ -293,89 +327,20 @@ class ExpertActivationTracker:
             logger.info(f"Hot-cold report exported to {file_path}")
     
     def get_expert_stats_by_layer(self) -> Dict[str, Dict[str, Any]]:
-        """获取按层分组的专家统计数据，计算正确的hot_cold_score"""
-        with self.lock:
-            # 按层分组
-            layer_experts = {}
-            for key, expert_stat in self.expert_stats.items():
-                layer_id, expert_id = key
-                if layer_id not in layer_experts:
-                    layer_experts[layer_id] = []
-                layer_experts[layer_id].append({
-                    'expert_id': expert_id,
-                    'activation_count': expert_stat.activation_count,
-                    'total_tokens': expert_stat.total_tokens_processed,
-                    'last_activation_time': expert_stat.last_activation_time
-                })
-            
-            # 计算每层的hot_cold_score
-            result = {}
-            for layer_id, experts in layer_experts.items():
-                if not experts:
-                    continue
-                
-                # 找到该层激活次数最多的expert
-                max_activation_count = max(expert['activation_count'] for expert in experts)
-                
-                layer_data = {
-                    'total_experts': len(experts),
-                    'max_activations': max_activation_count,
-                    'min_activations': min(expert['activation_count'] for expert in experts),
-                    'experts': {}
-                }
-                
-                for expert in experts:
-                    # 计算hot_cold_score: activation_count / max_activation_count
-                    if max_activation_count == 0:
-                        hot_cold_score = 0.0
-                    else:
-                        hot_cold_score = expert['activation_count'] / max_activation_count
-                    
-                    layer_data['experts'][str(expert['expert_id'])] = {
-                        'activation_count': expert['activation_count'],
-                        'total_tokens': expert['total_tokens'],
-                        'hot_cold_score': round(hot_cold_score, 4)
-                    }
-                
-                result[f'layer_{layer_id}'] = layer_data
-            
-            return result
+        """获取按层分组的专家统计数据 - 使用高效跟踪器"""
+        print(f"🔍 [EXPERT_TRACKING] 获取按层分组的专家统计数据(get_expert_stats_by_layer) in ExpertActivationTracker")
+        return self.get_layer_stats()
     
     def aggregate_from_other_processes(self, other_trackers: List['ExpertActivationTracker']):
-        """从其他进程聚合统计数据"""
+        """从其他进程聚合统计数据 - 简化版本"""
+        # 简化聚合逻辑，只聚合请求历史
         with self.lock:
             for other_tracker in other_trackers:
                 with other_tracker.lock:
-                    # 聚合expert统计
-                    for key, other_info in other_tracker.expert_stats.items():
-                        if key in self.expert_stats:
-                            # 合并统计信息
-                            self.expert_stats[key].activation_count += other_info.activation_count
-                            self.expert_stats[key].total_tokens_processed += other_info.total_tokens_processed
-                            # 更新最后激活时间
-                            if other_info.last_activation_time > self.expert_stats[key].last_activation_time:
-                                self.expert_stats[key].last_activation_time = other_info.last_activation_time
-                            # 合并激活历史
-                            self.expert_stats[key].activation_history.extend(other_info.activation_history)
-                        else:
-                            # 创建新的统计信息
-                            self.expert_stats[key] = ExpertActivationInfo(
-                                layer_id=other_info.layer_id,
-                                expert_id=other_info.expert_id,
-                                activation_count=other_info.activation_count,
-                                total_tokens_processed=other_info.total_tokens_processed,
-                                last_activation_time=other_info.last_activation_time,
-                                hot_cold_score=other_info.hot_cold_score
-                            )
-                            self.expert_stats[key].activation_history = other_info.activation_history.copy()
-                    
-                    # 聚合激活历史
-                    self.activation_history.extend(other_tracker.activation_history)
-                    
                     # 聚合请求历史
                     self.request_history.extend(other_tracker.request_history)
             
-            logger.info(f"聚合完成，当前统计: {len(self.expert_stats)} 个expert")
+            logger.info(f"聚合完成，当前统计: {len(self.efficient_tracker.activation_info)} 个expert")
 
 
 class GPTQDequantizer:

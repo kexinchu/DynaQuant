@@ -79,6 +79,7 @@ from sglang.srt.models.qwen2_moe import Qwen2MoeMLP as Qwen3MoeMLP
 from sglang.srt.models.qwen2_moe import Qwen2MoeModel
 from sglang.srt.two_batch_overlap import MaybeTboDeepEPDispatcher
 from sglang.srt.utils import DeepEPMode, add_prefix, is_non_idle_and_non_empty
+from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker, init_global_expert_tracker
 
 Qwen3MoeConfig = None
 
@@ -130,6 +131,9 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
         # 设置基础属性，无论是否启用deepep_moe都需要
         self.top_k = config.num_experts_per_tok
         self.renormalize = config.norm_topk_prob
+        
+        # 初始化expert tracker（如果还没有初始化）
+        self._ensure_expert_tracker_initialized()
 
         if global_server_args_dict["enable_deepep_moe"]:
             # TODO: we will support tp < ep in the future
@@ -187,8 +191,8 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
             ),
         )
         
-        # 记录 expert 激活统计 - 在路由计算完成后立即统计
-        self._record_expert_activations(topk_idx, self.layer_id)
+        # 注释掉这里的expert tracking，避免与ExpertDistributionRecorder重复调用
+        # self._record_expert_activations(topk_idx, self.layer_id)
         
         final_hidden_states = self.experts(
             hidden_states=hidden_states, router_logits=router_logits
@@ -198,55 +202,54 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
 
         return final_hidden_states.view(num_tokens, hidden_dim)
     
+    def _ensure_expert_tracker_initialized(self):
+        """确保expert tracker已初始化"""
+        # 检查是否已经初始化
+        tracker = get_global_expert_tracker()
+        if tracker is None:
+            tracker = init_global_expert_tracker()
+            print(f"🔍 [EXPERT_TRACKING] Expert tracker初始化完成: {tracker is not None}")
+                
+
     def _record_expert_activations(self, topk_idx: torch.Tensor, layer_id: int):
-        """记录 expert 激活统计"""
-        try:
-            # 获取全局 expert tracker
-            from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
-            tracker = get_global_expert_tracker()
-            if tracker is None:
-                logger.debug(f"全局 expert tracker 未初始化，跳过 layer {layer_id} 的统计")
-                return
+        """记录 expert 激活统计"""    
+        # 获取全局 expert tracker
+        tracker = get_global_expert_tracker()
+        if tracker is None:
+            print(f"🔍 [EXPERT_TRACKING] 全局 expert tracker 未初始化，跳过 layer {layer_id} 的统计")
+            return
+        
+        # 统计激活的 expert
+        if topk_idx is not None and topk_idx.numel() > 0:
+            # 获取激活的 expert IDs
+            active_experts = topk_idx.flatten().tolist()
             
-            # 统计激活的 expert
-            if topk_idx is not None and topk_idx.numel() > 0:
-                # 获取激活的 expert IDs
-                active_experts = topk_idx.flatten().tolist()
+            # 计算每个 expert 处理的 token 数量
+            total_tokens = topk_idx.shape[0] if len(topk_idx.shape) > 1 else 1
+            top_k = topk_idx.shape[1] if len(topk_idx.shape) > 1 else 1
+
+            
+            # 统计每个 expert 的激活次数
+            expert_activation_counts = {}
+            for expert_id in active_experts:
+                if expert_id >= 0:  # 过滤无效 ID
+                    expert_activation_counts[expert_id] = expert_activation_counts.get(expert_id, 0) + 1
+            
+            # 在分布式环境下，需要正确处理 expert ID 映射
+            for expert_id, activation_count in expert_activation_counts.items():
+                # 在 EP/TP/DP 环境下，expert_id 可能已经是物理 ID
+                # 我们需要将其映射到全局逻辑 ID
+                global_expert_id = self._map_to_global_expert_id(expert_id, layer_id)
                 
-                # 计算每个 expert 处理的 token 数量
-                total_tokens = topk_idx.shape[0] if len(topk_idx.shape) > 1 else 1
-                top_k = topk_idx.shape[1] if len(topk_idx.shape) > 1 else 1
-                
-                logger.info(f"🔍 [EXPERT_TRACKING] Layer {layer_id}: topk_idx shape={topk_idx.shape}, active_experts={active_experts[:10]}..., total_tokens={total_tokens}")
-                
-                # 统计每个 expert 的激活次数
-                expert_activation_counts = {}
-                for expert_id in active_experts:
-                    if expert_id >= 0:  # 过滤无效 ID
-                        expert_activation_counts[expert_id] = expert_activation_counts.get(expert_id, 0) + 1
-                
-                # 在分布式环境下，需要正确处理 expert ID 映射
-                for expert_id, activation_count in expert_activation_counts.items():
-                    # 在 EP/TP/DP 环境下，expert_id 可能已经是物理 ID
-                    # 我们需要将其映射到全局逻辑 ID
-                    global_expert_id = self._map_to_global_expert_id(expert_id, layer_id)
-                    
-                    tracker.record_expert_activation(
-                        layer_id=layer_id,
-                        expert_id=global_expert_id,
-                        tokens_processed=activation_count,
-                        activation_strength=1.0 / top_k if top_k > 0 else 1.0
-                    )
-                    
-                    logger.info(f"✅ [EXPERT_TRACKING] 记录 expert 激活: layer={layer_id}, local_expert={expert_id}, global_expert={global_expert_id}, activations={activation_count}")
-            else:
-                logger.warning(f"⚠️ [EXPERT_TRACKING] Layer {layer_id}: topk_idx 为空或无效")
-                        
-        except Exception as e:
-            logger.error(f"记录 expert 激活失败: {e}")
-            import traceback
-            traceback.print_exc()
-            # 静默处理错误，不影响正常推理
+                tracker.record_expert_activation_batch(
+                    layer_id=layer_id,
+                    expert_id=global_expert_id,
+                    tokens_processed=activation_count,
+                    activation_strength=1.0 / top_k if top_k > 0 else 1.0
+                )
+        else:
+            print(f"⚠️ [EXPERT_TRACKING] Layer {layer_id}: topk_idx 为空或无效")
+
     
     def _map_to_global_expert_id(self, local_expert_id: int, layer_id: int) -> int:
         """将本地 expert ID 映射到全局 expert ID"""

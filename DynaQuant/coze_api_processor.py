@@ -134,39 +134,33 @@ class CozeAPIClient:
         # 查找结束事件
         for event in events:
             if event.get('data'):
-                # try:
-                # 解析外层JSON
-                s_clean = re.sub(r'[\x00-\x1f\x7f]', '', event['data'])
-                data_json = json.loads(s_clean)
+                try:
+                    # 解析外层JSON
+                    s_clean = re.sub(r'[\x00-\x1f\x7f]', '', event['data'])
+                    data_json = json.loads(s_clean)
+                    
+                    # 检查是否是结束事件
+                    if data_json.get('node_type') == 'End' and data_json.get('node_is_finish'):
+                        content = data_json.get('content', '')
+                        if content:
+                            # 解析content字段中的JSON字符串
+                            try:
+                                # 处理可能的转义字符
+                                content_clean = content.replace('\\"', '"').replace('\\n', '\n')
+                                s_clean = re.sub(r'[\x00-\x1f\x7f]', '', content_clean)
+                                content_data = json.loads(s_clean)
+                                result = content_data
+                                logger.info("成功解析SSE响应内容")
+                                break
+                            except json.JSONDecodeError as e:
+                                logger.warning(f"无法解析content字段的JSON内容: {e}")
+                                logger.debug(f"Content内容: {content[:200]}...")
+                                continue
                 
-                # 检查是否是结束事件
-                if data_json.get('node_type') == 'End' and data_json.get('node_is_finish'):
-                    content = data_json.get('content', '')
-                    if content:
-                        # 解析content字段中的JSON字符串
-                        # try:
-                        # 处理可能的转义字符
-                        content_clean = content.replace('\\"', '"').replace('\\n', '\n')
-                        s_clean = re.sub(r'[\x00-\x1f\x7f]', '', content_clean)
-                        content_data = json.loads(s_clean)
-                        result = content_data
-                        logger.info("成功解析SSE响应内容")
-                        break
-                        # except json.JSONDecodeError as e:
-                        #     logger.warning(f"无法解析content字段的JSON内容: {e}")
-                        #     logger.debug(f"Content内容: {content[:200]}...")
-                        #     continue
-                    else:
-                        print(11111)
-                else:
-                    print(222)
-            else:
-                print(3333)
-                
-                # except json.JSONDecodeError as e:
-                #     logger.warning(f"无法解析SSE数据: {e}")
-                #     logger.debug(f"Data内容: {event['data'][:200]}...")
-                #     continue
+                except json.JSONDecodeError as e:
+                    logger.warning(f"无法解析SSE数据: {e}")
+                    logger.debug(f"Data内容: {event['data'][:200]}...")
+                    continue
     
         return result
             

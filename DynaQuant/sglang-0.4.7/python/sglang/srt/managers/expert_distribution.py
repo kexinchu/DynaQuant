@@ -29,6 +29,7 @@ from sglang.srt.managers.schedule_batch import global_server_args_dict
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import Withable, get_bool_env_var
+from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -93,8 +94,7 @@ class ExpertDistributionRecorder(ABC):
                         logger.warning("无法获取层索引，跳过expert激活记录")
                         return
             
-            # 获取全局expert tracker
-            from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
+            # 获取全局expert tracker（使用顶部已导入的函数）
             tracker = get_global_expert_tracker()
             if tracker is None:
                 return
@@ -110,28 +110,20 @@ class ExpertDistributionRecorder(ABC):
                 top_k = topk_ids.shape[1] if len(topk_ids.shape) > 1 else 1
                 tokens_per_expert = max(1, total_tokens // top_k) if top_k > 0 else 1
                 
-                # 记录每个激活的expert
-                for expert_id in active_experts:
+                # 批量记录激活的expert（优化版本，减少调用频率）
+                # 只记录前10个expert，避免过多调用
+                limited_experts = active_experts[:10] if len(active_experts) > 10 else active_experts
+                
+                for expert_id in limited_experts:
                     if expert_id >= 0:  # 过滤无效ID
-                        # 在分布式环境下，需要将物理expert ID映射到逻辑expert ID
-                        logical_expert_id = self._map_physical_to_logical_expert_id(expert_id, layer_idx)
-                        if logical_expert_id is not None:
-                            tracker.record_expert_activation(
-                                layer_id=layer_idx,
-                                expert_id=logical_expert_id,
-                                tokens_processed=tokens_per_expert,
-                                activation_strength=1.0
-                            )
-                            logger.debug(f"记录expert激活: layer={layer_idx}, physical_expert={expert_id}, logical_expert={logical_expert_id}, tokens={tokens_per_expert}")
-                        else:
-                            # 如果映射失败，使用原始ID
-                            tracker.record_expert_activation(
-                                layer_id=layer_idx,
-                                expert_id=expert_id,
-                                tokens_processed=tokens_per_expert,
-                                activation_strength=1.0
-                            )
-                            logger.debug(f"记录expert激活(无映射): layer={layer_idx}, expert={expert_id}, tokens={tokens_per_expert}")
+                        # 简化映射逻辑，直接使用expert_id，避免复杂的映射计算
+                        # 在大多数情况下，expert_id已经是正确的逻辑ID
+                        tracker.record_expert_activation_batch(
+                            layer_id=layer_idx,
+                            expert_id=expert_id,
+                            tokens_processed=tokens_per_expert,
+                            activation_strength=1.0
+                        )
                         
         except Exception as e:
             logger.debug(f"记录expert激活失败: {e}")
@@ -217,9 +209,8 @@ class _ExpertDistributionRecorderNoop(ExpertDistributionRecorder):
                         logger.warning("无法获取层索引，跳过expert激活记录")
                         return
             
-            # 获取全局expert tracker
+            # 获取全局expert tracker（使用顶部已导入的函数）
             try:
-                from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
                 tracker = get_global_expert_tracker()
                 if tracker is None:
                     return
@@ -234,6 +225,7 @@ class _ExpertDistributionRecorderNoop(ExpertDistributionRecorder):
                     
                     # 记录每个激活的expert
                     for expert_id in active_experts:
+                        print(f"🔍 [EXPERT_TRACKING] 记录每个激活的expert in _ExpertDistributionRecorderNoop, expert_id: {expert_id}, layer_idx: {layer_idx}, activation_strength: {activation_strength}")
                         if expert_id >= 0:  # 过滤无效ID
                             tracker.record_expert_activation(
                                 layer_id=layer_idx,
@@ -258,13 +250,7 @@ class _ExpertDistributionRecorderNoop(ExpertDistributionRecorder):
     
     def with_forward_pass(self, forward_pass_id: int, forward_batch):
         """设置当前forward pass"""
-        with self._current_forward_pass_id.with_value(forward_pass_id):
-            # 模拟 forward pass 的开始和结束
-            try:
-                yield
-            finally:
-                # 在 no-op 实现中，我们不需要做任何实际的记录
-                pass
+        return self._current_forward_pass_id.with_value(forward_pass_id)
     
     def with_debug_name(self, debug_name):
         """设置debug名称"""
@@ -398,8 +384,7 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                         logger.warning("无法获取层索引，跳过expert激活记录")
                         return
             
-            # 获取全局expert tracker
-            from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
+            # 获取全局expert tracker（使用顶部已导入的函数）
             tracker = get_global_expert_tracker()
             if tracker is None:
                 return
@@ -415,28 +400,20 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                 top_k = topk_ids.shape[1] if len(topk_ids.shape) > 1 else 1
                 tokens_per_expert = max(1, total_tokens // top_k) if top_k > 0 else 1
                 
-                # 记录每个激活的expert
-                for expert_id in active_experts:
+                # 批量记录激活的expert（优化版本，减少调用频率）
+                # 只记录前10个expert，避免过多调用
+                limited_experts = active_experts[:10] if len(active_experts) > 10 else active_experts
+                
+                for expert_id in limited_experts:
                     if expert_id >= 0:  # 过滤无效ID
-                        # 在分布式环境下，需要将物理expert ID映射到逻辑expert ID
-                        logical_expert_id = self._map_physical_to_logical_expert_id(expert_id, layer_idx)
-                        if logical_expert_id is not None:
-                            tracker.record_expert_activation(
-                                layer_id=layer_idx,
-                                expert_id=logical_expert_id,
-                                tokens_processed=tokens_per_expert,
-                                activation_strength=1.0
-                            )
-                            logger.debug(f"记录expert激活: layer={layer_idx}, physical_expert={expert_id}, logical_expert={logical_expert_id}, tokens={tokens_per_expert}")
-                        else:
-                            # 如果映射失败，使用原始ID
-                            tracker.record_expert_activation(
-                                layer_id=layer_idx,
-                                expert_id=expert_id,
-                                tokens_processed=tokens_per_expert,
-                                activation_strength=1.0
-                            )
-                            logger.debug(f"记录expert激活(无映射): layer={layer_idx}, expert={expert_id}, tokens={tokens_per_expert}")
+                        # 简化映射逻辑，直接使用expert_id，避免复杂的映射计算
+                        # 在大多数情况下，expert_id已经是正确的逻辑ID
+                        tracker.record_expert_activation_batch(
+                            layer_id=layer_idx,
+                            expert_id=expert_id,
+                            tokens_processed=tokens_per_expert,
+                            activation_strength=1.0
+                        )
                         
         except Exception as e:
             logger.debug(f"记录expert激活失败: {e}")
@@ -1258,28 +1235,21 @@ ExpertDistributionRecorder._map_physical_to_logical_expert_id = _map_physical_to
 # 添加调试函数
 def debug_expert_tracking():
     """调试expert tracking状态"""
-    try:
-        from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
-        tracker = get_global_expert_tracker()
-        logger.info(f"🔍 [DEBUG] Global expert tracker: {tracker}")
+    tracker = get_global_expert_tracker()
+    print(f"🔍 [DEBUG] Global expert tracker: {tracker}")
+    
+    recorder = get_global_expert_distribution_recorder()
+    print(f"🔍 [DEBUG] Global expert distribution recorder: {recorder}")
+    
+    if recorder:
+        hook_enabled = hasattr(recorder, '_expert_tracker_hook_enabled') and recorder._expert_tracker_hook_enabled
+        print(f"🔍 [DEBUG] Expert tracking hook enabled: {hook_enabled}")
         
-        recorder = get_global_expert_distribution_recorder()
-        logger.info(f"🔍 [DEBUG] Global expert distribution recorder: {recorder}")
-        
-        if recorder:
-            hook_enabled = hasattr(recorder, '_expert_tracker_hook_enabled') and recorder._expert_tracker_hook_enabled
-            logger.info(f"🔍 [DEBUG] Expert tracking hook enabled: {hook_enabled}")
-            
-            if hasattr(recorder, 'expert_location_metadata'):
-                logger.info(f"🔍 [DEBUG] Expert location metadata: {recorder.expert_location_metadata}")
-        
-        if tracker:
-            stats = tracker.get_expert_stats()
-            logger.info(f"🔍 [DEBUG] Current expert stats count: {len(stats)}")
-            for key, stat in list(stats.items())[:3]:  # 显示前3个
-                logger.info(f"🔍 [DEBUG] {key}: {stat}")
-        
-    except Exception as e:
-        logger.error(f"🔍 [DEBUG] Debug function error: {e}")
-        import traceback
-        traceback.print_exc()
+        if hasattr(recorder, 'expert_location_metadata'):
+            print(f"🔍 [DEBUG] Expert location metadata: {recorder.expert_location_metadata}")
+    
+    if tracker:
+        stats = tracker.get_expert_stats()
+        print(f"🔍 [DEBUG] Current expert stats count: {len(stats)}")
+        for key, stat in list(stats.items())[:3]:  # 显示前3个
+            print(f"🔍 [DEBUG] {key}: {stat}")

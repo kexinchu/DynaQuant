@@ -599,6 +599,7 @@ sglang/srt/models/deepseek_janus_pro.py
 sglang/srt/models/deepseek_nextn.py
 sglang/srt/models/deepseek_v2.py
 sglang/srt/models/deepseek_vl2.py
+sglang/srt/models/enhanced_expert_tracker.py
 sglang/srt/models/exaone.py
 sglang/srt/models/gemma.py
 sglang/srt/models/gemma2.py

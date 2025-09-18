@@ -62,7 +62,7 @@ class QwenServiceClient:
             resp = session.post(
                 f"{self.base_url}/v1/chat/completions",
                 json=data,
-                timeout=600
+                timeout=900
             )
             end_time = time.time()
 
