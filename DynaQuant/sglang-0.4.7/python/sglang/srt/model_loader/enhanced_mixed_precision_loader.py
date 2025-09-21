@@ -32,6 +32,12 @@ except ImportError:
 
 from sglang.srt.model_loader.weight_utils import default_weight_loader
 from sglang.srt.utils import get_bool_env_var
+from sglang.srt.model_loader.mixed_precision_quantizer import (
+    MixedPrecisionQuantizer,
+    ExpertQuantizationManager,
+    init_global_quantization_system,
+    get_global_quantization_manager
+)
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +188,7 @@ class EfficientActivationTracker:
 class ExpertActivationTracker:
     """专家激活跟踪器 - 优化版本，使用高效数据结构"""
     
-    def __init__(self, max_history: int = 1000):
+    def __init__(self, max_history: int = 1000, time_window: int = 300):
         # 只使用高效跟踪器，移除冗余的expert_stats
         self.efficient_tracker = EfficientActivationTracker()
         self.request_history: deque = deque(maxlen=max_history)
@@ -192,12 +198,29 @@ class ExpertActivationTracker:
         self.process_id = os.getpid()
         self.rank = 0  # 默认rank，在多进程环境下会被正确设置
         
+        # 时间窗口控制（默认5分钟）
+        self.time_window = time_window
+        self.last_analysis_time = time.time()
+        self.activation_buffer = []
+        
     def record_expert_activation(self, layer_id: int, expert_id: int, 
                                tokens_processed: int = 1, request_id: str = None, 
                                activation_strength: float = 1.0):
         """记录专家激活 - 优化版本，只使用高效跟踪器"""
         # 直接使用高效跟踪器，避免双重记录
         self.efficient_tracker.record_activation(layer_id, expert_id, tokens_processed, activation_strength)
+        
+        # 添加到激活缓冲区
+        with self.lock:
+            self.activation_buffer.append({
+                'timestamp': time.time(),
+                'layer_id': layer_id,
+                'expert_id': expert_id,
+                'activation_strength': activation_strength
+            })
+            
+            # 检查是否需要分析（基于时间窗口）
+            self._check_time_window_analysis()
     
     def record_expert_activation_batch(self, layer_id: int, expert_id: int, 
                                      tokens_processed: int = 1, request_id: str = None, 
@@ -331,6 +354,81 @@ class ExpertActivationTracker:
         print(f"🔍 [EXPERT_TRACKING] 获取按层分组的专家统计数据(get_expert_stats_by_layer) in ExpertActivationTracker")
         return self.get_layer_stats()
     
+    def _check_time_window_analysis(self):
+        """检查时间窗口分析"""
+        current_time = time.time()
+        
+        # 检查是否到了分析时间
+        if current_time - self.last_analysis_time >= self.time_window:
+            self._perform_time_window_analysis()
+    
+    def _perform_time_window_analysis(self):
+        """执行时间窗口分析"""
+        try:
+            logger.info(f"📊 执行时间窗口分析 (窗口大小: {self.time_window}秒)")
+            
+            # 更新hot-cold分数
+            self.efficient_tracker.calculate_hot_cold_scores()
+            
+            # 获取统计信息
+            expert_stats = self.get_expert_stats()
+            layer_stats = self.get_layer_stats()
+            top_experts = self.get_top_experts(10)
+            
+            logger.info(f"  - 统计层数: {len(expert_stats)}")
+            logger.info(f"  - 层统计: {len(layer_stats)}")
+            logger.info(f"  - Top专家: {len(top_experts)}")
+            
+            # 显示前5个最活跃的专家
+            if top_experts:
+                logger.info("🔥 最活跃的专家:")
+                for i, expert in enumerate(top_experts[:5]):
+                    logger.info(f"    {i+1}. 层{expert['layer_id']} 专家{expert['expert_id']}: "
+                              f"激活{expert['activity']}次, 热度{expert['hot_cold_score']:.3f}")
+            
+            # 更新分析时间
+            self.last_analysis_time = time.time()
+            
+            # 清空激活缓冲区
+            self.activation_buffer.clear()
+            
+            logger.info("✅ 时间窗口分析完成")
+            
+        except Exception as e:
+            logger.error(f"时间窗口分析失败: {e}")
+    
+    def get_time_window_stats(self) -> Dict[str, Any]:
+        """获取时间窗口统计信息"""
+        with self.lock:
+            current_time = time.time()
+            window_start = current_time - self.time_window
+            
+            # 过滤时间窗口内的激活记录
+            window_activations = [
+                act for act in self.activation_buffer 
+                if act['timestamp'] >= window_start
+            ]
+            
+            return {
+                'time_window': self.time_window,
+                'window_start': window_start,
+                'current_time': current_time,
+                'total_activations': len(window_activations),
+                'buffer_size': len(self.activation_buffer),
+                'last_analysis_time': self.last_analysis_time,
+                'time_since_last_analysis': current_time - self.last_analysis_time
+            }
+    
+    def force_time_window_analysis(self):
+        """强制执行时间窗口分析"""
+        self._perform_time_window_analysis()
+    
+    def set_time_window(self, time_window: int):
+        """设置时间窗口大小"""
+        with self.lock:
+            self.time_window = time_window
+            logger.info(f"时间窗口设置为: {time_window}秒")
+    
     def aggregate_from_other_processes(self, other_trackers: List['ExpertActivationTracker']):
         """从其他进程聚合统计数据 - 简化版本"""
         # 简化聚合逻辑，只聚合请求历史
@@ -459,13 +557,14 @@ class GPTQDequantizer:
 class EnhancedMixedPrecisionWeightLoader:
     """增强的混合精度权重加载器"""
     
-    def __init__(self, config_path: str, enable_expert_tracking: bool = True):
+    def __init__(self, config_path: str, enable_expert_tracking: bool = True, enable_quantization: bool = True):
         """
         初始化增强的混合精度权重加载器
         
         Args:
             config_path: 配置文件路径
             enable_expert_tracking: 是否启用专家激活跟踪
+            enable_quantization: 是否启用混合精度量化
         """
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
@@ -486,9 +585,19 @@ class EnhancedMixedPrecisionWeightLoader:
         # 专家激活跟踪器
         self.expert_tracker = ExpertActivationTracker() if enable_expert_tracking else None
         
+        # 混合精度量化系统
+        self.quantization_manager = None
+        if enable_quantization:
+            self.quantization_manager = init_global_quantization_system(config_path)
+            if self.expert_tracker:
+                self.quantization_manager.set_expert_tracker(self.expert_tracker)
+            self.quantization_manager.enable_quantization(True)
+        
         logger.info(f"Enhanced mixed precision loader initialized with {len(self.weight_mapping)} weight mappings")
         if enable_expert_tracking:
             logger.info("Expert activation tracking enabled")
+        if enable_quantization:
+            logger.info("Mixed precision quantization enabled")
     
     def _load_safetensors_file(self, file_path: str) -> Dict[str, torch.Tensor]:
         """加载safetensors文件"""
@@ -745,6 +854,40 @@ class EnhancedMixedPrecisionWeightLoader:
         elif not enable:
             self.expert_tracker = None
             logger.info("Expert activation tracking disabled")
+    
+    def enable_quantization(self, enable: bool = True):
+        """启用或禁用混合精度量化"""
+        if self.quantization_manager:
+            self.quantization_manager.enable_quantization(enable)
+            logger.info(f"Mixed precision quantization {'enabled' if enable else 'disabled'}")
+        else:
+            logger.warning("Quantization manager not available")
+    
+    def quantize_model_weights(self, model: torch.nn.Module) -> Dict[str, Any]:
+        """量化模型权重"""
+        if self.quantization_manager:
+            return self.quantization_manager.quantize_expert_weights(model)
+        else:
+            logger.warning("Quantization manager not available")
+            return {'quantized': 0, 'skipped': 0, 'errors': 1, 'details': [{'error': 'Quantization manager not available'}]}
+    
+    def update_quantization_profiles(self):
+        """更新量化配置档案"""
+        if self.quantization_manager:
+            self.quantization_manager.update_expert_profiles_from_tracker()
+        else:
+            logger.warning("Quantization manager not available")
+    
+    def export_quantization_report(self, file_path: str):
+        """导出量化报告"""
+        if self.quantization_manager:
+            self.quantization_manager.export_quantization_report(file_path)
+        else:
+            logger.warning("Quantization manager not available")
+    
+    def get_quantization_manager(self):
+        """获取量化管理器"""
+        return self.quantization_manager
 
 
 # 全局专家激活跟踪器实例

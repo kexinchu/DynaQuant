@@ -14,8 +14,9 @@
 import logging
 import os
 import time
+import threading
 from abc import ABC
-from collections import deque
+from collections import deque, defaultdict
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Tuple, Type
@@ -27,9 +28,49 @@ import torch.distributed
 from sglang.srt.managers.expert_location import ExpertLocationMetadata
 from sglang.srt.managers.schedule_batch import global_server_args_dict
 from sglang.srt.model_executor.forward_batch_info import ForwardBatch
+from .hot_migration_swapper import HotMigrationSwapper
+from .non_expert_fp16_initializer import NonExpertFP16Initializer
+
+# 全局热迁移交换器实例
+_global_hot_migration_swapper = None
+_global_non_expert_fp16_initializer = None
+
+def init_global_hot_migration_swapper(fp16_path: str, fp8_path: str, gptq_int4_path: str, max_concurrent_swaps: int = 1) -> HotMigrationSwapper:
+    """初始化全局热迁移交换器"""
+    global _global_hot_migration_swapper
+    if _global_hot_migration_swapper is None:
+        _global_hot_migration_swapper = HotMigrationSwapper(
+            fp16_path=fp16_path,
+            fp8_path=fp8_path,
+            gptq_int4_path=gptq_int4_path,
+            max_concurrent_swaps=max_concurrent_swaps
+        )
+        logger.info("Global hot migration swapper initialized")
+    return _global_hot_migration_swapper
+
+def get_global_hot_migration_swapper() -> Optional[HotMigrationSwapper]:
+    """获取全局热迁移交换器"""
+    return _global_hot_migration_swapper
+
+def init_global_non_expert_fp16_initializer(fp16_path: str) -> NonExpertFP16Initializer:
+    """初始化全局非Expert层FP16初始化器"""
+    global _global_non_expert_fp16_initializer
+    if _global_non_expert_fp16_initializer is None:
+        _global_non_expert_fp16_initializer = NonExpertFP16Initializer(fp16_path=fp16_path)
+        logger.info("Global non-expert FP16 initializer initialized")
+    return _global_non_expert_fp16_initializer
+
+def get_global_non_expert_fp16_initializer() -> Optional[NonExpertFP16Initializer]:
+    """获取全局非Expert层FP16初始化器"""
+    return _global_non_expert_fp16_initializer
 from sglang.srt.server_args import ServerArgs
 from sglang.srt.utils import Withable, get_bool_env_var
 from sglang.srt.model_loader.enhanced_mixed_precision_loader import get_global_expert_tracker
+from sglang.srt.managers.dynamic_quantization_manager import (
+    init_global_quantization_manager,
+    get_global_quantization_manager,
+)
+# 全局热迁移交换器函数在下面定义
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +165,17 @@ class ExpertDistributionRecorder(ABC):
                             tokens_processed=tokens_per_expert,
                             activation_strength=1.0
                         )
+                        
+                        # 记录到时间窗口统计
+                        if hasattr(self, '_record_expert_activation_to_window'):
+                            self._record_expert_activation_to_window(layer_idx, expert_id)
+                
+                # 检查是否需要分析时间窗口
+                current_time = time.time()
+                if self._last_analysis_time[layer_idx] is None:
+                    self._last_analysis_time[layer_idx] = current_time
+                if current_time - self._last_analysis_time[layer_idx] >= self._time_window:
+                    self._analyze_time_window(layer_idx)
                         
         except Exception as e:
             logger.debug(f"记录expert激活失败: {e}")
@@ -317,6 +369,35 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
             for k in self._accumulator.get_single_pass_gatherer_keys()
         }
 
+        # 时间窗口统计功能
+        self._time_window = 100  # 5分钟时间窗口
+        self._last_analysis_time = defaultdict(time.time)  # layer_id -> time
+        self._expert_activation_counts = defaultdict(lambda: defaultdict(int))  # layer_id -> expert_id -> count
+        self._expert_activation_lock = threading.RLock()
+        
+        # 动态量化管理器
+        self._quantization_manager = None
+        self._init_quantization_manager()
+        
+        # 参数交换器
+        self._parameter_swapper = None
+        self._init_parameter_swapper()
+        
+        # 动态量化配置
+        self._quantization_config = {
+            'high_threshold': 0.5,    # score > 0.5 使用 fp16
+            'medium_threshold': 0.1,  # 0.1 < score <= 0.5 使用 fp8
+            # score <= 0.1 使用 gptq-int4
+            'precision_mapping': {
+                'fp16': 'fp16',
+                'fp8': 'fp8',
+                'int4': 'gptq_int4'
+            }
+        }
+        
+        # Expert量化映射
+        self._expert_quantization_map = defaultdict(lambda: defaultdict(str))  # layer_id -> expert_id -> precision
+
         if server_args.enable_expert_distribution_metrics:
             logger.info(
                 "ExpertDistributionRecorder auto start record since enable_expert_distribution_metrics"
@@ -326,6 +407,70 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
         # 启用我们的expert tracking hook
         self.enable_expert_tracking_hook()
         logger.info("✓ Expert tracking hook已启用")
+    
+    def _init_quantization_manager(self):
+        """初始化量化管理器"""
+        try:
+            # 从server args获取配置
+            server_args = self._server_args
+            
+            # 获取模型路径配置
+            fp16_path = server_args.fp16_model_path or '/dev/shm/Qwen3-235B-A22B'
+            fp8_path = server_args.fp8_model_path or '/dev/shm/Qwen3-235B-A22B-FP8'
+            gptq_int4_path = server_args.gptq_int4_model_path or '/dev/shm/Qwen3-235B-A22B-GPTQ-Int4'
+            
+            # 获取阈值配置
+            high_threshold = server_args.quantization_high_threshold
+            medium_threshold = server_args.quantization_medium_threshold
+            
+            # 初始化全局量化管理器
+            self._quantization_manager = init_global_quantization_manager(
+                high_threshold=high_threshold,
+                medium_threshold=medium_threshold,
+                fp16_path=fp16_path,
+                fp8_path=fp8_path,
+                gptq_int4_path=gptq_int4_path,
+                time_window=self._time_window
+            )
+            logger.info("Dynamic quantization manager initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize quantization manager: {e}")
+            self._quantization_manager = None
+    
+    def _init_parameter_swapper(self):
+        """初始化参数交换器"""
+        try:
+            # 从server args获取配置
+            server_args = self._server_args
+            logger.info(f"🔥 Initializing parameter swapper with enable_dynamic_quantization: {server_args.enable_dynamic_quantization}")
+            
+            # 获取模型路径配置
+            fp16_path = server_args.fp16_model_path or '/dev/shm/Qwen3-235B-A22B'
+            fp8_path = server_args.fp8_model_path or '/dev/shm/Qwen3-235B-A22B-FP8'
+            gptq_int4_path = server_args.gptq_int4_model_path or '/dev/shm/Qwen3-235B-A22B-GPTQ-Int4'
+            
+            logger.info(f"Model paths - FP16: {fp16_path}, FP8: {fp8_path}, GPTQ-INT4: {gptq_int4_path}")
+            
+            # 获取并发交换数量配置
+            max_concurrent_swaps = server_args.max_concurrent_swaps
+            
+            # 初始化全局热迁移交换器
+            self._parameter_swapper = init_global_hot_migration_swapper(
+                fp16_path=fp16_path,
+                fp8_path=fp8_path,
+                gptq_int4_path=gptq_int4_path,
+                max_concurrent_swaps=max_concurrent_swaps
+            )
+            logger.info("Hot migration swapper initialized")
+            
+            # 初始化非expert层FP16初始化器
+            self._non_expert_fp16_initializer = init_global_non_expert_fp16_initializer(fp16_path)
+            logger.info("Non-expert FP16 initializer initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize parameter swapper: {e}")
+            import traceback
+            traceback.print_exc()
+            self._parameter_swapper = None
 
     def with_current_layer(self, layer_idx):
         return self._current_layer_idx.with_value(layer_idx)
@@ -343,6 +488,9 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                 self._on_forward_pass_end(forward_pass_id)
 
     def _on_forward_pass_start(self, forward_batch: ForwardBatch):
+        # 检查并触发热迁移非expert层FP16初始化
+        self.check_and_initialize_non_expert_layers_hot()
+        
         if not self._recording:
             return
         for gatherer_key, gatherer in self._single_pass_gatherers.items():
@@ -414,6 +562,17 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                             tokens_processed=tokens_per_expert,
                             activation_strength=1.0
                         )
+                        
+                        # 记录到时间窗口统计
+                        if hasattr(self, '_record_expert_activation_to_window'):
+                            self._record_expert_activation_to_window(layer_idx, expert_id)
+                
+                # 检查是否需要分析时间窗口
+                current_time = time.time()
+                if self._last_analysis_time[layer_idx] is None:
+                    self._last_analysis_time[layer_idx] = current_time
+                if current_time - self._last_analysis_time[layer_idx] >= self._time_window:
+                    self._analyze_time_window(layer_idx)
                         
         except Exception as e:
             logger.debug(f"记录expert激活失败: {e}")
@@ -499,6 +658,292 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
     @property
     def recording(self):
         return self._recording
+    
+    def _record_expert_activation_to_window(self, layer_idx: int, expert_id: int):
+        """记录expert激活到时间窗口统计"""
+        with self._expert_activation_lock:
+            self._expert_activation_counts[layer_idx][expert_id] += 1
+    
+    def _analyze_time_window(self, layer_idx: int):
+        """分析时间窗口内的expert激活情况"""
+        layer_idx = layer_idx
+        current_time = time.time()
+        
+        with self._expert_activation_lock:
+            # 分析当前层expert激活情况
+            expert_counts = self._expert_activation_counts[layer_idx]
+            max_activations = max(expert_counts.values())
+            
+            # 计算每个expert的激活分数
+            expert_scores = {}
+            for expert_id, count in expert_counts.items():
+                score = count / max_activations if max_activations > 0 else 0
+                expert_scores[expert_id] = score
+                
+                # 更新量化管理器中的expert分数
+                if self._quantization_manager:
+                    self._quantization_manager.update_expert_score(layer_idx, expert_id, score)
+            
+            # 更新expert量化映射
+            self._update_expert_quantization_map(layer_idx, expert_scores)
+            
+            # 执行参数交换 - 使用热迁移
+            self._execute_parameter_swaps(layer_idx, expert_scores)
+            
+            # 清空统计计数器
+            self._expert_activation_counts[layer_idx].clear()
+            self._last_analysis_time[layer_idx] = current_time
+            
+        # 生成量化报告
+        self.export_quantization_report()
+    
+    def set_time_window(self, time_window: int):
+        """设置时间窗口大小"""
+        with self._expert_activation_lock:
+            self._time_window = time_window
+            logger.info(f"时间窗口设置为: {time_window}秒")
+    
+    def force_time_window_analysis(self):
+        """强制执行时间窗口分析"""
+        self._analyze_time_window()
+    
+    def _determine_quantization_precision(self, score: float) -> str:
+        """根据expert激活分数确定量化精度"""
+        # 更保守的量化策略，减少量化请求
+        if score > self._quantization_config['high_threshold']:
+            return "fp16"
+        elif score > self._quantization_config['medium_threshold']:
+            return "fp8"
+        else:
+            return "gptq_int4"
+    
+    def _update_expert_quantization_map(self, layer_idx: int, expert_scores: Dict[int, float]):
+        """更新expert量化映射"""
+        print(f"_update_expert_quantization_map: layer_idx={layer_idx}, expert_scores={expert_scores}")
+        try:
+            for expert_id, score in expert_scores.items():
+                precision = self._determine_quantization_precision(score)
+                self._expert_quantization_map[layer_idx][expert_id] = precision
+        except Exception as e:
+            print(f"Error in _update_expert_quantization_map: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
+    
+    def set_quantization_thresholds(self, high_threshold: float = None, medium_threshold: float = None):
+        """设置量化阈值"""
+        if high_threshold is not None:
+            self._quantization_config['high_threshold'] = high_threshold
+        if medium_threshold is not None:
+            self._quantization_config['medium_threshold'] = medium_threshold
+        
+        # 同时更新量化管理器
+        if self._quantization_manager:
+            self._quantization_manager.set_thresholds(high_threshold, medium_threshold)
+        
+        logger.info(f"Updated quantization thresholds: {self._quantization_config}")
+    
+    def export_quantization_report(self) -> Dict[str, Any]:
+        """导出量化报告"""
+        report = {
+            'thresholds': self._quantization_config.copy(),
+            'expert_quantization_map': dict(self._expert_quantization_map),
+            'statistics': {}
+        }
+        
+        # 添加量化管理器统计
+        if self._quantization_manager:
+            report['statistics'] = self._quantization_manager.get_quantization_stats()
+        
+        # 添加参数交换器统计
+        if self._parameter_swapper:
+            report['swap_statistics'] = self._parameter_swapper.get_swap_stats()
+        
+        return report
+    
+    def _execute_parameter_swaps(self, layer_idx: int, expert_scores: Dict[int, float]):
+        """执行参数交换 - 使用热迁移"""
+        try:
+            if not self._parameter_swapper:
+                logger.warning("No parameter swapper available")
+                print(f"No parameter swapper available")
+                return
+            
+            # 检查是否有需要交换的expert
+            swap_requests = []
+            for expert_id, score in expert_scores.items():
+                new_precision = self._determine_quantization_precision(score)
+                current_precision = self._expert_quantization_map.get(layer_idx, {}).get(expert_id, 'fp16')
+                
+                # 只有精度发生变化时才需要交换
+                if new_precision != current_precision:
+                    swap_requests.append((layer_idx, expert_id, new_precision))
+            
+            if not swap_requests:
+                logger.info(f"No precision changes needed for layer {layer_idx}")
+                return
+            
+            logger.info(f"Safe parameter swap: {len(swap_requests)} experts need precision change")
+            
+            # 分批处理，避免一次性处理过多expert
+            batch_size = 5  # 每批最多处理5个expert
+            for i in range(0, len(swap_requests), batch_size):
+                batch = swap_requests[i:i + batch_size]
+                
+                try:
+                    # 使用热迁移进行批量交换
+                    results = self._parameter_swapper.batch_hot_swap_experts(batch)
+                    logger.info(f"Hot migration batch {i//batch_size + 1} results: {results['successful_swaps']}/{results['total_requests']} successful")
+                    
+                    # 批次间添加延迟，减少系统压力
+                    if i + batch_size < len(swap_requests):
+                        import time
+                        time.sleep(0.05)  # 50ms延迟，热迁移更快
+                        
+                except Exception as e:
+                    logger.error(f"Hot migration batch {i//batch_size + 1} failed: {e}")
+                    continue
+            
+        except Exception as e:
+            logger.error(f"Failed to execute safe parameter swaps: {e}")
+            print(f"Exception in _execute_parameter_swaps_safe: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def set_quantization_thresholds(self, high_threshold: float = None, medium_threshold: float = None):
+        """设置量化阈值"""
+        with self._expert_activation_lock:
+            if high_threshold is not None:
+                self._quantization_config['high_threshold'] = high_threshold
+            if medium_threshold is not None:
+                self._quantization_config['medium_threshold'] = medium_threshold
+            logger.info(f"量化阈值已更新: 高阈值={self._quantization_config['high_threshold']}, "
+                       f"中阈值={self._quantization_config['medium_threshold']}")
+    
+    def export_quantization_report(self) -> Dict[str, Any]:
+        """导出量化报告"""
+        report = {
+            'quantization_config': self._quantization_config.copy(),
+            'expert_quantization_map': dict(self._expert_quantization_map),
+            'statistics': {}
+        }
+        
+        # 统计各精度的expert数量
+        precision_stats = defaultdict(int)
+        for layer_map in self._expert_quantization_map.values():
+            for precision in layer_map.values():
+                precision_stats[precision] += 1
+        
+        report['statistics'] = dict(precision_stats)
+        return report
+    
+    def set_model_runner(self, model_runner):
+        """设置ModelRunner实例，用于热迁移参数交换和非expert层FP16初始化"""
+        logger.info("🔥 set_model_runner called - starting non-expert FP16 initialization")
+        
+        if self._parameter_swapper:
+            self._parameter_swapper.set_model_runner(model_runner)
+            logger.info("ModelRunner instance set for hot migration swapper")
+        else:
+            logger.warning("No parameter swapper available")
+        
+        # 保存model_runner引用，稍后在模型加载完成后初始化非expert层
+        self._model_runner = model_runner
+        self._needs_non_expert_fp16_init = False  # 延迟初始化标记
+        self._non_expert_fp16_initialized = False  # 初始化完成标记
+        logger.info("ModelRunner reference saved for hot migration non-expert FP16 initialization")
+    
+    def initialize_non_expert_layers_after_model_load(self):
+        """在模型加载完成后初始化非expert层为FP16"""
+        if not hasattr(self, '_model_runner') or not self._model_runner:
+            logger.warning("No model_runner available for non-expert FP16 initialization")
+            return
+        
+        if not hasattr(self, '_non_expert_fp16_initializer') or not self._non_expert_fp16_initializer:
+            logger.warning("No non-expert FP16 initializer available")
+            return
+        
+        if not hasattr(self._model_runner, 'model'):
+            logger.warning("ModelRunner has no model attribute, skipping non-expert FP16 initialization")
+            return
+        
+        try:
+            logger.info("🎯 Initializing non-expert layers to FP16...")
+            logger.info(f"Model type: {type(self._model_runner.model)}")
+            
+            init_results = self._non_expert_fp16_initializer.initialize_non_expert_layers_fp16(self._model_runner.model)
+            
+            logger.info(f"✅ Non-expert FP16 initialization completed:")
+            logger.info(f"   📊 Total components: {init_results['successful_initializations'] + init_results['failed_initializations']}")
+            logger.info(f"   ✅ Successful: {init_results['successful_initializations']}")
+            logger.info(f"   ❌ Failed: {init_results['failed_initializations']}")
+            logger.info(f"   💾 Memory usage: {init_results['total_memory_usage_mb']:.2f} MB")
+            
+            # 输出初始化的组件详情
+            if init_results['initialized_components']:
+                logger.info(f"   🔄 Initialized components:")
+                for component in init_results['initialized_components'][:10]:  # 只显示前10个
+                    logger.info(f"      {component}")
+                if len(init_results['initialized_components']) > 10:
+                    logger.info(f"      ... and {len(init_results['initialized_components']) - 10} more")
+                    
+            # 标记初始化完成
+            self._non_expert_fp16_initialized = True
+            self._needs_non_expert_fp16_init = False
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize non-expert layers: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def check_and_initialize_non_expert_layers_hot(self):
+        """检查并在需要时进行热迁移非expert层FP16初始化"""
+        if self._non_expert_fp16_initialized:
+            return  # 已经初始化过了
+        
+        if not hasattr(self, '_needs_non_expert_fp16_init') or not self._needs_non_expert_fp16_init:
+            return  # 不需要初始化
+        
+        # 异步进行初始化，不阻塞推理
+        import threading
+        def async_init():
+            try:
+                logger.info("🔥 Hot migration: Starting non-expert FP16 initialization in background...")
+                self.initialize_non_expert_layers_after_model_load()
+                logger.info("🔥 Hot migration: Non-expert FP16 initialization completed in background")
+            except Exception as e:
+                logger.error(f"Hot migration initialization failed: {e}")
+        
+        # 启动后台线程进行初始化
+        init_thread = threading.Thread(target=async_init, daemon=True)
+        init_thread.start()
+        
+        # 标记正在初始化，避免重复启动
+        self._needs_non_expert_fp16_init = False
+    
+    def get_expert_quantization_map(self) -> Dict[int, Dict[int, str]]:
+        """获取expert量化映射"""
+        with self._expert_activation_lock:
+            return dict(self._expert_quantization_map)
+    
+    def export_quantization_report(self) -> Dict[str, Any]:
+        """导出量化报告"""
+        with self._expert_activation_lock:
+            report = {
+                'timestamp': time.time(),
+                'quantization_config': self._quantization_config.copy(),
+                'expert_quantization_map': dict(self._expert_quantization_map),
+                'statistics': {}
+            }
+            
+            # 统计各精度的expert数量
+            precision_stats = defaultdict(int)
+            for layer_map in self._expert_quantization_map.values():
+                for precision in layer_map.values():
+                    precision_stats[precision] += 1
+            
+            report['statistics'] = dict(precision_stats)
+            return report
 
 
 # 创建全局expert distribution recorder并启用expert tracking hook
@@ -513,6 +958,26 @@ if _global_expert_distribution_recorder:
 
 def get_global_expert_distribution_recorder():
     return _global_expert_distribution_recorder
+
+def get_expert_quantization_map() -> Dict[int, Dict[int, str]]:
+    """获取全局expert量化映射"""
+    recorder = get_global_expert_distribution_recorder()
+    if hasattr(recorder, 'get_expert_quantization_map'):
+        return recorder.get_expert_quantization_map()
+    return {}
+
+def set_quantization_thresholds(high_threshold: float = None, medium_threshold: float = None):
+    """设置全局量化阈值"""
+    recorder = get_global_expert_distribution_recorder()
+    if hasattr(recorder, 'set_quantization_thresholds'):
+        recorder.set_quantization_thresholds(high_threshold, medium_threshold)
+
+def export_quantization_report() -> Dict[str, Any]:
+    """导出量化报告"""
+    recorder = get_global_expert_distribution_recorder()
+    if hasattr(recorder, 'export_quantization_report'):
+        return recorder.export_quantization_report()
+    return {}
 
 
 def set_global_expert_distribution_recorder(value):

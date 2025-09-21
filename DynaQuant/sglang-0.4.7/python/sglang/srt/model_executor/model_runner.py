@@ -233,13 +233,23 @@ class ModelRunner:
                     f"Initial expert_location_metadata: {get_global_expert_location_metadata().debug_str()}"
                 )
 
-            set_global_expert_distribution_recorder(
-                ExpertDistributionRecorder.init_new(
-                    server_args,
-                    get_global_expert_location_metadata(),
-                    rank=self.tp_rank,
-                )
+            expert_distribution_recorder = ExpertDistributionRecorder.init_new(
+                server_args,
+                get_global_expert_location_metadata(),
+                rank=self.tp_rank,
             )
+            set_global_expert_distribution_recorder(expert_distribution_recorder)
+            
+            # 保存expert_distribution_recorder引用，用于后续的非expert层FP16初始化
+            self.expert_distribution_recorder = expert_distribution_recorder
+            
+            # 设置ModelRunner实例，用于参数交换
+            if server_args.enable_dynamic_quantization:
+                logger.info("🔥 Enabling dynamic quantization - calling set_model_runner")
+                expert_distribution_recorder.set_model_runner(self)
+                logger.info("🔥 set_model_runner completed")
+            else:
+                logger.info("🔥 Dynamic quantization not enabled - skipping set_model_runner")
 
         self.eplb_manager = (
             EPLBManager(self)
@@ -594,6 +604,15 @@ class ModelRunner:
             f"avail mem={after_avail_memory:.2f} GB, "
             f"mem usage={(before_avail_memory - after_avail_memory):.2f} GB."
         )
+        
+        # 立即初始化非expert层为FP16 - 在模型加载完成后立即进行
+        if self.server_args.enable_dynamic_quantization:
+            if hasattr(self, 'expert_distribution_recorder') and self.expert_distribution_recorder:
+                logger.info(f"🔥 Model loaded, initializing non-expert layers to FP16 immediately (tp_rank={self.tp_rank})")
+                # 立即执行初始化
+                self.expert_distribution_recorder.initialize_non_expert_layers_after_model_load()
+            else:
+                logger.warning("No expert distribution recorder available for non-expert FP16 initialization")
 
         # Handle the case where some ranks do not finish loading.
         try:

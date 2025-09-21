@@ -133,6 +133,15 @@ class ServerArgs:
     mixed_precision_config: Optional[str] = None
     enable_mixed_precision: bool = False
 
+    # Dynamic quantization configuration
+    enable_dynamic_quantization: bool = False
+    fp16_model_path: Optional[str] = None
+    fp8_model_path: Optional[str] = None
+    gptq_int4_model_path: Optional[str] = None
+    quantization_high_threshold: float = 0.5
+    quantization_medium_threshold: float = 0.1
+    max_concurrent_swaps: int = 4
+
     # LoRA
     lora_paths: Optional[List[str]] = None
     max_loras_per_batch: int = 8
@@ -645,6 +654,52 @@ class ServerArgs:
             help="Path to the mixed precision configuration file (YAML format). "
             "This file specifies which model layers should use which precision "
             "(FP16, FP8, Int4, etc.) for optimal memory usage and performance.",
+        )
+        
+        # Dynamic quantization parameters
+        parser.add_argument(
+            "--enable-dynamic-quantization",
+            action="store_true",
+            default=ServerArgs.enable_dynamic_quantization,
+            help="Enable dynamic quantization based on expert activation scores.",
+        )
+        parser.add_argument(
+            "--fp16-model-path",
+            type=str,
+            default=ServerArgs.fp16_model_path,
+            help="Path to the FP16 precision model weights.",
+        )
+        parser.add_argument(
+            "--fp8-model-path",
+            type=str,
+            default=ServerArgs.fp8_model_path,
+            help="Path to the FP8 precision model weights.",
+        )
+        parser.add_argument(
+            "--gptq-int4-model-path",
+            type=str,
+            default=ServerArgs.gptq_int4_model_path,
+            help="Path to the GPTQ-INT4 precision model weights.",
+        )
+        parser.add_argument(
+            "--quantization-high-threshold",
+            type=float,
+            default=ServerArgs.quantization_high_threshold,
+            help="High threshold for quantization precision selection (default: 0.5). "
+            "Expert scores above this threshold use FP16.",
+        )
+        parser.add_argument(
+            "--quantization-medium-threshold",
+            type=float,
+            default=ServerArgs.quantization_medium_threshold,
+            help="Medium threshold for quantization precision selection (default: 0.1). "
+            "Expert scores between medium and high thresholds use FP8.",
+        )
+        parser.add_argument(
+            "--max-concurrent-swaps",
+            type=int,
+            default=ServerArgs.max_concurrent_swaps,
+            help="Maximum number of concurrent parameter swaps (default: 4).",
         )
         parser.add_argument(
             "--context-length",

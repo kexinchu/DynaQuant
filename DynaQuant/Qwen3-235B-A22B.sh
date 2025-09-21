@@ -1,9 +1,9 @@
 #/bin/sh
 
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
+CUDA_VISIBLE_DEVICES=0,1,2,3 \
 python3 -m sglang.launch_server \
   --model-path /dev/shm/Qwen3-235B-A22B-FP8 \
-  --tp-size 4 --dp-size 2 \
+  --tp-size 4 --dp-size 1 \
   --enable-ep-moe \
   --max-running-requests 32 \
   --host 127.0.0.1 --port 8080 \
@@ -19,9 +19,16 @@ python3 -m sglang.launch_server \
   --chunked-prefill-size 16384 \
   --enable-mixed-precision \
   --mixed-precision-config ./sglang-0.4.7/mixed_precision_config.yaml \
-  # --expert-distribution-recorder-mode per_token \
-  # --enable-expert-distribution-metrics \
-  # --ep-dispatch-algorithm static \
+  --expert-distribution-recorder-mode per_token \
+  --enable-expert-distribution-metrics \
+  --ep-dispatch-algorithm static \
+  --enable-dynamic-quantization \
+  --fp16-model-path /dev/shm/Qwen3-235B-A22B \
+  --fp8-model-path /dev/shm/Qwen3-235B-A22B-FP8 \
+  --gptq-int4-model-path /dev/shm/Qwen3-235B-A22B-GPTQ-Int4 \
+  --quantization-high-threshold 0.5 \
+  --quantization-medium-threshold 0.1 \
+  --max-concurrent-swaps 1 \
 
 # 测试
 # curl -s http://127.0.0.1:8080/v1/chat/completions \
