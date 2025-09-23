@@ -694,6 +694,9 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
             self._expert_activation_counts[layer_idx].clear()
             self._last_analysis_time[layer_idx] = current_time
             
+        # 打印全局精度分布
+        self.print_global_precision_distribution()
+        
         # 生成量化报告
         self.export_quantization_report()
     
@@ -741,6 +744,55 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
             self._quantization_manager.set_thresholds(high_threshold, medium_threshold)
         
         logger.info(f"Updated quantization thresholds: {self._quantization_config}")
+    
+    def print_global_precision_distribution(self):
+        """打印全局所有层的精度分布汇总"""
+        try:
+            print(f"\n📊 Global Expert Precision Distribution Summary:")
+            print(f"{'Layer':<6} {'FP16':<6} {'FP8':<6} {'GPTQ-INT4':<10} {'Total':<6}")
+            print("-" * 40)
+            
+            total_fp16 = 0
+            total_fp8 = 0
+            total_gptq = 0
+            total_experts = 0
+            
+            # 按层号排序
+            sorted_layers = sorted(self._expert_quantization_map.keys())
+            
+            for layer_idx in sorted_layers:
+                precision_counts = {'fp16': 0, 'fp8': 0, 'gptq_int4': 0}
+                
+                for expert_id, precision in self._expert_quantization_map[layer_idx].items():
+                    if precision in precision_counts:
+                        precision_counts[precision] += 1
+                
+                layer_total = sum(precision_counts.values())
+                total_fp16 += precision_counts['fp16']
+                total_fp8 += precision_counts['fp8']
+                total_gptq += precision_counts['gptq_int4']
+                total_experts += layer_total
+                
+                print(f"{layer_idx:<6} {precision_counts['fp16']:<6} {precision_counts['fp8']:<6} {precision_counts['gptq_int4']:<10} {layer_total:<6}")
+            
+            print("-" * 40)
+            print(f"{'TOTAL':<6} {total_fp16:<6} {total_fp8:<6} {total_gptq:<10} {total_experts:<6}")
+            
+            # 计算百分比
+            if total_experts > 0:
+                fp16_pct = (total_fp16 / total_experts) * 100
+                fp8_pct = (total_fp8 / total_experts) * 100
+                gptq_pct = (total_gptq / total_experts) * 100
+                
+                print(f"\n📈 Precision Distribution Percentages:")
+                print(f"   FP16:      {fp16_pct:5.1f}% ({total_fp16:,} experts)")
+                print(f"   FP8:       {fp8_pct:5.1f}% ({total_fp8:,} experts)")
+                print(f"   GPTQ-INT4: {gptq_pct:5.1f}% ({total_gptq:,} experts)")
+            
+            print()  # 空行分隔
+            
+        except Exception as e:
+            logger.warning(f"Failed to print global precision distribution: {e}")
     
     def export_quantization_report(self) -> Dict[str, Any]:
         """导出量化报告"""
@@ -801,7 +853,7 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                 except Exception as e:
                     logger.error(f"Hot migration batch {i//batch_size + 1} failed: {e}")
                     continue
-            
+
         except Exception as e:
             logger.error(f"Failed to execute safe parameter swaps: {e}")
             print(f"Exception in _execute_parameter_swaps_safe: {e}")

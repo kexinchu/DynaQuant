@@ -223,3 +223,19 @@ Coze 评分数据分析结果
   最大值: 1.0000
   标准差: 0.0000
 ```
+
+- DynaQuant
+[2025-09-23 05:26:35 DP0 TP0] Decode batch. #running-req: 16, #token: 20126, token usage: 0.25, cuda graph: False, gen throughput (token/s): 37.02, #queue-req: 0
+[2025-09-23 05:26:38 DP1 TP0] Decode batch. #running-req: 16, #token: 16904, token usage: 0.21, cuda graph: False, gen throughput (token/s): 36.48, #queue-req: 0
+```shell
+📈 Precision Distribution Percentages:
+   FP16:       16.9% (363 experts)
+   FP8:        24.3% (521 experts)
+   GPTQ-INT4:  58.8% (1,264 experts)
+
+# 处理多轮之后
+📈 Precision Distribution Percentages:
+   FP16:       10.9% (254 experts)
+   FP8:        32.4% (755 experts)
+   GPTQ-INT4:  56.8% (1,324 experts)
+```
