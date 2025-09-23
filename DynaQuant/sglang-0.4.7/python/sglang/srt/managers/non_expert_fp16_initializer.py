@@ -24,8 +24,34 @@ class NonExpertFP16Initializer:
         """
         self.fp16_model_path = fp16_path
         self.initialized_layers = set()
+        self._weight_map = None
+        self._target_dtype = self._detect_target_dtype()
         
-        logger.info(f"NonExpertFP16Initializer initialized with path: {fp16_path}")
+        logger.info(f"NonExpertFP16Initializer initialized with path: {fp16_path}, target dtype: {self._target_dtype}")
+    
+    def _detect_target_dtype(self) -> torch.dtype:
+        """检测FP16模型的目标数据类型"""
+        try:
+            import json
+            config_path = os.path.join(self.fp16_model_path, "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    config = json.load(f)
+                    torch_dtype = config.get('torch_dtype', 'float16')
+                    
+                    if torch_dtype == 'bfloat16':
+                        return torch.bfloat16
+                    elif torch_dtype == 'float16':
+                        return torch.float16
+                    else:
+                        logger.warning(f"Unknown torch_dtype: {torch_dtype}, using bfloat16")
+                        return torch.bfloat16
+            else:
+                logger.warning(f"Config file not found at {config_path}, using bfloat16")
+                return torch.bfloat16
+        except Exception as e:
+            logger.warning(f"Failed to detect target dtype: {e}, using bfloat16")
+            return torch.bfloat16
     
     def initialize_non_expert_layers_fp16(self, model) -> Dict[str, Any]:
         """
@@ -190,18 +216,16 @@ class NonExpertFP16Initializer:
             # 检查attention层的组件结构
             attention_components = []
             
-            # 检查是否有分别的q_proj, k_proj, v_proj
-            if hasattr(attention_layer, 'q_proj') and hasattr(attention_layer, 'k_proj') and hasattr(attention_layer, 'v_proj'):
-                attention_components.extend(['q_proj', 'k_proj', 'v_proj'])
-            # 检查是否有合并的qkv_proj
+            # 检查是否有合并的qkv_proj (QKVParallelLinear)
             if hasattr(attention_layer, 'qkv_proj'):
                 attention_components.append('qkv_proj')
+            # 检查是否有分别的q_proj, k_proj, v_proj (传统attention)
+            elif hasattr(attention_layer, 'q_proj') and hasattr(attention_layer, 'k_proj') and hasattr(attention_layer, 'v_proj'):
+                attention_components.extend(['q_proj', 'k_proj', 'v_proj'])
             
             # 检查是否有o_proj
             if hasattr(attention_layer, 'o_proj'):
                 attention_components.append('o_proj')
-            
-            logger.info(f"Found attention components in layer {layer_idx}: {attention_components}")
             
             for component_name in attention_components:
                 if hasattr(attention_layer, component_name):
@@ -212,7 +236,6 @@ class NonExpertFP16Initializer:
                         results['successful'] += 1
                         results['components'].append(f"Layer{layer_idx}.self_attn.{component_name}")
                         results['memory_mb'] += self._estimate_component_memory(component)
-                        logger.info(f"✅ Converted {component_name} in layer {layer_idx} to FP16")
                     else:
                         results['failed'] += 1
                         logger.warning(f"❌ Failed to convert {component_name} in layer {layer_idx}")
@@ -222,6 +245,32 @@ class NonExpertFP16Initializer:
             results['failed'] += 1
         
         return results
+    
+    def _ensure_qkv_proj_dtype(self, module: nn.Module, component_path: str) -> bool:
+        """确保QKVParallelLinear的数据类型正确，不进行权重合并"""
+        try:
+            # 检查是否需要kernel迁移
+            if self._needs_kernel_migration(module, component_path):
+                if not self._hot_migrate_kernel(module, component_path):
+                    logger.warning(f"Kernel migration failed for {component_path}")
+                    return False
+            
+            # 转换模块为目标精度
+            if self._target_dtype == torch.bfloat16:
+                module = module.to(torch.bfloat16)
+            else:
+                module = module.half()
+            
+            # 验证转换结果
+            after_dtypes = set()
+            for param in module.parameters():
+                after_dtypes.add(str(param.dtype))
+            
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Failed to ensure QKVParallelLinear dtype for {component_path}: {e}")
+            return False
     
     def _initialize_layernorm_layer(self, layernorm_layer, layer_idx: int, component_name: str) -> Dict[str, Any]:
         """初始化layernorm层为FP16"""
@@ -239,7 +288,6 @@ class NonExpertFP16Initializer:
                 results['successful'] += 1
                 results['components'].append(f"Layer{layer_idx}.{component_name}")
                 results['memory_mb'] += self._estimate_component_memory(layernorm_layer)
-                logger.info(f"✅ Converted {component_name} in layer {layer_idx} to FP16")
             else:
                 results['failed'] += 1
                 logger.warning(f"❌ Failed to convert {component_name} in layer {layer_idx}")
@@ -270,7 +318,6 @@ class NonExpertFP16Initializer:
                         results['successful'] += 1
                         results['components'].append(f"Layer{layer_idx}.mlp.{component_name}")
                         results['memory_mb'] += self._estimate_component_memory(component)
-                        logger.info(f"✅ Converted {component_name} in layer {layer_idx} to FP16")
                     else:
                         results['failed'] += 1
                         logger.warning(f"❌ Failed to convert {component_name} in layer {layer_idx}")
@@ -299,7 +346,6 @@ class NonExpertFP16Initializer:
                     results['successful'] += 1
                     results['components'].append("embed_tokens")
                     results['memory_mb'] += self._estimate_component_memory(model_inner.embed_tokens)
-                    logger.info("✅ Converted embed_tokens to FP16")
                 else:
                     results['failed'] += 1
                     logger.warning("❌ Failed to convert embed_tokens")
@@ -328,7 +374,6 @@ class NonExpertFP16Initializer:
                     results['successful'] += 1
                     results['components'].append("lm_head")
                     results['memory_mb'] += self._estimate_component_memory(model_inner.lm_head)
-                    logger.info("✅ Converted lm_head to FP16")
                 else:
                     results['failed'] += 1
                     logger.warning("❌ Failed to convert lm_head")
@@ -353,9 +398,12 @@ class NonExpertFP16Initializer:
                 logger.warning("Weight map not loaded")
                 return False
             
-            # 特殊处理qkv_proj：需要分别加载q_proj, k_proj, v_proj并合并
+            # 特殊处理qkv_proj：对于QKVParallelLinear，不需要手动合并权重
+            # QKVParallelLinear会自己处理分别的q_proj, k_proj, v_proj权重
             if component_path.endswith('.qkv_proj'):
-                return self._load_and_replace_qkv_proj(module, component_path)
+                # 对于QKVParallelLinear，我们只需要确保数据类型正确，不需要手动合并权重
+                # 权重加载由QKVParallelLinear的weight_loader处理
+                return self._ensure_qkv_proj_dtype(module, component_path)
             
             # 查找匹配的权重键
             matching_keys = []
@@ -413,12 +461,32 @@ class NonExpertFP16Initializer:
             k_path = f"model.layers.{layer_idx}.self_attn.k_proj.weight"
             v_path = f"model.layers.{layer_idx}.self_attn.v_proj.weight"
             
+            logger.info(f"Loading QKV weights for layer {layer_idx}")
+            logger.info(f"Q path: {q_path}")
+            logger.info(f"K path: {k_path}")
+            logger.info(f"V path: {v_path}")
+            
             q_weight = self._load_single_weight(q_path)
             k_weight = self._load_single_weight(k_path)
             v_weight = self._load_single_weight(v_path)
             
+            if q_weight is None:
+                logger.error(f"Failed to load Q weight for layer {layer_idx}: {q_path}")
+            else:
+                logger.info(f"Successfully loaded Q weight: {q_weight.shape} ({q_weight.dtype})")
+                
+            if k_weight is None:
+                logger.error(f"Failed to load K weight for layer {layer_idx}: {k_path}")
+            else:
+                logger.info(f"Successfully loaded K weight: {k_weight.shape} ({k_weight.dtype})")
+                
+            if v_weight is None:
+                logger.error(f"Failed to load V weight for layer {layer_idx}: {v_path}")
+            else:
+                logger.info(f"Successfully loaded V weight: {v_weight.shape} ({v_weight.dtype})")
+            
             if q_weight is None or k_weight is None or v_weight is None:
-                logger.warning(f"Failed to load q/k/v weights for layer {layer_idx}")
+                logger.error(f"Failed to load q/k/v weights for layer {layer_idx}")
                 return False
             
             # 合并权重 - 需要正确处理多头注意力的权重形状
@@ -428,21 +496,39 @@ class NonExpertFP16Initializer:
             
             try:
                 # 检查权重形状是否兼容
-                if q_weight.shape[0] == k_weight.shape[0] == v_weight.shape[0]:
-                    # 形状匹配，直接合并
-                    qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
+                logger.debug(f"Original QKV shapes - Q: {q_weight.shape} ({q_weight.dtype}), K: {k_weight.shape} ({k_weight.dtype}), V: {v_weight.shape} ({v_weight.dtype})")
+                
+                # 确保所有权重具有相同的数据类型
+                if q_weight.dtype != self._target_dtype:
+                    q_weight = q_weight.to(self._target_dtype)
+                    logger.debug(f"Converted Q weight dtype from {q_weight.dtype} to {self._target_dtype}")
+                if k_weight.dtype != self._target_dtype:
+                    k_weight = k_weight.to(self._target_dtype)
+                    logger.debug(f"Converted K weight dtype from {k_weight.dtype} to {self._target_dtype}")
+                if v_weight.dtype != self._target_dtype:
+                    v_weight = v_weight.to(self._target_dtype)
+                    logger.debug(f"Converted V weight dtype from {v_weight.dtype} to {self._target_dtype}")
+                
+                # 对于QKV投影，权重形状应该是 [input_size, output_size]
+                # 合并时应该沿着output_size维度合并，即dim=1
+                
+                # 首先检查权重形状是否符合预期
+                expected_input_size = q_weight.shape[0]  # 应该是4096
+                expected_output_size = q_weight.shape[1]  # 应该是4096 (对于单头)
+                
+                logger.debug(f"Expected input size: {expected_input_size}, Expected output size: {expected_output_size}")
+                
+                # 检查Q、K、V权重的输入维度是否一致
+                if q_weight.shape[1] == k_weight.shape[1] == v_weight.shape[1]:
+                    # 输入维度一致，可以合并
+                    # 对于GQA (Grouped Query Attention)，K/V heads可能比Q heads少
+                    # 直接按照QKV的顺序合并：[Q, K, V]，不需要重复K/V权重
+                    qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=1)
+                    logger.debug(f"GQA concatenation - QKV shape: {qkv_weight.shape}")
+                    logger.debug(f"Q size: {q_weight.shape[1]}, K size: {k_weight.shape[1]}, V size: {v_weight.shape[1]}")
                 else:
-                    # 形状不匹配，需要特殊处理
-                    # 假设Q权重包含了所有头，K/V权重需要重复
-                    if q_weight.shape[0] > k_weight.shape[0]:
-                        # Q权重比K/V权重大，需要重复K/V权重
-                        repeat_factor = q_weight.shape[0] // k_weight.shape[0]
-                        k_weight_repeated = k_weight.repeat(repeat_factor, 1)
-                        v_weight_repeated = v_weight.repeat(repeat_factor, 1)
-                        qkv_weight = torch.cat([q_weight, k_weight_repeated, v_weight_repeated], dim=-1)
-                    else:
-                        # 其他情况，尝试直接合并（可能会失败）
-                        qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=-1)
+                    logger.error(f"Input dimension mismatch - Q: {q_weight.shape[0]}, K: {k_weight.shape[0]}, V: {v_weight.shape[0]}")
+                    return False
                 
                 logger.debug(f"QKV weight shapes - Q: {q_weight.shape}, K: {k_weight.shape}, V: {v_weight.shape}")
                 logger.debug(f"Merged QKV weight shape: {qkv_weight.shape}")
@@ -454,14 +540,13 @@ class NonExpertFP16Initializer:
             
             # 检查是否需要kernel迁移
             if self._needs_kernel_migration(module, component_path):
-                logger.info(f"🔥 Kernel migration needed for {component_path}")
                 # 使用热迁移kernel
                 if self._hot_migrate_kernel(module, component_path):
                     # 热迁移成功后，替换权重
                     if hasattr(module, 'weight'):
-                        # 确保权重在正确的设备上并转换为FP16
+                        # 确保权重在正确的设备上并转换为目标数据类型
                         target_device = module.weight.device
-                        qkv_weight = qkv_weight.half().to(target_device)
+                        qkv_weight = qkv_weight.to(self._target_dtype).to(target_device)
                         module.weight.data = qkv_weight
                         logger.debug(f"Successfully migrated kernel and replaced qkv_proj weight for layer {layer_idx}")
                         return True
@@ -474,9 +559,9 @@ class NonExpertFP16Initializer:
             else:
                 # 不需要kernel迁移，直接替换权重
                 if hasattr(module, 'weight'):
-                    # 确保权重在正确的设备上并转换为FP16
+                    # 确保权重在正确的设备上并转换为目标数据类型
                     target_device = module.weight.device
-                    qkv_weight = qkv_weight.half().to(target_device)
+                    qkv_weight = qkv_weight.to(self._target_dtype).to(target_device)
                     module.weight.data = qkv_weight
                     logger.debug(f"Successfully replaced qkv_proj weight for layer {layer_idx}")
                     return True
@@ -492,7 +577,8 @@ class NonExpertFP16Initializer:
         """加载单个权重"""
         try:
             if weight_path not in self._weight_map:
-                logger.debug(f"Weight path not found: {weight_path}")
+                logger.warning(f"Weight path not found in weight_map: {weight_path}")
+                logger.debug(f"Available paths: {list(self._weight_map.keys())[:5]}...")
                 return None
             
             weight_file = self._weight_map[weight_path]
@@ -512,6 +598,9 @@ class NonExpertFP16Initializer:
                     return weight
                 else:
                     logger.warning(f"Weight key not found in file: {weight_path}")
+                    # 列出文件中可用的键
+                    available_keys = [k for k in f.keys() if 'model.layers.0.self_attn' in k]
+                    logger.debug(f"Available keys in file: {available_keys}")
                     return None
                     
         except Exception as e:
@@ -577,16 +666,12 @@ class NonExpertFP16Initializer:
                     start_idx = rank * target_shape[0]
                     end_idx = (rank + 1) * target_shape[0]
                     processed_weight = source_weight[start_idx:end_idx, :]
-                    # 保持权重在原始设备上，调用者会负责移动到目标设备
-                    logger.info(f"Tensor parallel split (rows) for {param_name}: {source_shape} -> {processed_weight.shape} (rank={rank})")
                     return processed_weight
                 elif source_shape[1] == target_shape[1] * 4:
                     # 列切分
                     start_idx = rank * target_shape[1]
                     end_idx = (rank + 1) * target_shape[1]
                     processed_weight = source_weight[:, start_idx:end_idx]
-                    # 保持权重在原始设备上，调用者会负责移动到目标设备
-                    logger.info(f"Tensor parallel split (cols) for {param_name}: {source_shape} -> {processed_weight.shape} (rank={rank})")
                     return processed_weight
             
             # 如果无法处理，返回None
@@ -655,7 +740,7 @@ class NonExpertFP16Initializer:
             
             # 1. 强制同步所有CUDA操作，确保没有正在进行的推理
             if torch.cuda.is_available():
-                torch.cuda.synchronize()
+                torch.cuda.synchronize() # 操作 - 同步的，可能需要异步处理
                 # 额外的同步，确保所有操作完成
                 for device_id in range(torch.cuda.device_count()):
                     with torch.cuda.device(device_id):
@@ -681,26 +766,44 @@ class NonExpertFP16Initializer:
                     )
                     
                     if is_embedding_layer:
-                        # 对于embedding层，创建FP16的量化方法
-                        from sglang.srt.layers.vocab_parallel_embedding import UnquantizedEmbeddingMethod
-                        module.quant_method = UnquantizedEmbeddingMethod()
-                        logger.info(f"Set FP16 quant_method for embedding layer: {type(module).__name__}")
+                        # 对于embedding层，创建非量化的embedding方法
+                        try:
+                            from sglang.srt.layers.vocab_parallel_embedding import UnquantizedEmbeddingMethod
+                            module.quant_method = UnquantizedEmbeddingMethod()
+                            logger.info(f"Set unquantized quant_method for embedding layer: {type(module).__name__}")
+                        except ImportError:
+                            logger.warning(f"UnquantizedEmbeddingMethod not available, keeping original quant_method")
                     else:
-                        # 对于其他层，移除量化方法
-                        module.quant_method = None
+                        # 对于linear层，使用SGLang的UnquantizedLinearMethod
+                        try:
+                            from sglang.srt.layers.linear import UnquantizedLinearMethod
+                            module.quant_method = UnquantizedLinearMethod()
+                        except ImportError:
+                            # 如果导入失败，创建一个简单的非量化方法
+                            class SimpleUnquantizedMethod:
+                                def apply(self, layer, x, bias=None):
+                                    import torch.nn.functional as F
+                                    return F.linear(x, layer.weight, bias)
+                            
+                            module.quant_method = SimpleUnquantizedMethod()
+                        
+                        # 确保不设置None
+                        if module.quant_method is None:
+                            logger.error(f"quant_method is None, this will cause AssertionError!")
+                            raise RuntimeError(f"Failed to set quant_method for {type(module).__name__}")
                 
                 # 清理量化相关属性
                 for attr_name in ['compressed_weight', 'weight_format', 'quantization_method', 'weight_scale_inv', 'scales']:
                     if hasattr(module, attr_name):
                         setattr(module, attr_name, None)
                 
-                # 确保权重是FP16并在正确的设备上
+                # 确保权重是目标数据类型并在正确的设备上
                 for param in module.parameters():
-                    if param.dtype != torch.float16:
-                        # 确保权重在正确的设备上并转换为FP16
+                    if param.dtype != self._target_dtype:
+                        # 确保权重在正确的设备上并转换为目标数据类型
                         target_device = param.device
-                        param.data = param.data.half().to(target_device)
-                        logger.debug(f"Converted param to FP16 on device {target_device}: {param.shape}")
+                        param.data = param.data.to(self._target_dtype).to(target_device)
+                        logger.debug(f"Converted param to {self._target_dtype} on device {target_device}: {param.shape}")
                     
                     # 额外检查：确保权重在正确的设备上
                     if param.device != target_device:
@@ -725,8 +828,6 @@ class NonExpertFP16Initializer:
                 for device_id in range(torch.cuda.device_count()):
                     with torch.cuda.device(device_id):
                         torch.cuda.synchronize()
-            
-            logger.info("✅ Hot kernel migration to FP16 completed")
             return True
             
         except Exception as e:
@@ -807,9 +908,8 @@ class NonExpertFP16Initializer:
                             with torch.no_grad():
                                 # 确保权重在正确的设备上并转换为FP16
                                 target_device = param.device
-                                matching_weight = matching_weight.half().to(target_device)
+                                matching_weight = matching_weight.to(self._target_dtype).to(target_device)
                                 param.data = matching_weight
-                            logger.info(f"✅ Replaced {param_name} for {component_path}")
                         else:
                             # 尝试处理tensor并行权重
                             processed_weight = self._handle_tensor_parallel_weight(
@@ -819,9 +919,8 @@ class NonExpertFP16Initializer:
                                 with torch.no_grad():
                                     # 确保权重在正确的设备上并转换为FP16
                                     target_device = param.device
-                                    processed_weight = processed_weight.half().to(target_device)
+                                    processed_weight = processed_weight.to(self._target_dtype).to(target_device)
                                     param.data = processed_weight
-                                logger.info(f"✅ Adapted {param_name} for {component_path}: {matching_weight.shape} -> {processed_weight.shape}")
                             else:
                                 logger.warning(f"❌ Cannot handle weight shape mismatch for {param_name}: {param.shape} vs {matching_weight.shape}")
                     else:
@@ -829,7 +928,6 @@ class NonExpertFP16Initializer:
                 
                 # 验证quant_method仍然存在
                 if hasattr(module, 'quant_method') and module.quant_method is not None:
-                    logger.info(f"✅ Embedding layer quant_method preserved: {type(module.quant_method).__name__}")
                     return True
                 else:
                     logger.error(f"❌ Embedding layer quant_method was lost during weight replacement")
@@ -864,9 +962,9 @@ class NonExpertFP16Initializer:
                 if matching_weight is not None:
                     # 正常处理权重替换，不在这里进行kernel迁移
                     if matching_weight.shape == param.shape:
-                        # 替换权重，确保移动到正确的设备并转换为FP16
+                        # 替换权重，确保移动到正确的设备并转换为目标数据类型
                         target_device = param.device
-                        matching_weight = matching_weight.half().to(target_device)
+                        matching_weight = matching_weight.to(self._target_dtype).to(target_device)
                         param.data = matching_weight
                         logger.debug(f"Replaced {param_name} for {component_path}")
                     else:
@@ -877,10 +975,8 @@ class NonExpertFP16Initializer:
                         if processed_weight is not None:
                             # 确保权重在正确的设备上并转换为FP16
                             target_device = param.device
-                            processed_weight = processed_weight.half().to(target_device)
+                            processed_weight = processed_weight.to(self._target_dtype).to(target_device)
                             param.data = processed_weight
-                            logger.info(f"✅ Successfully adapted {param_name} for {component_path}: "
-                                      f"{matching_weight.shape} -> {processed_weight.shape}")
                         else:
                             logger.warning(f"Shape mismatch for {param_name} in {component_path}: "
                                         f"expected {param.shape}, got {matching_weight.shape}")
@@ -891,21 +987,22 @@ class NonExpertFP16Initializer:
             # 在权重替换完成后，检查是否需要kernel热迁移
             old_precision = self._detect_current_precision(module)
             if old_precision != 'fp16':
-                logger.info(f"🔥 Hot migrating kernel for {component_path} from {old_precision} to FP16")
                 if not self._hot_migrate_kernel_to_fp16(module):
                     logger.warning(f"❌ Hot kernel migration failed for {component_path}")
                     return False
-                logger.info(f"✅ Hot kernel migration completed for {component_path}")
             
-            # 转换模块为FP16精度
-            module = module.half()
+            # 转换模块为目标精度
+            if self._target_dtype == torch.bfloat16:
+                module = module.to(torch.bfloat16)
+            else:
+                module = module.half()
             
             # 验证转换结果
             after_dtypes = set()
             for param in module.parameters():
                 after_dtypes.add(str(param.dtype))
             
-            logger.info(f"✅ Module {component_path} successfully converted to FP16, dtypes: {after_dtypes}")
+            logger.info(f"✅ Module {component_path} successfully converted to {self._target_dtype}, dtypes: {after_dtypes}")
             return True
             
         except Exception as e:
@@ -942,9 +1039,7 @@ class NonExpertFP16Initializer:
     
     def _hot_migrate_kernel(self, module: nn.Module, component_path: str) -> bool:
         """简化的kernel热迁移：直接替换量化方法并转换权重"""
-        try:
-            logger.info(f"🔥 Starting simplified hot kernel migration for {component_path}")
-            
+        try:   
             # 1. 强制同步所有CUDA操作
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
@@ -957,27 +1052,37 @@ class NonExpertFP16Initializer:
             
             # 3. 原子性地替换为FP16
             with torch.no_grad():
-                # 替换量化方法为FP16版本
+                # 替换量化方法为SGLang标准的UnquantizedLinearMethod
                 try:
                     from sglang.srt.layers.linear import UnquantizedLinearMethod
                     module.quant_method = UnquantizedLinearMethod()
-                    logger.debug(f"Replaced quant method with UnquantizedLinearMethod")
-                except ImportError:
-                    # 如果没有UnquantizedLinearMethod，设置为None
-                    module.quant_method = None
-                    logger.debug(f"Set quant method to None")
+                except ImportError as e:
+                    logger.warning(f"Failed to import UnquantizedLinearMethod: {e}")
+                    # 创建一个简单的非量化方法作为后备
+                    class SimpleUnquantizedMethod:
+                        def apply(self, layer, x, bias=None):
+                            import torch.nn.functional as F
+                            return F.linear(x, layer.weight, bias)
+                    
+                    module.quant_method = SimpleUnquantizedMethod()
+                    logger.debug(f"✅ Created SimpleUnquantizedMethod as fallback for {type(module).__name__}")
+                
+                # 确保不设置None
+                if module.quant_method is None:
+                    logger.error(f"quant_method is None, this will cause AssertionError!")
+                    raise RuntimeError(f"Failed to set quant_method for {type(module).__name__}")
                 
                 # 清理量化相关属性
                 for attr_name in ['compressed_weight', 'weight_format', 'quantization_method', 'weight_scale_inv', 'scales']:
                     if hasattr(module, attr_name):
                         setattr(module, attr_name, None)
                 
-                # 确保所有权重都是FP16
+                # 确保所有权重都是目标数据类型
                 for param_name, param in module.named_parameters():
-                    if param.dtype != torch.float16:
+                    if param.dtype != self._target_dtype:
                         target_device = param.device
-                        param.data = param.data.half().to(target_device)
-                        logger.debug(f"Converted {param_name} to FP16 on device {target_device}")
+                        param.data = param.data.to(self._target_dtype).to(target_device)
+                        logger.debug(f"Converted {param_name} to {self._target_dtype} on device {target_device}")
             
             # 4. 清理旧kernel
             if original_quant_method:
@@ -991,8 +1096,6 @@ class NonExpertFP16Initializer:
             # 5. 再次同步CUDA操作
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
-            
-            logger.info(f"✅ Simplified hot kernel migration completed for {component_path}")
             return True
                 
         except Exception as e:
@@ -1064,8 +1167,6 @@ class NonExpertFP16Initializer:
     def _hot_migrate_module_to_fp16(self, module: nn.Module, component_path: str) -> bool:
         """安全的热迁移模块到FP16：只在模型启动时进行，避免推理中断"""
         try:
-            logger.info(f"🔥 Starting safe hot migration for {component_path}")
-            
             # 检查是否在推理过程中，如果是则跳过
             import threading
             if threading.current_thread() != threading.main_thread():
@@ -1187,7 +1288,7 @@ class NonExpertFP16Initializer:
                         if processed_weight is not None:
                             # 确保权重在正确的设备上并转换为FP16
                             target_device = param.device
-                            processed_weight = processed_weight.half().to(target_device)
+                            processed_weight = processed_weight.to(self._target_dtype).to(target_device)
                             param.data = processed_weight
                         else:
                             logger.warning(f"Shape mismatch for {param_name} in {component_path}")
@@ -1195,7 +1296,7 @@ class NonExpertFP16Initializer:
                     else:
                         # 确保权重在正确的设备上并转换为FP16
                         target_device = param.device
-                        matching_weight = matching_weight.half().to(target_device)
+                        matching_weight = matching_weight.to(self._target_dtype).to(target_device)
                         param.data = matching_weight
             
             logger.debug(f"Loaded FP16 params for {component_path}")

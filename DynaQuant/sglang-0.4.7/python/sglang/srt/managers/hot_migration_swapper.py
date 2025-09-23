@@ -609,7 +609,6 @@ class HotMigrationSwapper:
             new_precision = self._detect_new_precision(new_weights)
             
             if old_precision != new_precision:
-                logger.info(f"🔥 Hot migrating kernel from {old_precision} to {new_precision}")
                 return self._hot_migrate_kernel(expert_module, new_weights, old_precision, new_precision)
             else:
                 # 精度相同，只需要替换权重
@@ -723,8 +722,6 @@ class HotMigrationSwapper:
                     # 量化情况，设置相关属性
                     if hasattr(expert_module, 'weight_format'):
                         expert_module.weight_format = new_precision
-                
-                logger.info(f"✅ Hot kernel migration completed for {new_precision}")
             
             # 5. 强制同步CUDA操作，确保kernel替换完成
             if torch.cuda.is_available():
@@ -813,8 +810,6 @@ class HotMigrationSwapper:
                                    component_path: str) -> bool:
         """热迁移非expert层：处理kernel尺寸不匹配问题"""
         try:
-            logger.info(f"🔥 Hot migrating non-expert layer: {component_path}")
-            
             # 1. 强制同步所有CUDA操作
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
@@ -822,8 +817,6 @@ class HotMigrationSwapper:
             # 2. 检测当前精度和新精度
             old_precision = self._detect_module_precision(module)
             new_precision = self._detect_new_precision(new_weights)
-            
-            logger.info(f"🔥 Hot migrating kernel for {component_path} from {old_precision} to {new_precision}")
             
             # 3. 创建新的kernel（如果需要）
             new_kernel = None
@@ -857,7 +850,6 @@ class HotMigrationSwapper:
                                 )
                                 if processed_weight is not None:
                                     param.data = processed_weight.to(param.device)
-                                    logger.info(f"✅ Successfully adapted {param_name}: {matching_weight.shape} -> {processed_weight.shape}")
                                 else:
                                     logger.warning(f"Skipping {param_name} due to shape mismatch")
                             else:
@@ -870,14 +862,22 @@ class HotMigrationSwapper:
                         logger.info(f"✅ Replaced quant_method with {new_kernel.__class__.__name__}")
                     elif new_precision == 'fp16':
                         if hasattr(module, 'quant_method'):
-                            module.quant_method = None
-                            logger.info("✅ Removed quant_method for FP16")
+                            # 使用SGLang标准的UnquantizedLinearMethod而不是None
+                            try:
+                                from sglang.srt.layers.linear import UnquantizedLinearMethod
+                                module.quant_method = UnquantizedLinearMethod()
+                            except ImportError:
+                                # 创建一个简单的非量化方法作为后备
+                                class SimpleUnquantizedMethod:
+                                    def apply(self, layer, x, bias=None):
+                                        import torch.nn.functional as F
+                                        return F.linear(x, layer.weight, bias)
+                                
+                                module.quant_method = SimpleUnquantizedMethod()
                     
                     # 更新权重格式标记
                     if hasattr(module, 'weight_format'):
                         module.weight_format = new_precision
-                    
-                    logger.info(f"✅ Hot kernel migration completed for {component_path}")
                     
                 except Exception as e:
                     logger.error(f"Error during atomic replacement: {e}")
@@ -955,7 +955,6 @@ class HotMigrationSwapper:
                 start_idx = rank * target_shape[1]
                 end_idx = (rank + 1) * target_shape[1]
                 processed_weight = source_weight[:, start_idx:end_idx]
-                logger.info(f"Tensor parallel split (cols) for {param_name}: {source_shape} -> {processed_weight.shape} (rank={rank})")
                 return processed_weight
             elif source_shape[0] == target_shape[0] * 4:
                 # 行切分
@@ -963,7 +962,6 @@ class HotMigrationSwapper:
                 start_idx = rank * target_shape[0]
                 end_idx = (rank + 1) * target_shape[0]
                 processed_weight = source_weight[start_idx:end_idx, :]
-                logger.info(f"Tensor parallel split (rows) for {param_name}: {source_shape} -> {processed_weight.shape} (rank={rank})")
                 return processed_weight
             
             # 如果无法处理，返回None

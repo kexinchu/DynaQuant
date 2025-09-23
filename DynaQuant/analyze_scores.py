@@ -152,7 +152,7 @@ def print_individual_scores(scores_data: List[Dict[str, Any]]):
 
 def main():
     """主函数"""
-    file_path = "coze_results-fp16.jsonl"
+    file_path = "coze_results-fp8.jsonl"
     
     print("正在加载数据...")
     data = load_jsonl_data(file_path)
@@ -179,7 +179,7 @@ def main():
     print_individual_scores(scores_data)
     
     # 保存结果到文件
-    output_file = "score_analysis_results-fp16.json"
+    output_file = "score_analysis_results-fp8.json"
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump({
             'statistics': stats,

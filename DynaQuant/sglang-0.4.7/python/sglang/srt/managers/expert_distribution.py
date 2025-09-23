@@ -719,7 +719,6 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
     
     def _update_expert_quantization_map(self, layer_idx: int, expert_scores: Dict[int, float]):
         """更新expert量化映射"""
-        print(f"_update_expert_quantization_map: layer_idx={layer_idx}, expert_scores={expert_scores}")
         try:
             for expert_id, score in expert_scores.items():
                 precision = self._determine_quantization_precision(score)
@@ -780,7 +779,6 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
                     swap_requests.append((layer_idx, expert_id, new_precision))
             
             if not swap_requests:
-                logger.info(f"No precision changes needed for layer {layer_idx}")
                 return
             
             logger.info(f"Safe parameter swap: {len(swap_requests)} experts need precision change")

@@ -93,6 +93,7 @@ DynaQuant是一个基于SGLang 0.4.7的混合精度MoE（Mixture of Experts）�
 #### 管理层扩展 (`sglang-0.4.7/python/sglang/srt/managers/`)
 
 这些模块扩展了SGLang的管理层功能，添加了专家管理和量化管理能力：
+- crash的具体原因（*）
 
 - **`expert_distribution.py`**:
   - **功能**: 专家分布管理器，负责记录和分析专家激活分布
