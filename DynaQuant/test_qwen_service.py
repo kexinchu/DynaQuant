@@ -54,6 +54,9 @@ class QwenServiceClient:
         data = {
             "model": "qwen3-235b-a22b",
             "messages": messages,
+            "max_tokens": 4096,
+            "temperature": 0.9,
+            "top_p": 0.9,
             **kwargs
         }
         session = self._get_session()
@@ -62,7 +65,7 @@ class QwenServiceClient:
             resp = session.post(
                 f"{self.base_url}/v1/chat/completions",
                 json=data,
-                timeout=900
+                timeout=4096
             )
             end_time = time.time()
 

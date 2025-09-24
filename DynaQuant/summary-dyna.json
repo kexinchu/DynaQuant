@@ -1,0 +1,206 @@
+{
+  "timestamp": "2025-09-24T05:07:05.332114",
+  "total_records": 25,
+  "summary": [
+    {
+      "record_id": "txt_0001",
+      "content_preview": "Summarize the main ideas of Jeff Walker's Product Launch Formula into bullet points as it pertains t...",
+      "answer_preview": "<think>\nOkay, I need to summarize Jeff Walker's Product Launch Formula into bullet points, specifica...",
+      "dimensions_count": 6,
+      "average_score": 0.67,
+      "total_score": 4
+    },
+    {
+      "record_id": "txt_0002",
+      "content_preview": "How to tell if a customer segment is well segmented? In 3 bullet points.",
+      "answer_preview": "<think>\nOkay, the user is asking how to determine if a customer segment is well-segmented. They want...",
+      "dimensions_count": 6,
+      "average_score": 0.83,
+      "total_score": 5
+    },
+    {
+      "record_id": "txt_0006",
+      "content_preview": "Behold, fellow seeker of knowledge, for I shall expand upon the perplexing and enigmatic art of meta...",
+      "answer_preview": "<think>\nOkay, let's see. The user presented a detailed and poetic description of various x86 assembl...",
+      "dimensions_count": 6,
+      "average_score": 0.83,
+      "total_score": 5
+    },
+    {
+      "record_id": "txt_0009",
+      "content_preview": "Sure, I can do that. What new technology would you like me to review?",
+      "answer_preview": "<think>\nOkay, the user wants me to suggest a new technology to review. Let me think about what's tre...",
+      "dimensions_count": 6,
+      "average_score": 1.0,
+      "total_score": 6
+    },
+    {
+      "record_id": "txt_0017",
+      "content_preview": "This code block uses the `List` interface as the declaration type:\n```java\nList<String> myList = new...",
+      "answer_preview": "<think>\nOkay, let me try to understand why using the List interface instead of the ArrayList class d...",
+      "dimensions_count": 6,
+      "average_score": 0.83,
+      "total_score": 5
+    },
+    {
+      "record_id": "txt_0018",
+      "content_preview": "this is not less code this is java",
+      "answer_preview": "<think>\nOkay, the user said, \"this is not less code this is java.\" Let me try to figure out what the...",
+      "dimensions_count": 6,
+      "average_score": 0.67,
+      "total_score": 4
+    },
+    {
+      "record_id": "txt_0019",
+      "content_preview": "I want to do a road trip from Pune to Gujarat. Me and my wife will be travelling and we dont prefer ...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.67,
+      "total_score": 4
+    },
+    {
+      "record_id": "txt_0020",
+      "content_preview": "explane more",
+      "answer_preview": "<think>\nOkay, the user just said \"explain more.\" I need to figure out what they're asking for. The p...",
+      "dimensions_count": 6,
+      "average_score": 1.0,
+      "total_score": 6
+    },
+    {
+      "record_id": "txt_0021",
+      "content_preview": "what do you think about this for a start up idea:",
+      "answer_preview": "<think>\nOkay, the user wants feedback on their startup idea. Let me start by asking for more details...",
+      "dimensions_count": 6,
+      "average_score": 0.83,
+      "total_score": 5
+    },
+    {
+      "record_id": "txt_0022",
+      "content_preview": "If you were to use AI to displace the traditional recruiting agency, your business model could focus...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0023",
+      "content_preview": "how could i implement a minesweeper algorithm that utilises algebraic topology to solve boards?",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.67,
+      "total_score": 4
+    },
+    {
+      "record_id": "txt_0024",
+      "content_preview": "# Import the necessary packages\nfrom gudhi import SimplexTree\nfrom gudhi.persistent\\_homology import...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.33,
+      "total_score": 2
+    },
+    {
+      "record_id": "txt_0025",
+      "content_preview": "You are now an imaginary expert business investigator. I am going to send you many rows of data. Eac...",
+      "answer_preview": "<think>\nOkay, so the user wants me to act as an expert business investigator and process multiple ro...",
+      "dimensions_count": 6,
+      "average_score": 1.0,
+      "total_score": 6
+    },
+    {
+      "record_id": "txt_0026",
+      "content_preview": "You are now an imaginary expert business investigator. Tell the story of this batch of data in the f...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0027",
+      "content_preview": "The batch of data provided appears to be a list of holding companies for various properties located ...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.33,
+      "total_score": 2
+    },
+    {
+      "record_id": "txt_0028",
+      "content_preview": "Simulate a conversation between the writer of this post, named /u/CruxHub, and the expert business i...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0029",
+      "content_preview": "The expert business investigator and /u/CruxHub begin their conversation discussing Citadel Hedgefun...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0030",
+      "content_preview": "I am sorry, but the search query provided is not enough information to continue a conversation. Coul...",
+      "answer_preview": "<think>\nOkay, the user mentioned that the search query isn't enough for a conversation and asked for...",
+      "dimensions_count": 6,
+      "average_score": 0.67,
+      "total_score": 4
+    },
+    {
+      "record_id": "txt_0031",
+      "content_preview": "Web search results:\n\n[1] \"As per the Oxford Dictionary, a chatbot is defined as A computer program d...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0032",
+      "content_preview": "Simulate a conversation between Alice and /u/CruxHub. They talk about which company from this data b...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0034",
+      "content_preview": "Simulate a conversation between Alice and /u/CruxHub. /u/CruxHub asks Alice to anlalyze a data batch...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0035",
+      "content_preview": "Alice: Hi /u/CruxHub, I've received the data batch you sent over. From what I can see, it looks like...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.67,
+      "total_score": 4
+    },
+    {
+      "record_id": "txt_0036",
+      "content_preview": "Web search results:\n\n[1] \"Katherine Burton Hedge fund titans Ken Griffin and Steve Cohen boosted Gab...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.5,
+      "total_score": 3
+    },
+    {
+      "record_id": "txt_0037",
+      "content_preview": "Web search results:\n\n[1] \"Federal authorities are investigating the market-making arms of Citadel LL...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.33,
+      "total_score": 2
+    },
+    {
+      "record_id": "txt_0038",
+      "content_preview": "Web search results:\n\n[1] \"Citadel LLC (formerly known as Citadel Investment Group, LLC) is an Americ...",
+      "answer_preview": "Internal Server Error",
+      "dimensions_count": 6,
+      "average_score": 0.33,
+      "total_score": 2
+    }
+  ]
+}

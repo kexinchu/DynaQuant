@@ -1,7 +1,7 @@
 {
-    "api_key": "pat_V6MV8RRM8312LN3n6urCoq2ykTGXrs1G4n96Kntp8CmZvu0QNSAPq9bGKVJ6trRx",
+    "api_key": "pat_wOAk3F3v8Y5TC6EvrqXN6ab4ER9XkmAawZPKpGhp6taLfVy0a4nO8DzvUNZMRbQb",
     "workflow_id": "7530550554839269386",
     "base_url": "https://api.coze.cn/v1/workflow/stream_run",
     "default_delay": 2.0,
-    "timeout": 300
+    "timeout": 600
 }

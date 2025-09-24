@@ -66,7 +66,7 @@ class CozeAPIClient:
             self.base_url,
             json=data,
             stream=True,
-            timeout=300
+            timeout=600
         )
         
         if response.status_code == 200:

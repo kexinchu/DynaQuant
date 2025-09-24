@@ -370,7 +370,7 @@ class _ExpertDistributionRecorderReal(ExpertDistributionRecorder):
         }
 
         # 时间窗口统计功能
-        self._time_window = 100  # 5分钟时间窗口
+        self._time_window = 1200  # 20分钟时间窗口
         self._last_analysis_time = defaultdict(time.time)  # layer_id -> time
         self._expert_activation_counts = defaultdict(lambda: defaultdict(int))  # layer_id -> expert_id -> count
         self._expert_activation_lock = threading.RLock()

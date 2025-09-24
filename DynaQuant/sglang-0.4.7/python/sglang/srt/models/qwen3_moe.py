@@ -120,11 +120,12 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
             ),
         )
 
+        # 确保gate层使用bfloat16精度，不进行量化
         self.gate = ReplicatedLinear(
             config.hidden_size,
             config.num_experts,
             bias=False,
-            quant_config=None,
+            quant_config=None,  # 明确不量化gate层
             prefix=add_prefix("gate", prefix),
         )
 
@@ -190,9 +191,6 @@ class Qwen3MoeSparseMoeBlock(nn.Module):
                 layer_id=self.layer_id,
             ),
         )
-        
-        # 注释掉这里的expert tracking，避免与ExpertDistributionRecorder重复调用
-        # self._record_expert_activations(topk_idx, self.layer_id)
         
         final_hidden_states = self.experts(
             hidden_states=hidden_states, router_logits=router_logits

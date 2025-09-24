@@ -47,7 +47,7 @@ pip install requests
   "workflow_id": "your_workflow_id_here",
   "base_url": "https://api.coze.cn/v1/workflow/stream_run",
   "default_delay": 2.0,
-  "timeout": 300
+  "timeout": 600
 }
 ```
 

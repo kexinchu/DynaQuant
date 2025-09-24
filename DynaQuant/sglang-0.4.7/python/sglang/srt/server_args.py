@@ -139,7 +139,7 @@ class ServerArgs:
     fp8_model_path: Optional[str] = None
     gptq_int4_model_path: Optional[str] = None
     quantization_high_threshold: float = 0.5
-    quantization_medium_threshold: float = 0.1
+    quantization_medium_threshold: float = 0.0
     max_concurrent_swaps: int = 4
 
     # LoRA
