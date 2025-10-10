@@ -120,7 +120,7 @@ class TrueMixedPrecisionLoader(DefaultModelLoader):
                 is_checkpoint_fp8_serialized=True,
                 activation_scheme="dynamic",
                 ignored_layers=None,
-                weight_block_size=None
+                weight_block_size=[128, 128]  # 使用官方推荐的块大小
             ),
             "gptq_int4": GPTQConfig(
                 weight_bits=4,

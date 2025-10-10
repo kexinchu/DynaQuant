@@ -755,21 +755,54 @@ class EnhancedMixedPrecisionWeightLoader:
             return None
     
     def _convert_to_precision(self, weight: torch.Tensor, precision: str) -> torch.Tensor:
-        """转换权重到指定精度"""
+        """转换权重到指定精度，考虑动态范围"""
         if precision == 'fp16':
             return weight.half()
         elif precision == 'fp8':
-            # 使用torch.float8_e4m3fn
-            if hasattr(torch, 'float8_e4m3fn'):
-                return weight.to(torch.float8_e4m3fn)
-            else:
-                logger.warning("FP8 not supported, falling back to FP16")
-                return weight.half()
+            # 检查FP8数值范围并适配
+            return self._convert_to_fp8_with_range_check(weight)
         elif precision == 'int4':
             # int4权重已经通过GPTQ反量化处理
             return weight
         else:
             return weight
+    
+    def _convert_to_fp8_with_range_check(self, weight: torch.Tensor) -> torch.Tensor:
+        """考虑动态范围的FP8转换"""
+        if not hasattr(torch, 'float8_e4m3fn'):
+            logger.warning("FP8 not supported, falling back to FP16")
+            return weight.half()
+        
+        try:
+            # FP8 E4M3格式的数值范围: [-448, 448]
+            fp8_max = 448.0
+            fp8_min = -448.0
+            
+            # 检查权重数值范围
+            weight_max = weight.abs().max().item()
+            
+            if weight_max > fp8_max:
+                # 需要缩放以避免上溢
+                scale = fp8_max / weight_max
+                weight_scaled = weight * scale
+                logger.debug(f"FP8 range adaptation: scaled by {scale:.4f} (max: {weight_max:.4f})")
+                return weight_scaled.to(torch.float8_e4m3fn)
+            elif weight_max < 1e-8:
+                # 避免下溢，使用最小有效值
+                weight_adjusted = torch.where(
+                    weight.abs() < 1e-8,
+                    torch.sign(weight) * 1e-8,
+                    weight
+                )
+                logger.debug(f"FP8 range adaptation: adjusted small values to avoid underflow")
+                return weight_adjusted.to(torch.float8_e4m3fn)
+            else:
+                # 直接转换
+                return weight.to(torch.float8_e4m3fn)
+                
+        except Exception as e:
+            logger.error(f"Error in FP8 conversion with range check: {e}")
+            return weight.half()  # 降级到FP16
     
     def load_model_weights(self, model: torch.nn.Module) -> Dict[str, Any]:
         """加载模型权重"""

@@ -1,230 +1,140 @@
 {
   "statistics": {
     "dimension_stats": {
-      "明知故问": {
-        "count": 25,
-        "mean": 1,
-        "median": 1,
-        "min": 1,
-        "max": 1,
-        "std": 0.0
-      },
-      "幻觉": {
-        "count": 25,
-        "mean": 0.56,
-        "median": 1,
-        "min": 0,
-        "max": 1,
-        "std": 0.5066228051190221
-      },
       "工具调用": {
-        "count": 25,
-        "mean": 0.2,
-        "median": 0,
+        "count": 96,
+        "mean": 0.020833333333333332,
+        "median": 0.0,
         "min": 0,
         "max": 1,
-        "std": 0.408248290463863
+        "std": 0.14357588616379596
       },
       "重复答案": {
-        "count": 25,
-        "mean": 1,
-        "median": 1,
-        "min": 1,
+        "count": 96,
+        "mean": 0.5416666666666666,
+        "median": 1.0,
+        "min": 0,
         "max": 1,
-        "std": 0.0
+        "std": 0.5008764248619175
       },
       "上下文理解": {
-        "count": 25,
-        "mean": 0.4,
-        "median": 0,
+        "count": 96,
+        "mean": 0.03125,
+        "median": 0.0,
         "min": 0,
         "max": 1,
-        "std": 0.5
+        "std": 0.17490598978639324
       },
       "回答矛盾": {
-        "count": 25,
-        "mean": 0.6,
-        "median": 1,
+        "count": 96,
+        "mean": 0.03125,
+        "median": 0.0,
         "min": 0,
         "max": 1,
-        "std": 0.5
+        "std": 0.17490598978639324
+      },
+      "幻觉": {
+        "count": 96,
+        "mean": 0,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+        "std": 0.0
+      },
+      "明知故问": {
+        "count": 96,
+        "mean": 0.875,
+        "median": 1.0,
+        "min": 0,
+        "max": 1,
+        "std": 0.33245498310218435
       }
     },
     "overall_stats": {
-      "count": 25,
-      "mean": 0.6264,
-      "median": 0.67,
-      "min": 0.33,
-      "max": 1.0,
-      "std": 0.21165774259402845
+      "count": 96,
+      "mean": 0.25020833333333337,
+      "median": 0.17,
+      "min": 0.0,
+      "max": 0.67,
+      "std": 0.12386732432359923
     },
-    "total_records": 25
+    "total_records": 96
   },
   "individual_scores": [
     {
       "record_id": "txt_0001",
       "dimension_scores": {
-        "上下文理解": 1,
+        "上下文理解": 0,
         "工具调用": 0,
         "幻觉": 0,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
+        "重复答案": 0,
+        "明知故问": 0,
+        "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 4,
-        "average_score": 0.67,
-        "max_score": 1,
+        "total_score": 0,
+        "average_score": 0.0,
+        "max_score": 0,
         "min_score": 0
       }
     },
     {
       "record_id": "txt_0002",
       "dimension_scores": {
-        "上下文理解": 1,
-        "工具调用": 0,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 5,
-        "average_score": 0.83,
-        "max_score": 1,
-        "min_score": 0
-      }
-    },
-    {
-      "record_id": "txt_0006",
-      "dimension_scores": {
-        "上下文理解": 1,
-        "工具调用": 0,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 5,
-        "average_score": 0.83,
-        "max_score": 1,
-        "min_score": 0
-      }
-    },
-    {
-      "record_id": "txt_0009",
-      "dimension_scores": {
-        "上下文理解": 1,
-        "工具调用": 1,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 6,
-        "average_score": 1.0,
-        "max_score": 1,
-        "min_score": 1
-      }
-    },
-    {
-      "record_id": "txt_0017",
-      "dimension_scores": {
-        "上下文理解": 1,
-        "工具调用": 0,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 5,
-        "average_score": 0.83,
-        "max_score": 1,
-        "min_score": 0
-      }
-    },
-    {
-      "record_id": "txt_0018",
-      "dimension_scores": {
-        "上下文理解": 1,
+        "上下文理解": 0,
         "工具调用": 0,
         "幻觉": 0,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 4,
-        "average_score": 0.67,
-        "max_score": 1,
-        "min_score": 0
-      }
-    },
-    {
-      "record_id": "txt_0019",
-      "dimension_scores": {
-        "上下文理解": 0,
-        "工具调用": 1,
-        "幻觉": 1,
-        "重复答案": 1,
+        "重复答案": 0,
         "明知故问": 1,
         "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 4,
-        "average_score": 0.67,
+        "total_score": 1,
+        "average_score": 0.17,
         "max_score": 1,
         "min_score": 0
       }
     },
     {
-      "record_id": "txt_0020",
+      "record_id": "txt_0003",
       "dimension_scores": {
-        "上下文理解": 1,
-        "工具调用": 1,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 6,
-        "average_score": 1.0,
-        "max_score": 1,
-        "min_score": 1
-      }
-    },
-    {
-      "record_id": "txt_0021",
-      "dimension_scores": {
-        "上下文理解": 1,
+        "上下文理解": 0,
         "工具调用": 0,
-        "幻觉": 1,
-        "重复答案": 1,
+        "幻觉": 0,
+        "重复答案": 0,
         "明知故问": 1,
-        "回答矛盾": 1
+        "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 5,
-        "average_score": 0.83,
+        "total_score": 1,
+        "average_score": 0.17,
         "max_score": 1,
         "min_score": 0
       }
     },
     {
-      "record_id": "txt_0022",
+      "record_id": "txt_0004",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0005",
       "dimension_scores": {
         "上下文理解": 0,
         "工具调用": 0,
@@ -242,25 +152,79 @@
       }
     },
     {
-      "record_id": "txt_0023",
+      "record_id": "txt_0006",
       "dimension_scores": {
         "上下文理解": 0,
-        "工具调用": 1,
-        "幻觉": 1,
+        "工具调用": 0,
+        "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
-        "回答矛盾": 0
+        "回答矛盾": 1
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 4,
-        "average_score": 0.67,
+        "total_score": 3,
+        "average_score": 0.5,
         "max_score": 1,
         "min_score": 0
       }
     },
     {
-      "record_id": "txt_0024",
+      "record_id": "txt_0007",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0008",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0009",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0010",
       "dimension_scores": {
         "上下文理解": 0,
         "工具调用": 0,
@@ -278,29 +242,47 @@
       }
     },
     {
-      "record_id": "txt_0025",
-      "dimension_scores": {
-        "上下文理解": 1,
-        "工具调用": 1,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 6,
-        "average_score": 1.0,
-        "max_score": 1,
-        "min_score": 1
-      }
-    },
-    {
-      "record_id": "txt_0026",
+      "record_id": "txt_0011",
       "dimension_scores": {
         "上下文理解": 0,
         "工具调用": 0,
-        "幻觉": 1,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 0,
+        "average_score": 0.0,
+        "max_score": 0,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0012",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0013",
+      "dimension_scores": {
+        "上下文理解": 1,
+        "工具调用": 0,
+        "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
         "回答矛盾": 0
@@ -309,6 +291,240 @@
         "total_dimensions": 6,
         "total_score": 3,
         "average_score": 0.5,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0014",
+      "dimension_scores": {
+        "上下文理解": 1,
+        "工具调用": 1,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 4,
+        "average_score": 0.67,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0015",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0016",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0017",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0018",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0019",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 0,
+        "average_score": 0.0,
+        "max_score": 0,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0020",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0021",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0022",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0023",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0024",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0025",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0026",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
         "max_score": 1,
         "min_score": 0
       }
@@ -337,14 +553,14 @@
         "上下文理解": 0,
         "工具调用": 0,
         "幻觉": 0,
-        "重复答案": 1,
+        "重复答案": 0,
         "明知故问": 1,
-        "回答矛盾": 1
+        "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 3,
-        "average_score": 0.5,
+        "total_score": 1,
+        "average_score": 0.17,
         "max_score": 1,
         "min_score": 0
       }
@@ -357,12 +573,12 @@
         "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
-        "回答矛盾": 1
+        "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 3,
-        "average_score": 0.5,
+        "total_score": 2,
+        "average_score": 0.33,
         "max_score": 1,
         "min_score": 0
       }
@@ -370,17 +586,17 @@
     {
       "record_id": "txt_0030",
       "dimension_scores": {
-        "上下文理解": 1,
+        "上下文理解": 0,
         "工具调用": 0,
         "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
-        "回答矛盾": 1
+        "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 4,
-        "average_score": 0.67,
+        "total_score": 2,
+        "average_score": 0.33,
         "max_score": 1,
         "min_score": 0
       }
@@ -390,15 +606,15 @@
       "dimension_scores": {
         "上下文理解": 0,
         "工具调用": 0,
-        "幻觉": 1,
-        "重复答案": 1,
+        "幻觉": 0,
+        "重复答案": 0,
         "明知故问": 1,
         "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
-        "total_score": 3,
-        "average_score": 0.5,
+        "total_score": 1,
+        "average_score": 0.17,
         "max_score": 1,
         "min_score": 0
       }
@@ -411,7 +627,25 @@
         "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
-        "回答矛盾": 1
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0033",
+      "dimension_scores": {
+        "上下文理解": 1,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
       },
       "overall_info": {
         "total_dimensions": 6,
@@ -426,10 +660,28 @@
       "dimension_scores": {
         "上下文理解": 0,
         "工具调用": 0,
-        "幻觉": 1,
+        "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
         "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0035",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 1
       },
       "overall_info": {
         "total_dimensions": 6,
@@ -440,29 +692,11 @@
       }
     },
     {
-      "record_id": "txt_0035",
-      "dimension_scores": {
-        "上下文理解": 0,
-        "工具调用": 0,
-        "幻觉": 1,
-        "重复答案": 1,
-        "明知故问": 1,
-        "回答矛盾": 1
-      },
-      "overall_info": {
-        "total_dimensions": 6,
-        "total_score": 4,
-        "average_score": 0.67,
-        "max_score": 1,
-        "min_score": 0
-      }
-    },
-    {
       "record_id": "txt_0036",
       "dimension_scores": {
         "上下文理解": 0,
-        "工具调用": 0,
-        "幻觉": 1,
+        "工具调用": 1,
+        "幻觉": 0,
         "重复答案": 1,
         "明知故问": 1,
         "回答矛盾": 0
@@ -507,6 +741,1050 @@
         "total_dimensions": 6,
         "total_score": 2,
         "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0039",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0040",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0041",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0042",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0043",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0044",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0045",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0046",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0047",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0048",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0049",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0050",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0051",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0052",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0053",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 0,
+        "average_score": 0.0,
+        "max_score": 0,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0054",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 0,
+        "average_score": 0.0,
+        "max_score": 0,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0055",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0056",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0057",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0058",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0059",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0060",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0061",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0062",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0063",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0064",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0065",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0066",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0067",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0068",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0069",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0070",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 0,
+        "average_score": 0.0,
+        "max_score": 0,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0071",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0072",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0074",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0075",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0076",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0078",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0079",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0081",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0082",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0083",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0085",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0086",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0087",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0088",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0089",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0090",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0091",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0092",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0094",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 2,
+        "average_score": 0.33,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0095",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0096",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0097",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0098",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 1,
+        "明知故问": 0,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0099",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0100",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
+        "max_score": 1,
+        "min_score": 0
+      }
+    },
+    {
+      "record_id": "txt_0101",
+      "dimension_scores": {
+        "上下文理解": 0,
+        "工具调用": 0,
+        "幻觉": 0,
+        "重复答案": 0,
+        "明知故问": 1,
+        "回答矛盾": 0
+      },
+      "overall_info": {
+        "total_dimensions": 6,
+        "total_score": 1,
+        "average_score": 0.17,
         "max_score": 1,
         "min_score": 0
       }

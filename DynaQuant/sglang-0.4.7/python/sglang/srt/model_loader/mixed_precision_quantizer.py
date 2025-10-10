@@ -132,7 +132,7 @@ class MixedPrecisionQuantizer:
             profile.quantization_config.weight_bits = 8
             profile.quantization_config.activation_bits = 8
             profile.quantization_config.group_size = 128
-        elif profile.hot_cold_score > 0.5:  # Medium expert
+        elif profile.hot_cold_score > 0.0:  # Medium expert (暂时不考虑GPTQ-INT4)
             profile.quantization_config.weight_bits = 6
             profile.quantization_config.activation_bits = 6
             profile.quantization_config.group_size = 64
@@ -452,7 +452,6 @@ class ExpertQuantizationManager:
         try:
             # 假设模块名称格式为: model.layers.{layer_id}.mlp.experts.{expert_id}
             parts = module_name.split('.')
-            
             layer_id = None
             expert_id = None
             

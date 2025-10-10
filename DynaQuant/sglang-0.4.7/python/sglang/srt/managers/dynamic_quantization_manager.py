@@ -23,8 +23,8 @@ _global_quantization_manager: Optional['DynamicQuantizationManager'] = None
 @dataclass
 class QuantizationThresholds:
     """量化阈值配置"""
-    high_threshold: float = 0.5      # score > 0.5 使用 fp16
-    medium_threshold: float = 0.1    # 0.1 < score <= 0.5 使用 fp8
+    high_threshold: float = 0.8      # score > 0.5 使用 fp16
+    medium_threshold: float = 0.0    # 0.1 < score <= 0.5 使用 fp8
     # score <= 0.1 使用 gptq-int4
 
 
@@ -96,9 +96,9 @@ class DynamicQuantizationManager:
     
     def _determine_precision(self, score: float) -> str:
         """根据分数确定量化精度"""
-        if score > self.thresholds.high_threshold:
+        if score >= self.thresholds.high_threshold:
             return "fp16"
-        elif score > self.thresholds.medium_threshold:
+        elif score >= self.thresholds.medium_threshold:
             return "fp8"
         else:
             return "gptq_int4"
@@ -187,8 +187,8 @@ class DynamicQuantizationManager:
 
 
 def init_global_quantization_manager(
-    high_threshold: float = 0.5,
-    medium_threshold: float = 0.1,
+    high_threshold: float = 0.8,
+    medium_threshold: float = 0.0,
     fp16_path: str = "",
     fp8_path: str = "",
     gptq_int4_path: str = "",

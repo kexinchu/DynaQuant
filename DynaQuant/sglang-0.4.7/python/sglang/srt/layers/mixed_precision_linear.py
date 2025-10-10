@@ -56,7 +56,7 @@ class MixedPrecisionLinear(LinearBase):
             is_checkpoint_fp8_serialized=True,
             activation_scheme="dynamic",
             ignored_layers=None,
-            weight_block_size=None
+            weight_block_size=[128, 128]  # 使用官方推荐的块大小
         )
         
         # 添加SGLang自己的FP8方法
