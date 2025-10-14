@@ -2,14 +2,27 @@
 
 DynaQuant是一个基于SGLang 0.4.7的混合精度MoE（Mixture of Experts）模型部署系统，支持混合精度推理、选择性权重加载和专家激活跟踪。系统可以根据配置文件从不同精度的权重文件中选择性加载参数，支持FP16、FP8、Int4等不同精度的混合使用，并提供实时专家激活统计功能。
 
+**🆕 新增MoE-Quant模块**: 完整的W2A2极低比特量化方案，包含EBSS采样、AGQ量化和增强路由守护，支持PTQ和QAT训练流程。详见 [moe_quant/README.md](moe_quant/README.md)
+
 ## 📋 项目概述
 
-本项目基于原始SGLang进行了大量扩展和修改，主要专注于：
+本项目包含两大核心系统：
+
+### 1. DynaQuant - 动态混合精度推理系统
+基于原始SGLang进行了大量扩展和修改，主要专注于：
 - **混合精度推理**: 支持不同精度权重的混合使用
 - **专家激活跟踪**: 实时监控MoE模型中每个expert的激活情况
 - **动态量化策略**: 基于expert激活热度进行动态量化
 - **Hot-Cold分析**: 计算expert的激活热度分数
 - **GPTQ量化支持**: 支持GPTQ-Int4量化模型格式
+
+### 2. MoE-Quant - W2A2极低比特量化系统
+全新的MoE模型量化方案，实现2-bit权重和2-bit激活量化：
+- **EBSS (Expert-Balanced Self-Sampling)**: 专家均衡采样确保校准数据覆盖
+- **AGQ (Affinity-Guided Quantization)**: 门控感知量化
+- **W2A2 Quantizer**: 激活分布整形 + 渐进回退
+- **Enhanced Router Guard**: 高精度路由 + 一致性检测
+- **PTQ + QAT**: 完整的训练后量化和量化感知训练
 
 ## 🔄 相对于原始SGLang的主要修改
 
@@ -625,6 +638,35 @@ server:
 ```
 
 ## 🚀 快速开始
+
+### 选择使用模式
+
+#### A. MoE-Quant W2A2极低比特量化（新增！）
+快速测试和使用：
+```bash
+# 1. 测试组件
+python3 test_moe_quant.py
+
+# 2. 最小可复现测试
+./test_minimal.sh
+
+# 3. PTQ量化（完整示例）
+bash scripts/run_ptq_moe.sh --model YOUR_MODEL_NAME
+
+# 4. 查看详细文档
+cat moe_quant/README.md
+cat QUICKSTART_MOE_QUANT.md
+```
+
+**文档导航**:
+- 📖 完整功能文档: `moe_quant/README.md`
+- 🚀 快速启动指南: `QUICKSTART_MOE_QUANT.md`
+- 📊 实现总结: `MoE-Quant-Implementation-Summary.md`
+- 📋 最终报告: `MoE-Quant-Final-Report.md`
+
+---
+
+#### B. DynaQuant动态混合精度推理
 
 ### 1. 启动混合精度服务器
 
