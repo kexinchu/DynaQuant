@@ -1,0 +1,245 @@
+# DynaQuant Configuration for PTQ, QAT, Serving, and Benchmarking
+# Dynamic Mixed-Precision MoE Quantization for SGLang 0.4.7
+
+# Model Configuration
+model:
+  name: "Qwen/Qwen3-30B-A3B"  # or Qwen3-235B-A22B
+  cache_dir: "./model_cache"
+  trust_remote_code: true
+
+# Quantization Settings
+quantization:
+  # Weight quantization
+  weight:
+    w4_bits: 4
+    w2_bits: 2
+    group_size: 128  # Per-group symmetric quantization (64 or 128)
+    sym: true  # Symmetric quantization
+    packing: true  # Enable bit-packing to uint8
+    
+  # Activation quantization
+  activation:
+    a4_bits: 4
+    a2_bits: 2
+    mode: "dynamic"  # "dynamic" or "static"
+    per_token: true  # Per-token dynamic scaling
+    groupwise: true  # Groupwise quantization
+    fallback_static: true  # Fallback to static per-channel if needed
+    clip_method: "mse"  # "mse" or "percentile"
+    clip_percentile: 99.9  # For percentile clipping
+    
+  # Router quantization
+  router:
+    bits: 8  # INT8 for router (or "fp8" or "fp16")
+    mode: "int8"  # "int8", "fp8", or "fp16"
+
+# Router-Consistency Guard (RCG)
+router_guard:
+  enabled: true
+  temperature: 1.0  # T: temperature for (logits - max)/T
+  clip_range: 10.0  # C: clip to [-C, C]
+  
+  # Risk metric parameters
+  risk:
+    alpha: 1.0  # Weight for margin indicator
+    beta: 0.5   # Weight for JS divergence
+    gamma: 0.3  # Weight for flip probability
+    margin_threshold: 0.5  # τ: margin threshold
+    promotion_threshold: 0.7  # r_promote: risk threshold for promotion
+    
+  # Grid search for (T, C) calibration
+  grid_search:
+    temperature_range: [0.5, 1.0, 1.5, 2.0]
+    clip_range: [5.0, 10.0, 15.0, 20.0]
+    metric: "top_k_agreement"  # Maximize agreement with FP16
+
+# Precision Scheduler
+precision_scheduler:
+  enabled: true
+  
+  # Hysteresis and cooldown
+  hysteresis_steps: 10  # H: cooldown steps before demotion
+  cooldown_steps: 5     # Additional cooldown after switch
+  
+  # Budget constraints
+  vram_budget_gb: 80  # Total VRAM budget in GB
+  bandwidth_budget_gbps: 2000  # Memory bandwidth budget
+  
+  # Expert management
+  top_m_experts: 8  # Keep top-M experts at W4A4
+  default_precision: "w2a4"  # Default precision for non-promoted experts
+  high_pressure_precision: "w2a2"  # Precision under memory pressure
+  
+  # Priority calculation
+  priority:
+    risk_weight: 0.6
+    hit_rate_weight: 0.4
+    
+  # Hit rate tracking (EMA)
+  hit_rate_ema_alpha: 0.1  # EMA smoothing factor
+
+# Expert Cache
+expert_cache:
+  enabled: true
+  cache_dir: "./expert_cache"
+  
+  # Cache settings
+  warm_pool_size: 16  # Number of experts to keep in warm pool
+  async_swap: true    # Enable async H2D swap
+  num_streams: 4      # Number of CUDA streams for async ops
+  
+  # Prepack both W2 and W4 versions
+  prepack_w2: true
+  prepack_w4: true
+
+# PTQ Calibration
+calibration:
+  num_samples: 2000  # Number of calibration samples (2-5k)
+  batch_size: 1
+  seq_length: 2048
+  
+  # Data sources (mixture of tasks)
+  data:
+    sources:
+      - name: "pile"
+        weight: 0.4
+      - name: "c4"
+        weight: 0.3
+      - name: "wikipedia"
+        weight: 0.3
+    
+  # Histogram collection
+  histograms:
+    num_bins: 2048
+    percentile: 99.9
+    
+  # Scale computation
+  scale_method: "mse"  # "mse" or "percentile"
+  
+  # Output
+  save_dir: "./calibration_results"
+  save_histograms: true
+  save_scales: true
+
+# QAT (Quantization-Aware Training)
+qat:
+  enabled: false  # Optional light QAT
+  
+  # Training settings
+  num_steps: 5000  # 2-10k steps
+  learning_rate: 1.0e-5
+  batch_size: 1
+  gradient_accumulation_steps: 8
+  
+  # Loss weights
+  loss:
+    task_weight: 1.0
+    topk_agreement_weight: 0.1  # λ1
+    js_divergence_weight: 0.05  # λ2
+    margin_weight: 0.02         # λ3
+    
+  # Freeze settings
+  freeze_non_router: true  # Freeze non-router weights if compute limited
+  unfreeze_expert_out_proj: true  # Unfreeze per-expert out-proj
+  
+  # Quantization simulation
+  fake_quant: true
+  scale_learning: "lsq"  # "ste" or "lsq"
+  
+  # Output
+  save_dir: "./qat_results"
+  checkpoint_steps: 1000
+  eval_steps: 500
+
+# Serving (SGLang)
+serving:
+  host: "0.0.0.0"
+  port: 30000
+  
+  # SGLang settings
+  tensor_parallel_size: 1
+  max_total_tokens: 8192
+  mem_fraction_static: 0.8
+  
+  # DynaQuant features
+  enable_rcg: true  # Enable Router-Consistency Guard
+  enable_ps: true   # Enable Precision Scheduler
+  enable_ec: true   # Enable Expert Cache
+  
+  # Monitoring
+  log_expert_switches: true
+  log_precision_changes: true
+  stats_interval_secs: 10
+
+# Benchmarking
+benchmark:
+  # Workload
+  num_requests: 1000
+  input_len: 512
+  output_len: 128
+  request_rate: null  # null for closed-loop, or float for open-loop (req/s)
+  
+  # Evaluation prompts
+  prompts_dir: "./prompts"
+  prompt_sets:
+    - "math"
+    - "code"
+    - "commonsense"
+    
+  # Metrics to collect
+  metrics:
+    accuracy: true
+    top_k_agreement: true
+    expert_flip_rate: true
+    ttft: true  # Time to first token
+    throughput: true
+    latency_percentiles: [50, 90, 95, 99]
+    vram_usage: true
+    bandwidth_usage: true
+    
+  # Comparison baselines
+  baselines:
+    - "fp16"
+    - "w4a4_static"
+    - "w2a4_static"
+    
+  # Output
+  results_dir: "./benchmark_results"
+  save_jsonl: true
+  generate_html_summary: true
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_dir: "./logs"
+  log_to_file: true
+  log_to_console: true
+  
+  # Detailed logging
+  log_routing_decisions: false  # Can be verbose
+  log_quantization_stats: true
+  log_cache_stats: true
+
+# System
+system:
+  seed: 42
+  cuda_device: 0
+  num_workers: 4
+  pin_memory: true
+  
+  # Performance
+  torch_compile: false  # Enable torch.compile for kernels
+  use_flash_attention: true
+  
+# Advanced
+advanced:
+  # Debugging
+  debug_mode: false
+  profile_kernels: false
+  save_intermediate_results: false
+  
+  # Experimental features
+  adaptive_group_size: false  # Adaptive group size for weight quant
+  learned_clip_ranges: false  # Learn clip ranges during QAT
+  expert_specific_scales: true  # Per-expert activation scales
+
