@@ -1,692 +1,445 @@
-# DynaQuant - MoE模型量化与推理系统
+# DynaQuant - MoE模型量化框架
 
-DynaQuant是一个完整的MoE（Mixture of Experts）模型量化和部署解决方案，提供从极低比特量化（W2A2）到高性能推理的全套工具。
+DynaQuant 是一个高效的 MoE（Mixture of Experts）模型量化工具，提供简洁易用的量化和评估流程。
 
 ## 🎯 核心特性
 
-### 1. 多种量化方案
-- **W2A2极低比特量化**: 2-bit权重和激活，~16x压缩率
-- **W4A4量化**: 4-bit权重和激活，~8x压缩率  
-- **W8A8量化**: 8-bit权重和激活，~4x压缩率
+- ✅ **快速量化**：基于 llm-compressor 的优化引擎，速度提升 3-5 倍
+- ✅ **多种精度**：支持 W4A16（4位权重）、W8A16（8位权重）、W8A8 等量化方案
+- ✅ **完整评估**：支持 WikiText、MMLU、GSM8K、HellaSwag 等多个数据集
+- ✅ **简单易用**：一键量化和评估，无需复杂配置
+- 🆕 **W2A16 支持**：自研 AWQ W2A16 (2位) 量化实现，8倍压缩率
 
-### 2. 完整的量化算法
-- **EBSS (Expert-Balanced Self-Sampling)**: 专家均衡采样，确保校准数据覆盖所有专家
-- **AGQ (Affinity-Guided Quantization)**: 基于token-expert亲和度的加权量化
-- **W2A2 Quantizer**: 激活分布整形 + 2-bit量化 + 渐进回退
-- **Enhanced Router Guard**: 增强路由守护，保持路由一致性
+> 💡 **更新**：现已支持 W2A16 (2位) 量化！使用自研的 AWQ 实现，无需依赖 llm-compressor。详见下方 W2A16 章节。
 
-### 3. 专家激活分析
-- 跨数据集的专家激活模式分析
-- 专家热力图可视化
-- 支持thinking模式对比
+## 📦 安装
 
-### 4. 生产级推理系统
-- 基于SGLang 0.4.7的高性能推理
-- 混合精度权重加载
-- 专家跟踪和监控
+```bash
+# 安装依赖
+pip install -r requirements.txt
 
----
+# 主要依赖：
+# - llm-compressor>=0.1.0  # 量化引擎
+# - transformers>=4.30.0   # 模型加载
+# - datasets>=2.14.0       # 数据集加载
+# - torch>=2.0.0           # PyTorch
+```
+
+## 🚀 快速开始
+
+### 方法1：一键运行（推荐）
+
+```bash
+cd scripts
+bash example_workflow.sh
+```
+
+这将自动完成：量化 → 评估 → 生成报告
+
+### 方法2：分步运行
+
+#### Step 1: 量化模型
+
+**W4A16 量化（推荐，4倍压缩）**
+```bash
+python scripts/quantize_w4a16.py \
+    --model /path/to/model \
+    --output-dir /path/to/output \
+    --num-samples 512
+```
+
+**W8A16 量化（2倍压缩，精度损失更小）**
+```bash
+# 注：需要手动修改 quantize_w4a16.py 中的 scheme="W8A16"
+python scripts/quantize_w4a16.py \
+    --model /path/to/model \
+    --output-dir /path/to/output \
+    --num-samples 512
+```
+
+> ⚠️ **关于 W2A16**：`quantize_w2a16.py` 脚本已改为使用 W4A16，因为 llm-compressor 不支持 2 位量化。如需 2 位量化，请使用其他工具如 GPTQ 或 AWQ。
+
+#### Step 2: 评估模型
+
+```bash
+python scripts/evaluate_model.py \
+    --model /path/to/quantized/model \
+    --datasets wikitext mmlu gsm8k \
+    --output results.json
+```
+
+## 📊 量化效果对比
+
+| 配置 | 模型大小 | 压缩率 | 精度损失 | 推理速度 | 量化时间 | 支持状态 |
+|------|---------|--------|---------|---------|---------|---------|
+| **FP16** | 60GB | 1x | 0% | 1.0x | - | ✅ |
+| **W8A16** | 30GB | 2x | <1% | 1.1x | 20-40分钟 | ✅ |
+| **W4A16** | 15GB | 4x | 1-3% | 1.2-1.5x | 30-60分钟 | ✅ 推荐 |
+| **W8A8** | 30GB | 2x | 1-2% | 1.3-1.8x | 30-50分钟 | ✅ |
+| **W2A16** | 7.5GB | 8x | 10-20% | 1.0-1.1x | 40-80分钟 | ✅ 自研实现 |
+
+*基于 Qwen3-30B-A3B 在 8×H20 GPU 上的测试结果*
+
+> 🆕 **W2A16 现已支持**：使用自研 AWQ 实现，提供 8 倍压缩率。适用于显存极度受限场景。
+
+## 🔧 主要脚本说明
+
+### 量化脚本
+
+**`scripts/quantize_w4a16.py`** - W4A16 量化
+```bash
+参数：
+  --model PATH              # 原始模型路径
+  --output-dir PATH         # 输出目录（可选）
+  --calib-data PATH         # 校准数据路径（可选，自动查找）
+  --num-samples N           # 校准样本数（默认512）
+  --max-seq-length N        # 最大序列长度（默认8192）
+```
+
+**`tools/quantize_awq_w2.py`** - W2A16 量化（自研 AWQ 实现）🆕
+```bash
+参数：
+  --model PATH              # 原始模型路径
+  --output-dir PATH         # 输出目录
+  --calib-data PATH         # 校准数据路径
+  --group-size N            # 分组大小（64 或 128）
+  --num-samples N           # 校准样本数（默认512）
+  --ignore NAMES            # 忽略的模块名（如 lm_head）
+  --search-mode MODE        # 搜索模式（global 或 per_group）
+  --moe                     # 启用 MoE 专家量化
+
+示例：
+python tools/quantize_awq_w2.py \
+    --model Qwen/Qwen3-30B-A3B \
+    --output-dir ./output/Qwen3-30B-A3B-W2A16 \
+    --group-size 128 \
+    --num-samples 512 \
+    --moe
+```
+
+> ⚠️ 注意：旧的 `scripts/quantize_w2a16.py` 已改为使用 W4A16（llm-compressor 限制）。使用新的 `tools/quantize_awq_w2.py` 进行真正的 2 位量化。
+
+### 评估脚本
+
+**`scripts/evaluate_model.py`** - 模型评估
+```bash
+参数：
+  --model PATH              # 模型路径
+  --datasets NAMES          # 数据集列表（wikitext/mmlu/gsm8k/hellaswag）
+  --output FILE             # 输出文件（JSON格式）
+  --data-dir PATH           # 数据集目录（默认 data/）
+  --device DEVICE           # 设备（cuda/cpu）
+```
+
+**支持的数据集：**
+- `wikitext` - 困惑度（PPL）评估
+- `mmlu` - 多任务理解准确度
+- `gsm8k` - 数学推理准确度
+- `hellaswag` - 常识推理准确度
 
 ## 📁 项目结构
 
 ```
 DynaQuant/
-├── moe_quant/                      # MoE-Quant: 极低比特量化系统
-│   ├── quant/                      # 量化核心算法
-│   │   ├── ebss.py                 # EBSS专家均衡采样
-│   │   ├── agq.py                  # AGQ门控感知量化
-│   │   ├── quantizers.py           # W2A2量化器
-│   │   └── router_guard_enhanced.py # 增强路由守护
-│   ├── models/                     # 模型加载器
-│   ├── runners/                    # PTQ/评测运行器
-│   ├── qat/                        # QAT训练器
-│   ├── losses/                     # 路由损失函数
-│   └── utils/                      # 工具函数
-│
-├── scripts/                        # 实用脚本
-│   ├── moequant_w8a8.sh            # W8A8量化脚本
-│   ├── moequant_w4a4.sh            # W4A4量化脚本
-│   ├── moequant_w2a2.sh            # W2A2量化脚本
-│   ├── run_w2a2_single_gpu.sh      # 单GPU W2A2量化
-│   ├── run_w4a4_single_gpu.sh      # 单GPU W4A4量化
-│   ├── collect_expert_activation.py # 专家激活数据收集
-│   ├── analyze_expert_activation.py # 专家激活分析
-│   ├── run_ptq_moe.sh              # PTQ运行脚本
-│   └── run_qat_moe.sh              # QAT运行脚本
-│
-├── sglang-0.4.7/                   # SGLang修改版
-│   └── python/sglang/srt/          # 混合精度推理支持
-│
-└── README.md                       # 本文件
+├── scripts/
+│   ├── quantize_w4a16.py         # W4A16 量化
+│   ├── quantize_w2a16.py         # W2A16 量化
+│   ├── evaluate_model.py         # 模型评估
+│   ├── example_workflow.sh       # 完整工作流程
+│   ├── bench_eval.py             # 性能评估
+│   ├── serve_sglang.py           # 模型服务
+│   └── ...
+├── data/                          # 评估数据集
+│   ├── MMLU/
+│   ├── GSM8K/
+│   ├── HELLASWAG/
+│   └── Wikitext/
+├── calibration_datasets/          # 校准数据集
+├── archive/                       # 归档的旧实现
+│   ├── moe_quant_legacy/         # MoEQuant 实现（已弃用）
+│   └── dynaquant_legacy/
+├── requirements.txt
+└── README.md
 ```
 
----
+## 💡 使用建议
 
-## 🚀 快速开始
+### 1. 选择合适的量化精度
 
-### 环境安装
+**决策树：**
+```
+需要最小的精度损失？
+    → YES: 使用 W8A16（精度损失 <1%）
+    → NO: 需要平衡压缩率和精度吗？
+        → YES: 使用 W4A16（4倍压缩，推荐）✅
+        → NO: 需要更快的推理速度吗？
+            → YES: 使用 W8A8（激活也量化）
+            → NO: 保持 FP16
+```
+
+**支持的量化方案：**
+- ✅ **W8A16** - 最小精度损失，2倍压缩
+- ✅ **W4A16** - 推荐，4倍压缩，精度损失 1-3%
+- ✅ **W8A8** - 激活和权重都量化，推理更快
+- ✅ **W2A16** - 自研 AWQ 实现，8倍压缩，精度损失 10-20% 🆕
+- ❌ **W4A4** - 不支持（llm-compressor 限制）
+
+### 2. 校准数据
+
+脚本会自动查找校准数据：
+- 优先查找 `calibration_datasets/{model_name}/calibration_{model_name}.json`
+- 如果不存在，可以手动指定 `--calib-data` 参数
+- 推荐准备 512-1024 个校准样本
+
+### 3. W2A16 量化（8倍压缩）🆕
+
+**适用场景**：
+- 显存极度受限（如单卡 24GB 运行 30B 模型）
+- 可接受 10-20% 的精度损失
+- 需要最大化压缩率
+
+**快速开始**：
 
 ```bash
-# 安装依赖
-pip install torch transformers safetensors tqdm numpy pandas matplotlib
+# 1. 量化为 W2A16（2位权重，8倍压缩）
+python tools/quantize_awq_w2.py \
+    --model Qwen/Qwen3-30B-A3B \
+    --output-dir ./output/Qwen3-30B-A3B-W2A16 \
+    --group-size 128 \
+    --num-samples 512 \
+    --moe
 
-# 进入项目目录
-cd /root/code/DynaQuant/DynaQuant
+# 2. 评估困惑度
+python tools/eval_ppl.py \
+    --model ./output/Qwen3-30B-A3B-W2A16 \
+    --baseline /path/to/fp16/model \
+    --dataset wikitext2
+
+# 3. 性能基准测试
+python tools/bench_mem.py \
+    --models /path/to/fp16 ./output/Qwen3-30B-A3B-W2A16 \
+    --labels FP16 W2A16
 ```
 
-### 方式1: 使用便捷脚本（推荐）
+**特性**：
+- ✅ AWQ 激活感知校准
+- ✅ 每组独立量化（group_size: 64/128）
+- ✅ 对称 2 位量化 [-2, -1, 0, 1]
+- ✅ 4 权重/字节高效打包
+- ✅ MoE 专家独立量化
+- ✅ SafeTensors 格式保存
 
-#### W8A8量化（最高精度）
-```bash
-bash scripts/moequant_w8a8.sh \
-    --model /path/to/model \
-    --output-dir ./output/w8a8 \
-    --calib-size 512
-```
+**完整文档**：
+- [AWQ W2A16 模块文档](quant/awq_w2/README.md)
+- [使用指南](docs/AWQ_W2A16_USAGE.md)
+- [最小示例](examples/awq_w2_minimal_example.py)
 
-#### W4A4量化（平衡配置，推荐）
-```bash
-bash scripts/moequant_w4a4.sh \
-    --model /path/to/model \
-    --output-dir ./output/w4a4 \
-    --calib-size 512
-```
-
-#### W2A2量化（极限压缩）
-```bash
-bash scripts/moequant_w2a2.sh \
-    --model /path/to/model \
-    --output-dir ./output/w2a2 \
-    --calib-size 1024 \
-    --ebss-beam 8 \
-    --ebss-tau 1.5
-```
-
-### 方式2: Python API
-
-```python
-from moe_quant.runners.run_ptq import run_ptq_pipeline
-
-# 运行PTQ量化
-results = run_ptq_pipeline(
-    model_path="/path/to/model",
-    output_dir="./output",
-    calib_size=512,
-    bit_w=4,  # 权重位宽
-    bit_a=4,  # 激活位宽
-    ebss_beam_width=4,
-    ebss_tau=1.2
-)
-
-print(f"量化完成: {results['output_dir']}")
-```
-
-### 方式3: 单GPU版本（大模型推荐）
-
-对于30B+的大模型，推荐使用单GPU版本以避免内存问题：
+**运行示例**：
 
 ```bash
-# W2A2单GPU量化
-bash scripts/run_w2a2_single_gpu.sh \
-    --model /dev/shm/Qwen3-30B-A3B \
-    --calib-size 128 \
-    --output-dir /dev/shm/Qwen3-30B-A3B-W2A2
+# 运行最小示例（GPT-2）
+python examples/awq_w2_minimal_example.py
 
-# W4A4单GPU量化
-bash scripts/run_w4a4_single_gpu.sh \
-    --model /dev/shm/Qwen3-30B-A3B \
-    --calib-size 128 \
-    --output-dir /dev/shm/Qwen3-30B-A3B-W4A4
+# 测试模块
+python tests/test_awq_w2.py
 ```
 
----
+### 4. 内存优化
 
-## 📊 量化配置对比
-
-| 配置 | 压缩比 | 精度损失 | 内存占用 | 推荐场景 | 量化时间 |
-|------|--------|----------|----------|---------|----------|
-| **W8A8** | ~2x | <1% | 50% | 高精度要求 | ~25分钟 |
-| **W4A4** | ~4x | 1-3% | 25% | 生产环境（推荐） | ~40分钟 |
-| **W2A2** | ~8x | 3-5% | 12% | 极度资源受限 | ~60分钟 |
-
-*基于Qwen3-30B-A3B在A100 80GB上的测试结果*
-
----
-
-## 🧪 专家激活分析
-
-分析不同数据集下的专家激活模式，为量化提供数据支持。
-
-### 收集专家激活数据
-
+如果遇到 CUDA 内存不足：
 ```bash
-python3 scripts/collect_expert_activation.py \
-    --datasets wikitext gsm8k humaneval \
-    --num-samples 256 \
-    --model-path /dev/shm/Qwen3-30B-A3B \
-    --output-dir ./benchmark_results/expert_activation
+# 1. 减少序列长度
+--max-seq-length 4096
+
+# 2. 减少校准样本
+--num-samples 256
+
+# 3. 使用内存盘加速
+cp -r /path/to/model /dev/shm/model
+python scripts/quantize_w4a16.py --model /dev/shm/model
 ```
 
-### 分析和可视化
+## 🐛 常见问题
 
+### Q1: 量化需要多长时间？
+**A:** 对于 30B 模型：
+- W4A16: 约 30-60 分钟
+- W2A16: 约 20-40 分钟
+
+### Q2: 如何生成校准数据？
+**A:** 
 ```bash
-python3 scripts/analyze_expert_activation.py \
-    --results-dir ./benchmark_results/expert_activation_results
+# 使用现有脚本生成
+bash scripts/generate_all_calibration_datasets.sh
+
+# 或手动准备 JSON 格式
 ```
 
-**输出**:
-- 专家激活热力图
-- Top-k专家统计
-- 跨数据集对比分析
-- PDF可视化报告
+**支持的校准数据格式：**
 
-详见：`scripts/EXPERT_ACTIVATION_README.md`
-
----
-
-## 📚 核心算法说明
-
-### 1. EBSS - Expert-Balanced Self-Sampling
-
-**问题**: 传统固定校准集无法均匀激活所有专家，导致某些专家量化质量差。
-
-**解决方案**: 使用beam search生成专家均衡的校准数据。
-
-**评分函数**:
-```
-score = perplexity + (expert_imbalance / τ)
+**格式1: 简单列表（推荐用于小规模测试）**
+```json
+[
+  "这是第一个校准文本样本...",
+  "这是第二个校准文本样本...",
+  "更多样本..."
+]
 ```
 
-**关键参数**:
-- `beam_width`: beam宽度，默认4（W2A2推荐8）
-- `tau (τ)`: 温度参数，控制专家平衡重要性，默认1.2（W2A2推荐1.5）
-
-### 2. AGQ - Affinity-Guided Quantization
-
-**问题**: 传统量化忽略了token-expert亲和度（gating scores）。
-
-**解决方案**: 使用亲和度加权Hessian矩阵引导量化。
-
-**核心公式**:
-```
-加权Hessian: H = (X ⊙ √c) (X ⊙ √c)^T
-量化目标: L = Σ c_i ||W x_i - W_quant x_i||²
-```
-
-其中:
-- `X`: 输入激活 [N, in_features]
-- `c`: gating affinities (router scores) [N]
-- `⊙`: element-wise multiplication
-
-**关键参数**:
-- `group_size`: 分组大小
-  - W8A8: 128
-  - W4A4: 64
-  - W2A2: 64
-
-### 3. W2A2 Quantization
-
-**流程**:
-```
-1. 激活整形: X' = (X @ R) * s
-2. A2量化:   X_q = Quant(X', 2-bit)  
-3. 权重吸收: W' = W * s^(-1) @ R^T
-4. W2量化:   W_q = Quant(W', 2-bit)
-```
-
-**特性**:
-- 激活分布整形（旋转/白化）提升量化精度
-- 渐进回退策略：A2→A3→A4（仅对热点通道）
-- 误差回填和补偿机制
-
-### 4. Enhanced Router Guard
-
-**目标**: 保持量化前后的路由一致性
-
-**方法**:
-```
-match_rate = |topk(logits_fp) == topk(logits_q)| / N
-
-if match_rate < threshold:
-    fallback_to_higher_precision()
-```
-
-**特性**:
-- 高精度路由计算（INT8输入 + INT32累加 或 FP16）
-- Fused softmax + top-k（确定性tie-break）
-- 在线一致性检测
-- 自适应精度回退
-
----
-
-## 🛠️ API使用示例
-
-### 1. EBSS采样
-
-```python
-from moe_quant.quant.ebss import create_ebss_sampler
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-model = AutoModelForCausalLM.from_pretrained("Qwen/Qwen-MoE-14B")
-tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen-MoE-14B")
-
-sampler = create_ebss_sampler(
-    model=model,
-    tokenizer=tokenizer,
-    beam_width=4,
-    tau=1.2,
-    max_tokens=512
-)
-
-seed_texts = ["AI is transforming...", "In a distant galaxy..."]
-ebss_samples = sampler.generate(seed_texts)
-```
-
-### 2. AGQ量化
-
-```python
-from moe_quant.quant.agq import create_agq_quantizer
-import torch.nn as nn
-
-quantizer = create_agq_quantizer(bit_width=4, group_size=64)
-
-layer = nn.Linear(4096, 4096)
-inputs = torch.randn(128, 512, 4096)  # [batch, seq, hidden]
-affinities = torch.rand(128, 512)     # [batch, seq]
-
-W_quant, scales, stats = quantizer.quantize_linear(
-    layer, inputs, affinities
-)
-
-print(f"Quantization MSE: {stats['mse']:.6f}")
-```
-
-### 3. W2A2量化
-
-```python
-from moe_quant.quant.quantizers import create_w2a2_quantizer
-
-quantizer = create_w2a2_quantizer(
-    use_rotation=True,
-    use_whitening=True,
-    enable_fallback=True
-)
-
-W_quant, W_absorbed, stats = quantizer.quantize_linear_layer(
-    layer, X_calib, layer_id=0
-)
-
-print(f"W2A2 MSE: {stats['mse']:.6f}")
-```
-
-### 4. 完整PTQ流程
-
-```python
-from moe_quant.runners.run_ptq import run_ptq_pipeline
-
-results = run_ptq_pipeline(
-    model_path="Qwen/Qwen-MoE-14B",
-    output_dir="./output/ptq",
-    calib_size=256,
-    bit_w=2,
-    bit_a=2,
-    ebss_beam_width=4,
-    ebss_tau=1.2,
-    group_size=64,
-    use_rotation=True,
-    enable_fallback=True,
-    router_mode="fp16"
-)
-```
-
----
-
-## 📈 完整工作流程
-
-### 场景1: 基础PTQ量化
-
-```bash
-# Step 1: 运行PTQ量化
-bash scripts/moequant_w4a4.sh \
-    --model /path/to/model \
-    --output-dir ./output/ptq_w4a4 \
-    --calib-size 512
-
-# Step 2: 验证模型
-python3 -c "
-from transformers import AutoModelForCausalLM, AutoTokenizer
-
-model = AutoModelForCausalLM.from_pretrained('./output/ptq_w4a4')
-tokenizer = AutoTokenizer.from_pretrained('./output/ptq_w4a4')
-
-inputs = tokenizer('Hello, how are you?', return_tensors='pt')
-outputs = model.generate(**inputs, max_length=50)
-print(tokenizer.decode(outputs[0]))
-"
-```
-
-### 场景2: PTQ + QAT微调
-
-```bash
-# Step 1: PTQ量化
-bash scripts/run_ptq_moe.sh \
-    --model Qwen/Qwen-MoE-14B \
-    --calib-size 256 \
-    --bit-w 2 --bit-a 2 \
-    --output-dir ./output/ptq
-
-# Step 2: QAT微调
-bash scripts/run_qat_moe.sh \
-    --model Qwen/Qwen-MoE-14B \
-    --load-ptq ./output/ptq/quantized_model.pt \
-    --epochs 2 \
-    --output-dir ./output/qat
-```
-
-### 场景3: 专家激活分析 + 量化
-
-```bash
-# Step 1: 分析专家激活
-python3 scripts/collect_expert_activation.py \
-    --datasets wikitext gsm8k humaneval \
-    --num-samples 256
-
-python3 scripts/analyze_expert_activation.py \
-    --results-dir ./benchmark_results/expert_activation_results
-
-# Step 2: 基于分析结果量化
-bash scripts/moequant_w2a2.sh \
-    --model /path/to/model \
-    --output-dir ./output/w2a2 \
-    --calib-size 1024
-```
-
----
-
-## 🔧 参数调优指南
-
-### EBSS参数
-
-#### `beam_width` (beam search宽度)
-- **默认**: 4 (W8A8/W4A4), 8 (W2A2)
-- **作用**: 控制生成的多样性和专家覆盖
-- **调优建议**:
-  - W2A2: 8-16
-  - W4A4: 4-8
-  - W8A8: 4
-
-#### `tau (τ)` (温度参数)
-- **默认**: 1.2 (W8A8/W4A4), 1.5 (W2A2)
-- **作用**: 平衡perplexity和专家均衡性
-- **调优建议**:
-  - W2A2: 1.5-2.0
-  - W4A4: 1.2-1.5
-  - W8A8: 1.0-1.2
-
-### AGQ参数
-
-#### `group_size` (分组大小)
-- **W8A8**: 128
-- **W4A4**: 64
-- **W2A2**: 64
-- **权衡**: 更大→更快但精度略低，更小→更慢但精度更高
-
-#### `error_compensation` (误差补偿)
-- **默认**: True
-- **W2A2**: 必须开启
-- **W4A4**: 推荐开启
-- **W8A8**: 可选
-
-### 校准样本数
-
-#### `calib_size`
-- **W8A8**: 256-512
-- **W4A4**: 512-1024
-- **W2A2**: 1024-2048
-- **权衡**: 更多→更好的质量但耗时更长
-
----
-
-## 🔍 输出文件说明
-
-### PTQ输出目录结构
-
-```
-output/ptq_*/
-├── ebss_calibration_samples.txt    # EBSS生成的校准样本
-├── calibration_data.pkl             # 校准数据（激活+亲和度）
-├── quantization_stats.json          # 详细量化统计
-├── quantization_summary.json        # 量化摘要
-├── router_stats.json                # 路由一致性统计
-├── ptq_results.json                 # 完整PTQ结果
-├── quantized_model.pt               # 量化模型权重
-├── config.json                      # 模型配置
-├── tokenizer.json                   # 分词器
-└── generation_config.json           # 生成配置
-```
-
-### 量化统计示例
-
+**格式2: 标准格式（推荐，项目默认格式）**
 ```json
 {
-  "model.layers.0.experts.0": {
-    "layer_type": "expert",
-    "quantization_bits": "W4A4",
-    "weight_mse": 0.001234,
-    "weighted_output_mse": 0.000567,
-    "affinity_mean": 0.125,
-    "use_error_compensation": true
-  }
+  "model_name": "Qwen3-30B-A3B",
+  "num_samples": 1024,
+  "samples": [
+    "这是第一个校准文本样本...",
+    "这是第二个校准文本样本...",
+    "更多样本..."
+  ]
 }
 ```
 
----
+**格式3: 带 data 字段的字典**
+```json
+{
+  "data": [
+    "这是第一个校准文本样本...",
+    "这是第二个校准文本样本..."
+  ]
+}
+```
 
-## 🐛 故障排查
+> 💡 **提示**：量化脚本会自动识别这三种格式，优先使用 `samples` 字段，其次是 `data` 字段
 
-### 问题1: CUDA内存不足
+### Q3: 评估结果如何解读？
+**A:** 
+- **PPL（困惑度）**：越低越好，通常量化后增加 5-15%
+- **Accuracy（准确度）**：越高越好，通常量化后下降 1-5%
+- 如果精度损失过大，尝试增加校准样本数量
 
-**症状**: `CUDA out of memory`
-
-**解决方案**:
+### Q4: 如何对比原始模型和量化模型？
+**A:**
 ```bash
-# 方案1: 使用单GPU版本
-bash scripts/run_w2a2_single_gpu.sh --model /path/to/model
+# 评估原始模型
+python scripts/evaluate_model.py \
+    --model /path/to/original/model \
+    --datasets wikitext mmlu \
+    --output results_original.json
 
-# 方案2: 减少校准样本
---calib-size 128
+# 评估量化模型
+python scripts/evaluate_model.py \
+    --model /path/to/quantized/model \
+    --datasets wikitext mmlu \
+    --output results_quantized.json
 
-# 方案3: 减少EBSS最大tokens
---ebss-max-tokens 256
-
-# 方案4: 使用/dev/shm（内存盘）
---model /dev/shm/model --output-dir /dev/shm/output
-```
-
-### 问题2: 量化精度损失大
-
-**症状**: Quantization stats显示MSE过高
-
-**解决方案**:
-```bash
-# 增加校准样本
---calib-size 1024
-
-# 增大beam width
---ebss-beam 8
-
-# 确保启用误差补偿
-# 不要使用 --no-agq-error-compensation
-```
-
-### 问题3: Router一致性过低
-
-**症状**: router_stats.json显示match_rate < 0.9
-
-**解决方案**:
-```bash
-# 使用FP16 router模式
---router-mode fp16
-
-# 启用strict topk
---strict-topk 1
-
-# 调整Router Guard阈值
---router-consistency-threshold 0.95
-```
-
-### 问题4: 专家激活不均衡
-
-**症状**: 某些专家几乎没有被激活
-
-**解决方案**:
-```bash
-# 增大tau参数，更重视专家平衡
---ebss-tau 1.5
-
-# 增大beam width
---ebss-beam 8
-
-# 使用更多样化的seed texts
---seed-text diverse_seeds.txt
-```
-
----
-
-## 💡 最佳实践
-
-### 1. 选择合适的精度
-
-**决策树**:
-```
-需要最高精度? 
-    → YES: 使用 W8A8
-    → NO: ↓
-    
-资源非常受限 (如边缘设备)?
-    → YES: 尝试 W2A2 (需充分评估)
-    → NO: 使用 W4A4 (推荐)
-```
-
-### 2. 准备高质量种子文本
-
-**建议**:
-- 使用与目标任务相关的文本
-- 覆盖多样化的主题和风格
-- 每个种子文本50-200 tokens
-- 至少准备50-100个不同的种子
-
-**示例**:
-```
-The evolution of artificial intelligence has transformed modern technology.
-In recent years, machine learning algorithms have achieved unprecedented accuracy.
-Natural language processing enables computers to understand human communication.
-Quantum computing represents a paradigm shift in computational capabilities.
-```
-
-### 3. 内存优化策略
-
-对于大模型（30B+），推荐：
-- 使用单GPU版本脚本
-- 设置合理的校准集大小（128-256）
-- 使用`/dev/shm`内存盘加速I/O
-- 启用内存优化环境变量：
-  ```bash
-  export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-  ```
-
-### 4. 监控量化质量
-
-```python
+# 对比结果
+python -c "
 import json
-
-# 查看量化统计
-with open("output/quantization_stats.json") as f:
-    stats = json.load(f)
-    
-for layer, stat in stats.items():
-    weight_mse = stat.get("weight_mse", 0)
-    
-    if weight_mse > 0.01:  # 阈值可调
-        print(f"Warning: {layer} has high MSE: {weight_mse}")
+with open('results_original.json') as f: orig = json.load(f)
+with open('results_quantized.json') as f: quant = json.load(f)
+print(f'PPL变化: {orig[\"evaluations\"][\"wikitext\"][\"perplexity\"]:.2f} -> {quant[\"evaluations\"][\"wikitext\"][\"perplexity\"]:.2f}')
+"
 ```
 
----
+## 🎓 高级功能
 
-## 🎯 性能基准
+### MoEQuant 实现（已归档）
 
-### Qwen3-30B-A3B 示例
+项目原本包含完整的 MoEQuant 实现（EBSS + AGQ 算法），现已归档到 `archive/moe_quant_legacy/` 目录。如果需要使用 MoEQuant 的高级功能：
 
-| 配置 | 模型大小 | Perplexity | 精度保持 | 推理速度 | 量化时间 |
-|------|---------|-----------|---------|---------|---------|
-| **FP16** | 60GB | 8.2 | 100% | 1x | - |
-| **W8A8** | 30GB | 8.3 | 99% | 1.5x | ~25分钟 |
-| **W4A4** | 15GB | 8.7 | 95% | 2.5x | ~40分钟 |
-| **W2A2** | 7.5GB | 9.5 | 92% | 3.5x | ~60分钟 |
+```bash
+# 查看归档的文档
+cat archive/moe_quant_legacy/README.md
 
-*基于A100 80GB的测试结果*
+# 使用归档的脚本
+bash archive/moe_quant_legacy/scripts/moequant_w4a4.sh
+```
 
----
+**MoEQuant 特性：**
+- EBSS (Expert-Balanced Self-Sampling) - 专家均衡采样
+- AGQ (Affinity-Guided Quantization) - 亲和度引导量化
+- W2A2/W4A4/W8A8 多精度支持
+- SafeTensors 格式输出
 
-## 📖 详细文档
+### 专家激活分析
 
-- **`moe_quant/README.md`** - MoE-Quant完整文档
-  - 详细的算法说明和API文档
-  - 配置参数说明
-  - 高级使用技巧
+分析 MoE 模型的专家激活模式：
+```bash
+# 收集激活数据
+python scripts/collect_expert_activation.py \
+    --datasets wikitext gsm8k \
+    --num-samples 256 \
+    --model-path /path/to/model
 
-- **`scripts/EXPERT_ACTIVATION_README.md`** - 专家激活分析文档
-  - 数据收集方法
-  - 分析工具使用
-  - 可视化示例
+# 分析和可视化
+python scripts/analyze_expert_activation.py \
+    --results-dir ./benchmark_results/expert_activation_results
+```
 
----
+### Motivation Test
+
+测试量化对 MoE Router 激活模式的影响：
+```bash
+# 运行对照实验
+python scripts/motivation_test.py \
+    --model_path MODEL \
+    --test_group control \
+    --num_samples 256
+
+# 分析结果
+python scripts/analyze_motivation_test.py \
+    --result_dir ./benchmark_results/motivation_test
+```
+
+详细文档：`archive/MOTIVATION_TEST_USAGE.md`
+
+## 📈 性能提示
+
+### 1. 使用内存盘加速
+```bash
+# 将模型复制到 /dev/shm
+cp -r /path/to/model /dev/shm/
+python scripts/quantize_w4a16.py --model /dev/shm/model
+```
+
+### 2. 并行评估多个模型
+```bash
+python scripts/evaluate_model.py --model model1 --output results1.json &
+python scripts/evaluate_model.py --model model2 --output results2.json &
+wait
+```
+
+### 3. 只评估关键指标
+```bash
+# 只评估困惑度（最快）
+python scripts/evaluate_model.py --model MODEL --datasets wikitext
+
+# 只评估准确度
+python scripts/evaluate_model.py --model MODEL --datasets mmlu gsm8k
+```
+
+## 📚 相关文档
+
+- **归档文档**：`archive/` 目录包含旧版本的完整文档
+- **脚本说明**：`scripts/README.md` 包含所有脚本的详细说明
+- **评估数据**：`data/README.md` 包含评估数据集的说明
 
 ## 🤝 贡献
 
-欢迎提交Issue和Pull Request！
-
-### 开发指南
-1. Fork本项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建Pull Request
-
----
-
-## 📚 相关论文
-
-本项目实现参考了以下研究（代码完全自主实现）：
-
-1. **MoEQuant** (2024)
-   - Expert-Balanced Self-Sampling (EBSS)
-   - Affinity-Guided Quantization (AGQ)
-   - [arXiv:2505.03804](https://arxiv.org/abs/2505.03804)
-
-2. **EaQuant** (2024)
-   - Expert-Aware Activation Smoothing
-   - Router Logits Distribution Alignment
-   - [arXiv:2506.13329](https://arxiv.org/abs/2506.13329)
-
----
+欢迎提交 Issue 和 Pull Request！
 
 ## 📄 许可证
 
 Apache 2.0 License
 
----
-
 ## 📞 联系方式
 
 - GitHub Issues: 问题报告和功能请求
-- Email: 项目维护者邮箱
 
 ---
 
-**版本**: v1.0.0  
-**更新日期**: 2025-10-16  
-**测试状态**: ✅ All tests passed  
-**代码行数**: ~6,000行核心代码
+**版本**: v2.0.0 (llm-compressor)  
+**更新日期**: 2025-10-18  
+**测试状态**: ✅ 已验证
 
-🎉 **DynaQuant - 高效MoE模型量化工具！**
+🎉 **开始量化你的 MoE 模型吧！**

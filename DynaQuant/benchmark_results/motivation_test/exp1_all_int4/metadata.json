@@ -1,0 +1,10 @@
+{
+  "test_group": "exp1_all_int4",
+  "num_layers": 48,
+  "num_experts": 128,
+  "datasets": [
+    "gsm8k"
+  ],
+  "timestamp": "2025-10-16 06:20:43",
+  "output_format": "expert_activation_compatible"
+}
