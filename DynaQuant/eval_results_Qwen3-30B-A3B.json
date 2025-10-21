@@ -1,0 +1,13 @@
+{
+  "model": "/dev/shm/Qwen3-30B-A3B",
+  "device": "cuda",
+  "max_length": 2048,
+  "evaluations": {
+    "gsm8k": {
+      "dataset": "gsm8k",
+      "accuracy": 0.17,
+      "correct": 17,
+      "total": 100
+    }
+  }
+}

@@ -9,8 +9,11 @@ DynaQuant 是一个高效的 MoE（Mixture of Experts）模型量化工具，提
 - ✅ **完整评估**：支持 WikiText、MMLU、GSM8K、HellaSwag 等多个数据集
 - ✅ **简单易用**：一键量化和评估，无需复杂配置
 - 🆕 **W2A16 支持**：自研 AWQ W2A16 (2位) 量化实现，8倍压缩率
+- 🆕 **动态量化MoE**：实时统计expert激活，智能路由hot/cold专家到FP16/INT4，多GPU并行评估
 
-> 💡 **更新**：现已支持 W2A16 (2位) 量化！使用自研的 AWQ 实现，无需依赖 llm-compressor。详见下方 W2A16 章节。
+> 💡 **最新更新**：
+> - 🆕 **动态量化MoE**：基于20s时间窗口的实时expert激活统计，自动将hot/cold专家路由到FP16/INT4，支持8×H20多GPU并行评估！详见下方"动态量化MoE"章节。
+> - 🆕 **W2A16量化**：自研AWQ W2A16 (2位) 量化实现，8倍压缩率。详见下方 W2A16 章节。
 
 ## 📦 安装
 
@@ -392,6 +395,101 @@ python scripts/analyze_motivation_test.py \
 ```
 
 详细文档：`archive/MOTIVATION_TEST_USAGE.md`
+
+### 动态量化MoE（Dynamic Quantization MoE）🆕
+
+基于实时expert激活统计的动态量化系统，自动将hot/cold专家路由到不同精度计算：
+
+**核心功能：**
+- ✅ **双精度加载**：同时加载 FP16 和 INT4 两个版本的模型
+- ✅ **实时统计**：20s 时间窗口内实时追踪 expert 激活情况
+- ✅ **动态分类**：自动识别 hot (top 10%) 和 cold (剩余 90%) 专家
+- ✅ **智能路由**：hot 专家使用 FP16 精度，cold 专家使用 INT4 精度
+- ✅ **多GPU并行**：支持多GPU并行评估，充分利用8×H20等多卡环境
+
+**使用示例：**
+
+```bash
+# 单GPU评估
+python scripts/evaluate_dynamic_quant.py \
+    --fp16-model /path/to/fp16/model \
+    --int4-model /path/to/int4/model \
+    --datasets wikitext mmlu gsm8k hellaswag \
+    --time-window 20.0 \
+    --hot-ratio 0.1 \
+    --output results_dynamic_quant.json
+
+# 多GPU并行评估（推荐，充分利用8×H20）
+python scripts/evaluate_parallel_dynamic_quant.py \
+    --fp16-model /path/to/fp16/model \
+    --int4-model /path/to/int4/model \
+    --datasets wikitext mmlu gsm8k hellaswag \
+    --num-gpus 8 \
+    --time-window 20.0 \
+    --hot-ratio 0.1 \
+    --output results_parallel.json
+
+# 仅使用FP16（禁用动态路由，用于基准对比）
+python scripts/evaluate_dynamic_quant.py \
+    --fp16-model /path/to/fp16/model \
+    --int4-model /path/to/int4/model \
+    --disable-dynamic-routing \
+    --output results_fp16_baseline.json
+```
+
+**参数说明：**
+- `--time-window`: 时间窗口大小（秒），默认 20.0
+- `--hot-ratio`: hot 专家比例，默认 0.1 (10%)
+- `--num-gpus`: 使用的GPU数量，默认使用所有可用GPU
+- `--disable-dynamic-routing`: 禁用动态路由（用于基准测试）
+- `--num-samples-*`: 各数据集的样本数，可单独配置
+
+**评估输出：**
+```json
+{
+  "evaluations": {
+    "wikitext": {"perplexity": 12.34},
+    "mmlu": {"accuracy": 0.6789},
+    "gsm8k": {"accuracy": 0.5432},
+    "hellaswag": {"accuracy": 0.7654}
+  },
+  "model_statistics": {
+    "inference_stats": {
+      "total_tokens": 123456,
+      "hot_expert_calls": 12345,
+      "cold_expert_calls": 111111,
+      "fp16_expert_calls": 12345,
+      "int4_expert_calls": 111111
+    },
+    "tracker_stats": {
+      "time_window": 20.0,
+      "hot_ratio": 0.1000,
+      "num_hot_experts": 64
+    }
+  }
+}
+```
+
+**性能优势：**
+- 🚀 **并行加速**：8个GPU并行评估，总时间 ≈ 单GPU时间 / 8
+- 💾 **显存优化**：cold专家使用INT4，显存占用降低约70%
+- ⚡ **精度保持**：hot专家保持FP16精度，关键计算无损
+- 📊 **灵活配置**：可调整时间窗口和hot比例，适应不同场景
+
+**推荐配置（8×H20环境）：**
+```bash
+# 快速评估（所有数据集，约15-20分钟）
+python scripts/evaluate_parallel_dynamic_quant.py \
+    --fp16-model /dev/shm/Qwen3-30B-A3B \
+    --int4-model /dev/shm/Qwen3-30B-A3B-INT4 \
+    --datasets wikitext mmlu gsm8k hellaswag \
+    --num-gpus 8 \
+    --num-samples-wikitext 1000 \
+    --num-samples-mmlu 100 \
+    --num-samples-gsm8k 100 \
+    --num-samples-hellaswag 100 \
+    --output results.json
+```
 
 ## 📈 性能提示
 

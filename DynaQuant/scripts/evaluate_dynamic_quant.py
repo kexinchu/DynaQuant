@@ -1,15 +1,10 @@
+#!/usr/bin/env python3
 """
-Model Evaluation Script
-========================
-评估量化模型在多个数据集上的准确度和困惑度(PPL)
+动态量化MoE模型评估脚本 - 支持多GPU并行评估
+评估动态量化模型在多个数据集上的准确度和困惑度
+支持的数据集：WikiText-2, MMLU, GSM8K, HellaSwag
+"""
 
-支持的数据集：
-- WikiText-2 (PPL)
-- MMLU (Accuracy)
-- GSM8K (Accuracy)
-- HellaSwag (Accuracy)
-- HumanEval (Accuracy)
-"""
 import os
 import json
 import torch
@@ -19,9 +14,14 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from tqdm import tqdm
 import numpy as np
-from transformers import AutoModelForCausalLM, AutoTokenizer
-from datasets import load_dataset, load_from_disk
+from transformers import AutoTokenizer
+from datasets import load_dataset
 import pandas as pd
+import torch.multiprocessing as mp
+from torch.nn.parallel import DataParallel
+import time
+
+from dynamic_quant_moe import DynamicQuantMoEModel
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,38 +30,45 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class ModelEvaluator:
-    """模型评估器"""
+class DynamicQuantEvaluator:
+    """动态量化模型评估器"""
 
-    def __init__(self, model_path: str, device: str = "cuda", max_length: int = 2048):
+    def __init__(
+        self,
+        fp16_model_path: str,
+        int4_model_path: str,
+        device: str = "cuda",
+        max_length: int = 2048,
+        time_window: float = 20.0,
+        hot_ratio: float = 0.1,
+        enable_dynamic_routing: bool = True
+    ):
         """
         初始化评估器
 
         Args:
-            model_path: 模型路径
-            device: 设备 (cuda/cpu)
+            fp16_model_path: FP16模型路径
+            int4_model_path: INT4模型路径
+            device: 设备
             max_length: 最大序列长度
+            time_window: 时间窗口（秒）
+            hot_ratio: hot专家比例
+            enable_dynamic_routing: 是否启用动态路由
         """
-        logger.info(f"Loading model from {model_path}")
+        logger.info(f"Loading dynamic quantization model...")
         self.device = device
         self.max_length = max_length
 
-        # 加载模型和tokenizer
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.float16 if device == "cuda" else torch.float32,
-            device_map="auto",
-            trust_remote_code=True
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            model_path,
-            trust_remote_code=True
+        self.model = DynamicQuantMoEModel(
+            fp16_model_path=fp16_model_path,
+            int4_model_path=int4_model_path,
+            device=device,
+            time_window=time_window,
+            hot_ratio=hot_ratio,
+            enable_dynamic_routing=enable_dynamic_routing
         )
 
-        if self.tokenizer.pad_token is None:
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-
-        self.model.eval()
+        self.tokenizer = self.model.tokenizer
         logger.info("Model loaded successfully")
 
     def evaluate_perplexity(self, texts: List[str], batch_size: int = 1) -> Dict:
@@ -95,7 +102,11 @@ class ModelEvaluator:
 
                 try:
                     # Forward pass
-                    outputs = self.model(**inputs, labels=inputs["input_ids"])
+                    outputs = self.model.forward(
+                        input_ids=inputs["input_ids"],
+                        attention_mask=inputs["attention_mask"],
+                        labels=inputs["input_ids"]
+                    )
                     loss = outputs.loss
 
                     # Accumulate
@@ -118,14 +129,14 @@ class ModelEvaluator:
             "avg_loss": total_loss / total_tokens
         }
 
-    def evaluate_wikitext(self, split: str = "test") -> Dict:
+    def evaluate_wikitext(self, split: str = "test", num_samples: int = 1000) -> Dict:
         """评估WikiText-2数据集"""
         logger.info("Loading WikiText-2 dataset")
         try:
             dataset = load_dataset(
                 "wikitext", "wikitext-2-raw-v1", split=split)
             texts = [text for text in dataset["text"] if text.strip()]
-            texts = texts[:1000]  # 限制样本数量以加速评估
+            texts = texts[:num_samples]
 
             result = self.evaluate_perplexity(texts)
             result["dataset"] = "wikitext-2"
@@ -146,7 +157,6 @@ class ModelEvaluator:
         """
         logger.info(f"Evaluating MMLU from {data_dir}")
 
-        # 查找所有test文件
         test_dir = Path(data_dir) / "data" / "test"
         if not test_dir.exists():
             logger.error(f"MMLU test directory not found: {test_dir}")
@@ -161,7 +171,7 @@ class ModelEvaluator:
         total_questions = 0
         subject_results = {}
 
-        for test_file in tqdm(test_files[:10], desc="MMLU subjects"):  # 限制subject数量
+        for test_file in tqdm(test_files[:10], desc="MMLU subjects"):
             subject = test_file.stem.replace("_test", "")
 
             try:
@@ -181,19 +191,9 @@ class ModelEvaluator:
                     prompt += "Answer: "
 
                     # 生成答案
-                    inputs = self.tokenizer(
-                        prompt, return_tensors="pt").to(self.device)
-                    with torch.no_grad():
-                        outputs = self.model.generate(
-                            **inputs,
-                            max_new_tokens=1,
-                            do_sample=False,
-                            pad_token_id=self.tokenizer.eos_token_id
-                        )
-
-                    pred = self.tokenizer.decode(
-                        outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
-                    pred = pred.strip().upper()
+                    pred_text = self.model.generate(
+                        prompt, max_new_tokens=1, do_sample=False)
+                    pred = pred_text[len(prompt):].strip().upper()
 
                     if pred and pred[0] == chr(65 + answer):
                         correct += 1
@@ -256,25 +256,13 @@ class ModelEvaluator:
 
                 # 生成答案
                 prompt = f"Question: {question}\nAnswer: Let's think step by step.\n"
-                inputs = self.tokenizer(
-                    prompt, return_tensors="pt").to(self.device)
-
-                with torch.no_grad():
-                    outputs = self.model.generate(
-                        **inputs,
-                        max_new_tokens=256,
-                        do_sample=False,
-                        pad_token_id=self.tokenizer.eos_token_id
-                    )
-
-                pred = self.tokenizer.decode(
-                    outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+                pred = self.model.generate(
+                    prompt, max_new_tokens=256, do_sample=False)
 
                 # 提取预测答案
                 try:
-                    # 简单提取最后一个数字
                     import re
-                    numbers = re.findall(r'-?\d+\.?\d*', pred)
+                    numbers = re.findall(r'-?\d+\.?\d*', pred[len(prompt):])
                     if numbers:
                         pred_answer = float(numbers[-1].replace(",", ""))
                         if abs(pred_answer - gold_answer) < 1e-3:
@@ -323,7 +311,7 @@ class ModelEvaluator:
                 if not endings:
                     continue
 
-                # 计算每个ending的概率
+                # 计算每个ending的概率（使用loss作为度量）
                 max_prob = -float('inf')
                 pred_idx = 0
 
@@ -333,8 +321,10 @@ class ModelEvaluator:
                         text, return_tensors="pt").to(self.device)
 
                     with torch.no_grad():
-                        outputs = self.model(
-                            **inputs, labels=inputs["input_ids"])
+                        outputs = self.model.forward(
+                            input_ids=inputs["input_ids"],
+                            labels=inputs["input_ids"]
+                        )
                         loss = outputs.loss.item()
 
                     if -loss > max_prob:
@@ -357,11 +347,18 @@ class ModelEvaluator:
             logger.error(f"Failed to evaluate HellaSwag: {e}")
             return {"dataset": "hellaswag", "error": str(e)}
 
+    def get_model_statistics(self) -> Dict:
+        """获取模型统计信息"""
+        return self.model.get_statistics()
+
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate quantized models")
-    parser.add_argument("--model", type=str, required=True,
-                        help="Path to the model to evaluate")
+    parser = argparse.ArgumentParser(
+        description="Evaluate dynamic quantization MoE models")
+    parser.add_argument("--fp16-model", type=str, required=True,
+                        help="Path to the FP16 model")
+    parser.add_argument("--int4-model", type=str, required=True,
+                        help="Path to the INT4 model")
     parser.add_argument("--datasets", type=str, nargs="+",
                         default=["wikitext", "mmlu", "gsm8k", "hellaswag"],
                         help="Datasets to evaluate on")
@@ -373,37 +370,78 @@ def main():
                         help="Maximum sequence length")
     parser.add_argument("--data-dir", type=str, default="data",
                         help="Root directory for datasets")
+    parser.add_argument("--time-window", type=float, default=20.0,
+                        help="Time window for expert tracking (seconds)")
+    parser.add_argument("--hot-ratio", type=float, default=0.1,
+                        help="Hot expert ratio (default: 0.1 = 10 percent)")
+    parser.add_argument("--disable-dynamic-routing", action="store_true",
+                        help="Disable dynamic routing")
+    parser.add_argument("--num-samples-wikitext", type=int, default=1000,
+                        help="Number of samples for WikiText")
+    parser.add_argument("--num-samples-mmlu", type=int, default=100,
+                        help="Number of samples per subject for MMLU")
+    parser.add_argument("--num-samples-gsm8k", type=int, default=100,
+                        help="Number of samples for GSM8K")
+    parser.add_argument("--num-samples-hellaswag", type=int, default=100,
+                        help="Number of samples for HellaSwag")
+
     args = parser.parse_args()
 
     # 创建评估器
-    evaluator = ModelEvaluator(
-        args.model, device=args.device, max_length=args.max_length)
+    evaluator = DynamicQuantEvaluator(
+        fp16_model_path=args.fp16_model,
+        int4_model_path=args.int4_model,
+        device=args.device,
+        max_length=args.max_length,
+        time_window=args.time_window,
+        hot_ratio=args.hot_ratio,
+        enable_dynamic_routing=not args.disable_dynamic_routing
+    )
 
     # 运行评估
     results = {
-        "model": args.model,
+        "fp16_model": args.fp16_model,
+        "int4_model": args.int4_model,
         "device": args.device,
         "max_length": args.max_length,
+        "time_window": args.time_window,
+        "hot_ratio": args.hot_ratio,
+        "dynamic_routing_enabled": not args.disable_dynamic_routing,
         "evaluations": {}
     }
 
     print(f"\n{'='*60}")
-    print(f"Evaluating Model: {args.model}")
+    print(f"Evaluating Dynamic Quantization MoE Model")
+    print(f"FP16 Model: {args.fp16_model}")
+    print(f"INT4 Model: {args.int4_model}")
+    print(f"Time Window: {args.time_window}s, Hot Ratio: {args.hot_ratio}")
+    print(
+        f"Dynamic Routing: {'enabled' if not args.disable_dynamic_routing else 'disabled'}")
     print(f"{'='*60}\n")
+
+    start_time = time.time()
 
     for dataset in args.datasets:
         print(f"\n--- Evaluating {dataset.upper()} ---")
 
         if dataset.lower() == "wikitext":
-            result = evaluator.evaluate_wikitext()
+            result = evaluator.evaluate_wikitext(
+                num_samples=args.num_samples_wikitext)
         elif dataset.lower() == "mmlu":
-            result = evaluator.evaluate_mmlu(data_dir=f"{args.data_dir}/MMLU")
+            result = evaluator.evaluate_mmlu(
+                data_dir=f"{args.data_dir}/MMLU",
+                num_samples=args.num_samples_mmlu
+            )
         elif dataset.lower() == "gsm8k":
             result = evaluator.evaluate_gsm8k(
-                data_dir=f"{args.data_dir}/GSM8K")
+                data_dir=f"{args.data_dir}/GSM8K",
+                num_samples=args.num_samples_gsm8k
+            )
         elif dataset.lower() == "hellaswag":
             result = evaluator.evaluate_hellaswag(
-                data_dir=f"{args.data_dir}/HELLASWAG")
+                data_dir=f"{args.data_dir}/HELLASWAG",
+                num_samples=args.num_samples_hellaswag
+            )
         else:
             logger.warning(f"Unknown dataset: {dataset}")
             continue
@@ -419,12 +457,44 @@ def main():
             print(
                 f"  Accuracy: {result['accuracy']:.4f} ({result.get('correct', 0)}/{result.get('total', 0)})")
 
+    end_time = time.time()
+
+    # 获取模型统计信息
+    model_stats = evaluator.get_model_statistics()
+    results["model_statistics"] = model_stats
+    results["total_evaluation_time"] = end_time - start_time
+
+    # 打印统计信息
+    print(f"\n{'='*60}")
+    print("Model Statistics:")
+    print(
+        f"  Total tokens processed: {model_stats['inference_stats']['total_tokens']}")
+    print(
+        f"  Hot expert calls: {model_stats['inference_stats']['hot_expert_calls']}")
+    print(
+        f"  Cold expert calls: {model_stats['inference_stats']['cold_expert_calls']}")
+    print(
+        f"  FP16 expert calls: {model_stats['inference_stats']['fp16_expert_calls']}")
+    print(
+        f"  INT4 expert calls: {model_stats['inference_stats']['int4_expert_calls']}")
+
+    tracker_stats = model_stats['tracker_stats']
+    print(f"\nTracker Statistics:")
+    print(f"  Time window: {tracker_stats['time_window']}s")
+    print(f"  Total activations: {tracker_stats['total_activations']}")
+    print(f"  Hot activations: {tracker_stats['total_hot_activations']}")
+    print(f"  Cold activations: {tracker_stats['total_cold_activations']}")
+    print(f"  Hot ratio: {tracker_stats['hot_ratio']:.4f}")
+    print(f"  Num hot experts: {tracker_stats['num_hot_experts']}")
+
+    print(f"\nTotal evaluation time: {results['total_evaluation_time']:.2f}s")
+
     # 保存结果
     if args.output:
         output_path = args.output
     else:
-        model_name = Path(args.model).name
-        output_path = f"eval_results_{model_name}.json"
+        model_name = Path(args.fp16_model).name
+        output_path = f"eval_results_dynamic_quant_{model_name}.json"
 
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2, ensure_ascii=False)

@@ -99,11 +99,19 @@ def collect_activations(
 
     # Register collectors
     collectors = {}
+    named_modules_dict = dict(model.named_modules())
+
     for name in layer_names:
-        module = dict(model.named_modules())[name]
+        if name not in named_modules_dict:
+            print(f"Warning: Layer {name} not found in model, skipping...")
+            continue
+
+        module = named_modules_dict[name]
         collector = ActivationCollector(module)
         collector.register()
         collectors[name] = collector
+
+    print(f"  Registered {len(collectors)} hooks")
 
     # Run forward passes
     with torch.no_grad():

@@ -16,28 +16,27 @@ Usage:
 """
 
 # ============================================================================
-# CRITICAL: Import Order Matters!
-# Python executes code from top to bottom. We MUST:
-# 1. First import standard library (os, sys, Path, etc.)
-# 2. Then set sys.path (add project root)
-# 3. Only then import local modules (quant.awq_w2)
+# ⚠️  CRITICAL: Import Order MUST NOT Be Changed!
+# ============================================================================
+# Python executes code top-to-bottom. DO NOT let auto-formatters reorder!
+#
+# Required Order:
+#   1. Import standard library (os, sys, Path, json, argparse, etc.)
+#   2. Set sys.path to add project root
+#   3. Import local quant modules (ONLY AFTER sys.path is set!)
+#
+# Auto-formatters (isort, black, etc.) may try to reorder - DON'T LET THEM!
 # ============================================================================
 
-# Step 1: Import standard library and third-party packages ONLY
-from quant.awq_w2.quantize import QuantizationConfig
-from quant.awq_w2 import (
-    pack_2bit,
-    quantize_weight_w2,
-    collect_activations,
-    calibrate_layer,
-    W2AWQLinear,
-)
+# Step 1: Standard library imports ONLY (no local modules!)
 import os
 import sys
 from pathlib import Path
 import json
 import argparse
 from typing import List, Dict
+
+# Step 1b: Third-party imports
 import torch
 import torch.nn as nn
 from tqdm import tqdm
@@ -50,7 +49,18 @@ _project_root = Path(__file__).parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-# Step 3: NOW we can import local quant modules
+# Step 3: NOW import local quant modules (after sys.path is set)
+# fmt: off  # Prevent formatters from moving these
+# isort: skip_file  # Prevent isort from reordering
+from quant.awq_w2 import (
+    pack_2bit,
+    quantize_weight_w2,
+    collect_activations,
+    calibrate_layer,
+    W2AWQLinear,
+)
+from quant.awq_w2.quantize import QuantizationConfig
+# fmt: on
 
 
 def load_calibration_data(calib_path: str, num_samples: int = 512) -> List[str]:
@@ -231,22 +241,46 @@ def quantize_model(
     print("\n[4/6] Collecting activations...")
     layer_names = list(linear_layers.keys())
 
-    # Limit to first N layers for memory efficiency (can process in batches)
-    max_layers_per_batch = 50
+    print(f"  Total layers: {len(layer_names)}")
+    print(f"  Calibration samples: {num_samples}")
+
+    # Strategy: Balance between speed and memory
+    # - Too small batch (50): 373 batches × 1024 samples = 382k forward passes (3 days!)
+    # - Too large batch (18672): OOM killed
+    # - Sweet spot: 500-1000 layers per batch = ~20-40 batches × 1024 samples = reasonable
+
+    max_layers_per_batch = 1000  # Increased from 50 to 1000 (20x speedup)
+    num_batches = (len(layer_names) + max_layers_per_batch -
+                   1) // max_layers_per_batch
+
+    print(
+        f"  Processing in {num_batches} batches ({max_layers_per_batch} layers/batch)")
+    print(f"  Estimated time: ~{num_batches * 5}-{num_batches * 10} minutes")
+
     activations_dict = {}
 
     for i in range(0, len(layer_names), max_layers_per_batch):
         batch_names = layer_names[i:i+max_layers_per_batch]
+        batch_num = i // max_layers_per_batch + 1
+
         print(
-            f"  Collecting batch {i//max_layers_per_batch + 1} ({len(batch_names)} layers)...")
+            f"\n  Batch {batch_num}/{num_batches}: Collecting {len(batch_names)} layers...")
 
         batch_activations = collect_activations(
-            model, calib_dataloader, layer_names=batch_names, max_samples=512
+            model, calib_dataloader,
+            layer_names=batch_names,
+            max_samples=128  # Reduce samples per layer to save memory
         )
         activations_dict.update(batch_activations)
 
-        # Clear cache
+        # Clear cache after each batch
         torch.cuda.empty_cache()
+
+        print(
+            f"  ✓ Batch {batch_num} done ({len(batch_activations)} layers collected)")
+
+    print(f"\n  ✓ Total collected: {len(activations_dict)} layers")
+    torch.cuda.empty_cache()
 
     # Calibrate and quantize layers
     print("\n[5/6] Calibrating and quantizing layers...")
