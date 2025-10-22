@@ -315,25 +315,64 @@ def quantize_model(
     # Save quantized model
     print("\n[6/6] Saving quantized model...")
 
-    # Save weights in safetensors format
+    # Replace Linear layers with W2AWQLinear in the model
+    print("  Replacing Linear layers with W2AWQLinear...")
+    replaced_count = 0
+    for name, layer in list(model.named_modules()):
+        if name in quantized_weights:
+            # Get parent module
+            parent_name = '.'.join(name.split('.')[:-1])
+            child_name = name.split('.')[-1]
+
+            if parent_name:
+                parent = model.get_submodule(parent_name)
+            else:
+                parent = model
+
+            # Create W2AWQLinear layer
+            original_layer = getattr(parent, child_name)
+            w2_layer = W2AWQLinear(
+                in_features=original_layer.in_features,
+                out_features=original_layer.out_features,
+                bias=original_layer.bias is not None,
+                group_size=group_size,
+                device=original_layer.weight.device,
+                dtype=original_layer.weight.dtype,
+            )
+
+            # Load quantized weights using the proper method
+            w2_layer.load_weights(
+                weight_q=quantized_weights[name]['weight_q'],
+                scale=quantized_weights[name]['scale'],
+                bias=original_layer.bias.data if original_layer.bias is not None else None,
+                packed=False  # weight_q is not packed yet
+            )
+
+            # Replace the layer
+            setattr(parent, child_name, w2_layer)
+            replaced_count += 1
+
+    print(f"  Replaced {replaced_count} layers with W2AWQLinear")
+
+    # Save the model with replaced layers
+    print("  Saving model with quantized layers...")
+    model.save_pretrained(
+        output_dir,
+        max_shard_size="5GB",
+        safe_serialization=True
+    )
+    print(f"  Saved model to {output_dir}")
+
+    # Also save packed weights separately for backup
     state_dict = {}
     for name, weights in quantized_weights.items():
-        # Pack weights
         weight_packed = pack_2bit(weights['weight_q'])
-
-        # Save with prefixes
         state_dict[f"{name}.weight_packed"] = weight_packed
         state_dict[f"{name}.scale"] = weights['scale']
 
-    # Add non-quantized weights (e.g., lm_head, embeddings)
-    for name, param in model.named_parameters():
-        layer_name = name.rsplit('.', 1)[0]
-        if layer_name not in quantized_weights and 'embed' in name.lower():
-            state_dict[name] = param.cpu()
-
-    safetensors_path = os.path.join(output_dir, "model.safetensors")
-    safetensors.save_file(state_dict, safetensors_path)
-    print(f"Saved weights to {safetensors_path}")
+    packed_path = os.path.join(output_dir, "quantized_weights.safetensors")
+    safetensors.save_file(state_dict, packed_path)
+    print(f"  Saved packed weights to {packed_path}")
 
     # Save quantization config
     quant_config = QuantizationConfig(

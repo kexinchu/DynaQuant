@@ -241,6 +241,39 @@ class ModelEvaluator:
 
             correct = 0
             total = len(df)
+            skipped = 0
+
+            # Few-shot examples (标准的5个示例)
+            few_shot_examples = """Question: Natalia sold clips to 48 of her friends in April, and then she sold half as many clips in May. How many clips did Natalia sell altogether in April and May?
+Answer: Natalia sold 48/2 = 24 clips in May.
+Natalia sold 48+24 = 72 clips altogether in April and May.
+#### 72
+
+Question: Weng earns $12 an hour for babysitting. Yesterday, she just did 50 minutes of babysitting. How much did she earn?
+Answer: Weng earns 12/60 = $0.2 per minute.
+Working 50 minutes, she earned 0.2 x 50 = $10.
+#### 10
+
+Question: Betty is saving money for a new wallet which costs $100. Betty has only half of the money she needs. Her parents decided to give her $15 for that purpose, and her grandparents twice as much as her parents. How much more money does Betty need to buy the wallet?
+Answer: In the beginning, Betty has only 100 / 2 = $50.
+Betty's grandparents gave her 15 * 2 = $30.
+This means, Betty needs 100 - 50 - 15 - 30 = $5 more.
+#### 5
+
+Question: Julie is reading a 120-page book. Yesterday, she was able to read 12 pages and today, she read twice as many pages as yesterday. If she wants to read half of the remaining pages tomorrow, how many pages should she read?
+Answer: Maila read 12 x 2 = 24 pages today.
+So she was able to read a total of 12 + 24 = 36 pages since yesterday.
+There are 120 - 36 = 84 pages left to be read.
+Since she wants to read half of the remaining pages tomorrow, then she should read 84/2 = 42 pages.
+#### 42
+
+Question: James writes a 3-page letter to 2 different friends twice a week. How many pages does he write a year?
+Answer: He writes each friend 3*2=6 pages a week
+So he writes 6*2=12 pages every week
+That means he writes 12*52=624 pages a year
+#### 624
+
+"""
 
             for _, row in tqdm(df.iterrows(), total=len(df), desc="GSM8K"):
                 question = row["question"] if "question" in row else row[0]
@@ -252,34 +285,85 @@ class ModelEvaluator:
                         "####")[-1].strip().replace(",", "")
                     gold_answer = float(gold_answer)
                 except:
+                    skipped += 1
                     continue
 
-                # 生成答案
-                prompt = f"Question: {question}\nAnswer: Let's think step by step.\n"
+                # 使用 chat template 构建 prompt
+                question_text = few_shot_examples + \
+                    f"Question: {question}\nAnswer:"
+
+                # 尝试使用 apply_chat_template
+                try:
+                    messages = [{"role": "user", "content": question_text}]
+                    prompt = self.tokenizer.apply_chat_template(
+                        messages,
+                        tokenize=False,
+                        add_generation_prompt=True
+                    )
+                except Exception as e:
+                    # 如果 apply_chat_template 失败，使用简单格式
+                    logger.debug(
+                        f"apply_chat_template failed, using simple format: {e}")
+                    prompt = question_text
+
                 inputs = self.tokenizer(
-                    prompt, return_tensors="pt").to(self.device)
+                    prompt, return_tensors="pt", truncation=True, max_length=self.max_length
+                ).to(self.device)
 
                 with torch.no_grad():
                     outputs = self.model.generate(
                         **inputs,
-                        max_new_tokens=256,
+                        max_new_tokens=512,  # 增加生成长度
                         do_sample=False,
+                        temperature=0.0,
                         pad_token_id=self.tokenizer.eos_token_id
                     )
 
                 pred = self.tokenizer.decode(
-                    outputs[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+                    outputs[0][inputs["input_ids"].shape[1]
+                        :], skip_special_tokens=True
+                )
 
-                # 提取预测答案
+                # 改进的答案提取逻辑
                 try:
-                    # 简单提取最后一个数字
                     import re
-                    numbers = re.findall(r'-?\d+\.?\d*', pred)
-                    if numbers:
-                        pred_answer = float(numbers[-1].replace(",", ""))
-                        if abs(pred_answer - gold_answer) < 1e-3:
+                    # 首先尝试查找 #### 格式的答案
+                    if "####" in pred:
+                        pred_str = pred.split("####")[-1].strip()
+                        pred_str = re.sub(r'[,\s]', '', pred_str)
+                        # 提取第一个数字
+                        numbers = re.findall(r'-?\d+\.?\d*', pred_str)
+                        if numbers:
+                            pred_answer = float(numbers[0])
+                        else:
+                            raise ValueError("No number found after ####")
+                    else:
+                        # 否则查找所有数字，优先使用最后一行的数字
+                        lines = pred.strip().split('\n')
+                        pred_answer = None
+
+                        # 从后往前查找包含数字的行
+                        for line in reversed(lines):
+                            # 移除逗号和空格
+                            line_clean = line.replace(',', '').replace(' ', '')
+                            # 查找数字（包括负数和小数）
+                            numbers = re.findall(r'-?\d+\.?\d*', line_clean)
+                            if numbers:
+                                # 使用最后一个数字
+                                pred_answer = float(numbers[-1])
+                                break
+
+                        if pred_answer is None:
+                            raise ValueError("No number found in prediction")
+
+                    # 比较答案（允许小的浮点误差）
+                        if abs(pred_answer - gold_answer) < 1e-2:
                             correct += 1
-                except:
+
+                except Exception as e:
+                    logger.debug(
+                        f"Failed to extract answer: {e}, pred: {pred[:100]}")
+                    skipped += 1
                     continue
 
             accuracy = correct / total if total > 0 else 0
@@ -288,7 +372,8 @@ class ModelEvaluator:
                 "dataset": "gsm8k",
                 "accuracy": accuracy,
                 "correct": correct,
-                "total": total
+                "total": total,
+                "skipped": skipped
             }
 
         except Exception as e:

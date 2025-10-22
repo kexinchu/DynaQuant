@@ -60,7 +60,19 @@ python scripts/quantize_w4a16.py \
     --num-samples 512
 ```
 
-> ⚠️ **关于 W2A16**：`quantize_w2a16.py` 脚本已改为使用 W4A16，因为 llm-compressor 不支持 2 位量化。如需 2 位量化，请使用其他工具如 GPTQ 或 AWQ。
+**W2A16 量化（8倍压缩，使用 AWQ 方法）✨ NEW**
+```bash
+# 使用 AWQ 激活感知量化实现 2 位权重量化
+python scripts/quantize_w2a16.py \
+    --model /path/to/model \
+    --output-dir /path/to/output-W2A16 \
+    --calib-data /path/to/calibration.json \
+    --num-samples 512 \
+    --group-size 128 \
+    --moe
+```
+
+> ⚠️ **注意**：W2A16 使用自定义 AWQ 实现，不依赖 llm-compressor。量化后的模型使用 `W2AWQLinear` 层。
 
 #### Step 2: 评估模型
 

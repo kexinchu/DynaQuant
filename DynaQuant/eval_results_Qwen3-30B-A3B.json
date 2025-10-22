@@ -5,9 +5,10 @@
   "evaluations": {
     "gsm8k": {
       "dataset": "gsm8k",
-      "accuracy": 0.17,
-      "correct": 17,
-      "total": 100
+      "accuracy": 0.39,
+      "correct": 39,
+      "total": 100,
+      "skipped": 0
     }
   }
 }
