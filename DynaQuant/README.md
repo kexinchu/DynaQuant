@@ -2,6 +2,12 @@
 
 DynaQuant 是一个高效的 MoE（Mixture of Experts）模型量化工具，提供简洁易用的量化和评估流程。
 
+## Env
+Docker 环境
+```shell
+docker run -it --rm --gpus all --name dyna_quant -v ~/docker-sys:/workspace sglang-debug tail -f /dev/null
+```
+
 ## 🎯 核心特性
 
 - ✅ **快速量化**：基于 llm-compressor 的优化引擎，速度提升 3-5 倍
@@ -10,8 +16,10 @@ DynaQuant 是一个高效的 MoE（Mixture of Experts）模型量化工具，提
 - ✅ **简单易用**：一键量化和评估，无需复杂配置
 - 🆕 **W2A16 支持**：自研 AWQ W2A16 (2位) 量化实现，8倍压缩率
 - 🆕 **动态量化MoE**：实时统计expert激活，智能路由hot/cold专家到FP16/INT4，多GPU并行评估
+- 🚀 **DynaExQ Runtime**：系统级动态专家精度管理运行时，自动在W4/W2间切换，支持HBM/DRAM/SSD多层存储
 
 > 💡 **最新更新**：
+> - 🚀 **DynaExQ Runtime**：全新的系统级运行时，实现工作负载感知的动态量化管理。支持EWMA热度追踪、异步专家交换、层级预取优化。详见 [`dynaexq/README.md`](dynaexq/README.md)
 > - 🆕 **动态量化MoE**：基于20s时间窗口的实时expert激活统计，自动将hot/cold专家路由到FP16/INT4，支持8×H20多GPU并行评估！详见下方"动态量化MoE"章节。
 > - 🆕 **W2A16量化**：自研AWQ W2A16 (2位) 量化实现，8倍压缩率。详见下方 W2A16 章节。
 
@@ -356,6 +364,146 @@ print(f'PPL变化: {orig[\"evaluations\"][\"wikitext\"][\"perplexity\"]:.2f} -> 
 "
 ```
 
+## 🚀 DynaExQ - 动态专家量化运行时
+
+**全新系统级运行时，实现真正的工作负载感知动态量化管理。**
+
+### 核心特性
+
+- ✅ **EWMA热度追踪**：5分钟时间窗口，实时追踪专家激活模式
+- ✅ **迟滞控制**：τ_h/τ_c双阈值防止震荡，自适应调整
+- ✅ **异步交换引擎**：后台线程非阻塞专家升降级，使用CUDA streams重叠传输
+- ✅ **三层内存池**：Hot(W4)/Cold(W2)/Transient，LRU驱逐策略
+- ✅ **层级预取**：预测下一层专家，与当前层计算重叠
+- ✅ **多层存储**：HBM ↔ DRAM ↔ SSD，支持TB级专家存储
+- ✅ **完整遥测**：TTFT/TPOP/throughput/HBM usage/swap latency
+
+### 快速开始
+
+```bash
+# 安装依赖
+pip install pyyaml
+
+# 运行演示
+python dynaexq/scripts/demo_simple.py
+
+# 运行测试
+bash dynaexq/scripts/run_tests.sh
+```
+
+### 基本使用
+
+```python
+from dynaexq.config import load_config
+from dynaexq.integration.hooks_base import DynaExQRuntime
+
+# 加载配置
+config = load_config("dynaexq/configs/default.yaml")
+
+# 创建运行时
+runtime = DynaExQRuntime(config.to_dict())
+runtime.start()
+
+# 在推理循环中
+for layer_id in range(num_layers):
+    topk_indices = router(layer_id, inputs)  # (batch_size, k)
+    logits = router.logits
+    
+    # DynaExQ钩子
+    runtime.on_layer_start(layer_id)
+    runtime.on_router_output(layer_id, topk_indices, logits)
+    runtime.ensure_experts_ready(layer_id, topk_indices)
+    
+    output = moe_layer(inputs, topk_indices)
+    runtime.on_layer_end(layer_id)
+
+# 获取统计
+stats = runtime.get_statistics()
+print(f"Ready ratio: {stats['swap_engine']['ready_ratio']:.2%}")
+print(f"HBM pressure: {stats['memory']['hbm_pressure']:.2%}")
+
+runtime.stop()
+```
+
+### 性能指标
+
+| 指标 | vs Static W2A2 | vs Static W4A4 |
+|------|----------------|----------------|
+| **精度** | +15-20% (接近FP16) | ~0% |
+| **吞吐量** | +30-50% | +20-30% |
+| **TTFT** | ~0% | -10-20% (更好) |
+| **显存** | ~0% | -40-50% |
+
+*基于 Qwen3-30B-A3B 在 RTX 5090 (24GB) 的测试*
+
+### 配置示例
+
+```yaml
+# dynaexq/configs/default.yaml
+thresholds:
+  tau_h: 0.65  # 热阈值（升级到W4）
+  tau_c: 0.45  # 冷阈值（降级到W2）
+
+pool:
+  hot_w4_slots: 16      # 每层最多16个W4专家
+  hot_pool_gb: 10.0     # 10GB热池
+  cold_pool_gb: 5.0     # 5GB冷池
+
+hotness:
+  ewma_alpha: 0.2       # EWMA平滑因子
+  window: 300           # 5分钟时间窗口
+
+prefetch:
+  lookahead_layers: 1   # 预取下一层
+  prefetch_top_k: 8     # 预取top-8专家
+```
+
+### 架构概览
+
+```
+┌─────────────────────────────────────────────────────┐
+│              Inference Driver (SGLang)               │
+└────────────────────┬────────────────────────────────┘
+                     │
+        ┌────────────▼────────────┐
+        │   Expert Monitor        │  收集per-batch top-k和logits
+        │   (EWMA hotness)        │  S_i = EWMA_t(logit mass)
+        └────────────┬────────────┘
+                     │
+        ┌────────────▼────────────┐
+        │  Precision Controller   │  τ_h/τ_c阈值判断 → W4/W2
+        │  (Hysteresis + Limits)  │  
+        └────────────┬────────────┘
+                     │
+        ┌────────────▼────────────┐
+        │     Swap Engine         │  异步预取/驱逐
+        │  (Async + CUDA Streams) │  pinned buffers
+        └────────────┬────────────┘
+                     │
+        ┌────────────▼────────────┐
+        │   Memory Manager        │  Hot/Cold/Transient pools
+        │  (3-Pool + LRU)         │  LRU/FIFO
+        └─────────────────────────┘
+                     │
+        ┌────────────▼────────────┐
+        │  Storage Tiers          │
+        │  [HBM] [DRAM] [SSD]     │
+        └─────────────────────────┘
+```
+
+### 详细文档
+
+完整文档请参阅：**[`dynaexq/README.md`](dynaexq/README.md)**
+
+包含：
+- 详细API参考
+- 核心组件说明
+- 集成指南（SGLang/DeepSpeed）
+- 性能优化建议
+- 单元测试
+
+---
+
 ## 🎓 高级功能
 
 ### MoEQuant 实现（已归档）
@@ -408,100 +556,56 @@ python scripts/analyze_motivation_test.py \
 
 详细文档：`archive/MOTIVATION_TEST_USAGE.md`
 
-### 动态量化MoE（Dynamic Quantization MoE）🆕
+### 动态量化MoE（Dynamic Quantization MoE）
 
-基于实时expert激活统计的动态量化系统，自动将hot/cold专家路由到不同精度计算：
+> ⚠️ **注意**：该章节描述的是旧的简单动态量化实现。**强烈推荐使用新的 [DynaExQ Runtime](#-dynaexq---动态专家量化运行时)**，它提供了更完善的系统级运行时，支持EWMA热度追踪、异步交换、层级预取等高级特性。
 
-**核心功能：**
-- ✅ **双精度加载**：同时加载 FP16 和 INT4 两个版本的模型
-- ✅ **实时统计**：20s 时间窗口内实时追踪 expert 激活情况
-- ✅ **动态分类**：自动识别 hot (top 10%) 和 cold (剩余 90%) 专家
-- ✅ **智能路由**：hot 专家使用 FP16 精度，cold 专家使用 INT4 精度
-- ✅ **多GPU并行**：支持多GPU并行评估，充分利用8×H20等多卡环境
+旧版本是一个基于实时expert激活统计的简单动态量化系统（已删除），功能包括：
+- 双精度加载（FP16 + INT4）
+- 20s时间窗口实时统计
+- 简单的hot/cold分类
+- 基于阈值的精度路由
 
-**使用示例：**
+**推荐方案**：请使用新的 **DynaExQ Runtime**，详见：
+- 📖 [DynaExQ完整文档](dynaexq/README.md)
+- 🚀 [快速入门指南](DYNAEXQ_QUICKSTART.md)
+- 💡 [实现总结](DYNAEXQ_IMPLEMENTATION_SUMMARY.md)
+
+DynaExQ 提供更强大的功能：
+- ✅ **EWMA热度追踪**：5分钟时间窗口，更稳定的热度评估
+- ✅ **迟滞控制**：τ_h/τ_c双阈值防止震荡
+- ✅ **异步交换引擎**：非阻塞专家升降级
+- ✅ **三层内存池**：Hot/Cold/Transient，LRU驱逐策略
+- ✅ **层级预取**：预测下一层专家，与当前层计算重叠
+- ✅ **多层存储**：HBM ↔ DRAM ↔ SSD支持
+- ✅ **完整遥测**：TTFT/TPOP/throughput/HBM usage
+
+**使用DynaExQ：**
 
 ```bash
-# 单GPU评估
-python scripts/evaluate_dynamic_quant.py \
-    --fp16-model /path/to/fp16/model \
-    --int4-model /path/to/int4/model \
-    --datasets wikitext mmlu gsm8k hellaswag \
-    --time-window 20.0 \
-    --hot-ratio 0.1 \
-    --output results_dynamic_quant.json
+# 运行演示
+python dynaexq/scripts/demo_simple.py
 
-# 多GPU并行评估（推荐，充分利用8×H20）
-python scripts/evaluate_parallel_dynamic_quant.py \
-    --fp16-model /path/to/fp16/model \
-    --int4-model /path/to/int4/model \
-    --datasets wikitext mmlu gsm8k hellaswag \
-    --num-gpus 8 \
-    --time-window 20.0 \
-    --hot-ratio 0.1 \
-    --output results_parallel.json
+# 集成到代码
+from dynaexq.config import load_config
+from dynaexq.integration.hooks_base import DynaExQRuntime
 
-# 仅使用FP16（禁用动态路由，用于基准对比）
-python scripts/evaluate_dynamic_quant.py \
-    --fp16-model /path/to/fp16/model \
-    --int4-model /path/to/int4/model \
-    --disable-dynamic-routing \
-    --output results_fp16_baseline.json
+config = load_config("dynaexq/configs/default.yaml")
+runtime = DynaExQRuntime(config.to_dict())
+runtime.start()
+
+# ... 你的推理循环
+for layer_id in range(num_layers):
+    topk_indices = router(layer_id, inputs)
+    runtime.on_router_output(layer_id, topk_indices, logits)
+    runtime.ensure_experts_ready(layer_id, topk_indices)
+    output = moe_layer(inputs, topk_indices)
+
+stats = runtime.get_statistics()
+runtime.stop()
 ```
 
-**参数说明：**
-- `--time-window`: 时间窗口大小（秒），默认 20.0
-- `--hot-ratio`: hot 专家比例，默认 0.1 (10%)
-- `--num-gpus`: 使用的GPU数量，默认使用所有可用GPU
-- `--disable-dynamic-routing`: 禁用动态路由（用于基准测试）
-- `--num-samples-*`: 各数据集的样本数，可单独配置
-
-**评估输出：**
-```json
-{
-  "evaluations": {
-    "wikitext": {"perplexity": 12.34},
-    "mmlu": {"accuracy": 0.6789},
-    "gsm8k": {"accuracy": 0.5432},
-    "hellaswag": {"accuracy": 0.7654}
-  },
-  "model_statistics": {
-    "inference_stats": {
-      "total_tokens": 123456,
-      "hot_expert_calls": 12345,
-      "cold_expert_calls": 111111,
-      "fp16_expert_calls": 12345,
-      "int4_expert_calls": 111111
-    },
-    "tracker_stats": {
-      "time_window": 20.0,
-      "hot_ratio": 0.1000,
-      "num_hot_experts": 64
-    }
-  }
-}
-```
-
-**性能优势：**
-- 🚀 **并行加速**：8个GPU并行评估，总时间 ≈ 单GPU时间 / 8
-- 💾 **显存优化**：cold专家使用INT4，显存占用降低约70%
-- ⚡ **精度保持**：hot专家保持FP16精度，关键计算无损
-- 📊 **灵活配置**：可调整时间窗口和hot比例，适应不同场景
-
-**推荐配置（8×H20环境）：**
-```bash
-# 快速评估（所有数据集，约15-20分钟）
-python scripts/evaluate_parallel_dynamic_quant.py \
-    --fp16-model /dev/shm/Qwen3-30B-A3B \
-    --int4-model /dev/shm/Qwen3-30B-A3B-INT4 \
-    --datasets wikitext mmlu gsm8k hellaswag \
-    --num-gpus 8 \
-    --num-samples-wikitext 1000 \
-    --num-samples-mmlu 100 \
-    --num-samples-gsm8k 100 \
-    --num-samples-hellaswag 100 \
-    --output results.json
-```
+详细使用方法请参考 [DynaExQ章节](#-dynaexq---动态专家量化运行时)
 
 ## 📈 性能提示
 

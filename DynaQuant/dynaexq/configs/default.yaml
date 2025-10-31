@@ -1,0 +1,64 @@
+# DynaExQ Default Configuration
+
+# Hotness monitoring
+hotness:
+  window: 300  # Epoch duration in seconds (5 minutes)
+  ewma_alpha: 0.2  # EWMA smoothing factor
+
+# Precision thresholds
+thresholds:
+  tau_h: 0.65  # Hot threshold for promotion to W4
+  tau_c: 0.45  # Cold threshold for demotion to W2
+
+# Memory pools
+pool:
+  hot_w4_slots: 16  # Max W4 experts per layer in hot pool
+  hot_pool_gb: 10.0  # Total hot pool size in GB
+  cold_pool_gb: 5.0  # Total cold pool size in GB
+  transient_mb: 2048  # Transient staging pool in MB
+
+# Expert sizes (model-specific, adjust for your model)
+expert_sizes:
+  w4_expert_mb: 256  # Size of one W4 expert in MB
+  w2_expert_mb: 64   # Size of one W2 expert in MB
+
+# Model configuration
+model:
+  num_layers: 32  # Number of MoE layers
+  num_experts_per_layer: 64  # Experts per layer
+  top_k: 2  # Router top-k
+
+# Storage
+storage:
+  ssd_path: /mnt/ssd/dynaexq/experts.bin
+  index_path: /mnt/ssd/dynaexq/experts.index
+  enable_ssd: false  # Enable SSD tier (if false, only HBM+DRAM)
+
+# CUDA streams
+streams:
+  memcpy_h2d: 2  # Host-to-device streams
+  memcpy_d2h: 1  # Device-to-host streams
+  compute: 2     # Compute streams
+
+# Prefetching
+prefetch:
+  lookahead_layers: 1  # How many layers ahead to prefetch
+  prefetch_top_k: 8    # Number of experts to prefetch per layer
+
+# Telemetry
+telemetry:
+  enable: true
+  output_file: ./telemetry.jsonl
+  export_format: jsonl  # jsonl or csv
+
+# Adaptive thresholds
+adaptive:
+  enable: true
+  min_ready_ratio: 0.99  # Trigger adaptation if below this
+  max_hbm_pressure: 0.90  # Trigger adaptation if above this
+
+# Safety
+safety:
+  max_swap_timeout_sec: 5.0  # Max wait time for expert swap
+  fallback_to_w2_on_miss: true  # Use W2 if W4 not ready
+
