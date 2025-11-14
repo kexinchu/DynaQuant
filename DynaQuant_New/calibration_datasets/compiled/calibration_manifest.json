@@ -1,0 +1,11 @@
+{
+  "w4a16": {
+    "count": 430,
+    "path": "w4a16_requests.jsonl"
+  },
+  "w2a16": {
+    "count": 600,
+    "path": "w2a16_requests.jsonl"
+  },
+  "notes": "Prompts sourced from calibration_datasets/requests/*.jsonl. LiveBench entries require image assets under livebench_2024-09_images/."
+}
