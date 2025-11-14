@@ -215,6 +215,8 @@ class DynaExQRuntime:
             memory_manager=self.memory_manager,
             num_h2d_streams=config.get("num_h2d_streams", 2),
             num_d2h_streams=config.get("num_d2h_streams", 1),
+            # Optional weight loader
+            weight_loader=config.get("weight_loader"),
         )
 
         self.prefetch_planner = PrefetchPlanner(
@@ -262,10 +264,12 @@ class DynaExQRuntime:
         ]
 
         # Plan and swap
+        residencies = {
+            e: self.memory_manager.get_residency(e) for e in active_experts
+        }
         targets = self.controller.plan(active_experts, self.monitor)
         current = {
-            e: self.memory_manager.get_residency(e).bitwidth
-            if self.memory_manager.get_residency(e) else "W2"
+            e: residencies[e].bitwidth if residencies[e] else "W2"
             for e in active_experts
         }
         diff = self.controller.get_diff(targets, current)
@@ -278,6 +282,11 @@ class DynaExQRuntime:
         # Prefetch next layer
         self.prefetch_planner.lookahead(layer_id)
         self.prefetch_planner.update_pattern(layer_id, active_experts)
+
+        # Ensure W2 experts are at least resident in cold pool
+        for expert in active_experts:
+            if residencies[expert] is None and targets.get(expert, "W2") == "W2":
+                self.swap_engine.downgrade(expert, priority=2)
 
     def ensure_experts_ready(
         self,

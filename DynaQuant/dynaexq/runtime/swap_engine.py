@@ -5,8 +5,8 @@ SwapEngine - Async expert swapping with pinned buffers and CUDA streams
 import logging
 import time
 import threading
-from typing import Dict, Optional, List, Set
-from queue import PriorityQueue
+from typing import Dict, Optional, List, Set, Any
+from queue import PriorityQueue, Empty
 from dataclasses import dataclass, field
 import numpy as np
 
@@ -52,6 +52,7 @@ class SwapEngine:
         num_h2d_streams: int = 2,
         num_d2h_streams: int = 1,
         enable_cuda: bool = True,
+        weight_loader: Optional[Any] = None,
     ):
         """
         Args:
@@ -59,11 +60,13 @@ class SwapEngine:
             num_h2d_streams: Number of host-to-device CUDA streams
             num_d2h_streams: Number of device-to-host CUDA streams
             enable_cuda: Whether to use CUDA streams (False for CPU-only testing)
+            weight_loader: Optional ExpertWeightLoader for loading weights from disk
         """
         self.memory_manager = memory_manager
         self.num_h2d_streams = num_h2d_streams
         self.num_d2h_streams = num_d2h_streams
         self.enable_cuda = enable_cuda and TORCH_AVAILABLE
+        self.weight_loader = weight_loader
 
         # Task queue: PriorityQueue of SwapTask
         self.task_queue: PriorityQueue[SwapTask] = PriorityQueue()
@@ -255,17 +258,16 @@ class SwapEngine:
 
         while self.running:
             try:
-                # Get next task with timeout
                 task = self.task_queue.get(timeout=0.1)
+            except Empty:
+                continue
 
-                # Process the swap
+            try:
                 self._process_swap(task)
-
             except Exception as e:
                 if self.running:
                     logger.error(
                         f"Error processing swap task: {e}", exc_info=True)
-                continue
 
         logger.info("SwapEngine worker loop exited")
 
@@ -320,9 +322,23 @@ class SwapEngine:
         """Execute upgrade: W2 -> W4, load into hot pool"""
         expert = task.expert
 
-        # Simulate loading W4 weights from DRAM/SSD
-        # In real implementation: load from storage, dequantize if needed, transfer to GPU
-        time.sleep(0.001)  # Simulate I/O latency
+        # Load W4 weights from disk (if weight_loader is available)
+        weight_loaded = False
+        if self.weight_loader is not None:
+            try:
+                weight = self.weight_loader.load_expert_weights(
+                    expert.layer, expert.idx, "W4"
+                )
+                if weight is not None:
+                    weight_loaded = True
+                    logger.debug(f"Loaded W4 weights for {expert} from disk")
+            except Exception as e:
+                logger.warning(f"Failed to load W4 weights for {expert}: {e}")
+
+        if not weight_loaded:
+            # Simulate loading W4 weights from DRAM/SSD
+            # In real implementation: load from storage, dequantize if needed, transfer to GPU
+            time.sleep(0.001)  # Simulate I/O latency
 
         # Reserve space in hot pool
         w4_size = self.memory_manager.w4_size
@@ -351,8 +367,22 @@ class SwapEngine:
         """Execute downgrade: W4 -> W2, move to cold pool or DRAM"""
         expert = task.expert
 
-        # Simulate quantizing W4 -> W2 (can be done on GPU or CPU)
-        time.sleep(0.0005)  # Simulate conversion
+        # Load W2 weights from disk (if weight_loader is available)
+        weight_loaded = False
+        if self.weight_loader is not None:
+            try:
+                weight = self.weight_loader.load_expert_weights(
+                    expert.layer, expert.idx, "W2"
+                )
+                if weight is not None:
+                    weight_loaded = True
+                    logger.debug(f"Loaded W2 weights for {expert} from disk")
+            except Exception as e:
+                logger.warning(f"Failed to load W2 weights for {expert}: {e}")
+
+        if not weight_loaded:
+            # Simulate quantizing W4 -> W2 (can be done on GPU or CPU)
+            time.sleep(0.0005)  # Simulate conversion
 
         # Reserve space in cold pool or move to DRAM
         w2_size = self.memory_manager.w2_size
