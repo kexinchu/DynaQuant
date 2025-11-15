@@ -23,51 +23,70 @@
 #     --input /workspace/DynaQuant/DynaQuant_New/activations/activation_qwen80b_mmlu_pro.json \
 #     --output /workspace/DynaQuant/DynaQuant_New/activations/activation_qwen80b_mmlu_pro_sorted.json
 # ppl
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 0 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-0.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 77 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-15.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 153 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-30.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 230 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-45.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 307 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-60.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 384 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-75.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 460 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-90.txt
-python scripts/evaluate_mmlu_perplexity_mixed.py \
-    --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-    --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-    --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
-    --tail-count 512 \
-    --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-100.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 0 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-0.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 77 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-15.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 153 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-30.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 230 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-45.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 307 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-60.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 384 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-75.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 460 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-90.txt
+# python scripts/evaluate_mmlu_perplexity_mixed.py \
+#     --fp16 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#     --int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#     --activation-file ./activations/activation_qwen80b_mmlu_pro_sorted.json \
+#     --tail-count 512 \
+#     --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl > 80b-100.txt
+
+
+# python3 scripts/benchmark_latency.py \
+#   --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl \
+#   --qwen30-fp16 /workspace/Models/Qwen3-30B-A3B-Instruct-2507 \
+#   --qwen30-int4 /workspace/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound \
+#   --qwen80-int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
+#   --qwen80-int2 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+#   --max-prompts 8 \
+#   --max-new-tokens 256 \
+#   --output scripts/results/latency_summary.json
+
+python3 scripts/benchmark_latency.py \
+  --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl \
+  --qwen30-int4 /workspace/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound \
+  --qwen80-int2 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
+  --max-prompts 8 \
+  --max-new-tokens 256 \
+  --output scripts/results/latency_summary.json

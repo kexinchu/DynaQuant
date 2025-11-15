@@ -9,13 +9,13 @@ least-active experts to the low-precision model before running accuracy tests.
 Example
 -------
 python scripts/evaluate_calibration_accuracy_mixed.py \
-    --fp16 /workspace/Models/Qwen3-30B-A3B-Instruct-2507 \
-    --int4 /workspace/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound \
-    --activation-file calibration_datasets/compiled/w4_tail_experts.json \
+    --fp16 /home/chuke/Models/Qwen3-30B-A3B-Instruct-2507 \
+    --int4 /home/chuke/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound \
+    --activation-file ./activations/activation_qwen30b_mmlu_pro_sorted.json \
     --tail-count 64 \
     --dataset-dir calibration_datasets/requests \
     --datasets mmlu_pro_200.jsonl gsm8k_200.jsonl \
-    --max-samples 100 \
+    --max-samples 200 \
     --output mixed_accuracy.json
 """
 
@@ -118,39 +118,67 @@ def load_mixed_precision_model(
     low_precision_experts: Set[ExpertID],
     device: str,
     torch_dtype: Optional[str],
+    base_quantization: str,
+    low_precision_quantization: str,
+    trust_remote_code: bool = True,
 ) -> Tuple[AutoModelForCausalLM, AutoTokenizer]:
-    dtype = None
-    if torch_dtype and torch_dtype.lower() != "auto":
-        dtype = getattr(torch, torch_dtype)
-    elif device.startswith("cuda"):
-        dtype = torch.float16
+    def _load_checkpoint(
+        path: str,
+        quantization: str,
+        dtype_hint: Optional[str],
+    ) -> AutoModelForCausalLM:
+        dtype_obj = None
+        if quantization.lower() != "none":
+            dtype_obj = torch.float16
+        elif dtype_hint and dtype_hint.lower() != "auto":
+            dtype_obj = getattr(torch, dtype_hint)
+        elif device.startswith("cuda"):
+            dtype_obj = torch.float16
 
-    LOGGER.info("Loading FP16 base model from %s", fp16_path)
-    model = AutoModelForCausalLM.from_pretrained(
+        LOGGER.info(
+            "Loading %s model from %s (quantization=%s)",
+            "base" if path == fp16_path else "low-precision",
+            path,
+            quantization,
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            path,
+            torch_dtype=dtype_obj,
+            device_map={"": "cpu"},
+            low_cpu_mem_usage=True,
+            trust_remote_code=trust_remote_code,
+        )
+
+        quantization = quantization.lower()
+        if quantization in {"autoround-int4", "autoround-int2"}:
+            LOGGER.info("Converting AutoRound (%s) modules to quantized kernels",
+                        quantization)
+            model, _ = convert_hf_model(model, target_device="cpu")
+        elif quantization != "none":
+            raise ValueError(
+                f"Unsupported quantization mode '{quantization}'. "
+                "Valid options: none, autoround-int4, autoround-int2."
+            )
+
+        return model
+
+    model = _load_checkpoint(
         fp16_path,
-        torch_dtype=dtype,
-        device_map={"": "cpu"},
-        low_cpu_mem_usage=True,
-        trust_remote_code=True,
+        base_quantization,
+        torch_dtype,
     )
 
     tokenizer = AutoTokenizer.from_pretrained(
-        fp16_path, trust_remote_code=True)
+        fp16_path, trust_remote_code=trust_remote_code)
     if tokenizer.pad_token_id is None and tokenizer.eos_token_id is not None:
         tokenizer.pad_token_id = tokenizer.eos_token_id
 
     if low_precision_experts:
-        LOGGER.info("Loading AutoRound INT4 model from %s", int4_path)
-        quant_model = AutoModelForCausalLM.from_pretrained(
+        quant_model = _load_checkpoint(
             int4_path,
-            torch_dtype=torch.float16,
-            device_map={"": "cpu"},
-            low_cpu_mem_usage=True,
-            trust_remote_code=True,
+            low_precision_quantization,
+            torch_dtype,
         )
-        LOGGER.info("Converting AutoRound modules to quantized kernels")
-        quant_model, _ = convert_hf_model(quant_model, target_device="cpu")
-
         apply_quantized_experts(model, quant_model, low_precision_experts)
 
         del quant_model
@@ -202,6 +230,9 @@ def evaluate(args: argparse.Namespace) -> Dict[str, object]:
         low_precision_experts=downgraded,
         device=args.device,
         torch_dtype=args.torch_dtype,
+        base_quantization=args.base_quantization,
+        low_precision_quantization=args.low_precision_quantization,
+        trust_remote_code=True,
     )
 
     dataset_names = args.datasets or list(SUPPORTED_TASKS.keys())
@@ -218,6 +249,8 @@ def evaluate(args: argparse.Namespace) -> Dict[str, object]:
         "int4_path": args.int4,
         "device": args.device,
         "tail_count": args.tail_count,
+        "base_quantization": args.base_quantization,
+        "low_precision_quantization": args.low_precision_quantization,
         "downgraded_experts": [
             {"layer": expert.layer, "idx": expert.idx}
             for expert in sorted(downgraded, key=lambda e: (e.layer, e.idx))
@@ -418,6 +451,20 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Optional torch dtype override for the FP16 base model.",
+    )
+    parser.add_argument(
+        "--base-quantization",
+        type=str,
+        choices=["none", "autoround-int4", "autoround-int2"],
+        default="none",
+        help="Quantization format for --fp16 checkpoint (allows Int4 base models).",
+    )
+    parser.add_argument(
+        "--low-precision-quantization",
+        type=str,
+        choices=["none", "autoround-int4", "autoround-int2"],
+        default="autoround-int4",
+        help="Quantization format for --int4 checkpoint (e.g., autoround-int2).",
     )
     parser.add_argument(
         "--output",
