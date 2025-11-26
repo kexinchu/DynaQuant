@@ -1,0 +1,19 @@
+[
+  {
+    "scenario": "Qwen3-30B-A3B FP16 (TP=2)",
+    "model_path": "/workspace/Models/Qwen3-30B-A3B-Instruct-2507",
+    "tensor_parallel": 2,
+    "dtype": "float16",
+    "quantization": null,
+    "samples": 120,
+    "prefill_latency_avg": 0.19886881113052368,
+    "prefill_latency_p95": 0.21798571348190307,
+    "prefill_throughput_avg": 12668.287286593253,
+    "decode_throughput_avg": 118.25727475866867,
+    "tpop_avg": 8.45631901764756,
+    "tpop_p95": 8.525231666499167,
+    "avg_decode_tokens": 254.625,
+    "warmup_prompts": 1,
+    "failures": []
+  }
+]

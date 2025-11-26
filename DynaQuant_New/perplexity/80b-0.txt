@@ -1,0 +1,13 @@
+{
+  "fp16_path": "/workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound",
+  "int4_path": "/workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound",
+  "device": "cuda",
+  "dtype": "torch.float16",
+  "tail_count": 0,
+  "downgraded_experts": [],
+  "samples": 128,
+  "skipped": 0,
+  "target_tokens": 322566,
+  "avg_neg_log_likelihood": 1.7474826005135444,
+  "perplexity": 5.740134261215269
+}

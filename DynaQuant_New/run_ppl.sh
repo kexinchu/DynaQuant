@@ -76,17 +76,14 @@
 # python3 scripts/benchmark_latency.py \
 #   --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl \
 #   --qwen30-fp16 /workspace/Models/Qwen3-30B-A3B-Instruct-2507 \
-#   --qwen30-int4 /workspace/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound \
-#   --qwen80-int4 /workspace/Models/Qwen3-80B-A3B-Instruct-int4-mixed-AutoRound \
-#   --qwen80-int2 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-#   --max-prompts 8 \
+#   --max-prompts 120 \
 #   --max-new-tokens 256 \
-#   --output scripts/results/latency_summary.json
+#   --output scripts/results/latency_summary_30b_fp16.json
 
-python3 scripts/benchmark_latency.py \
+python3 scripts/benchmark_latency_transformers.py \
   --dataset calibration_datasets/requests/wikitext2_128x2048.jsonl \
-  --qwen30-int4 /workspace/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound \
   --qwen80-int2 /workspace/Models/Qwen3-80B-A3B-Instruct-int2-mixed-AutoRound \
-  --max-prompts 8 \
+  --max-prompts 120 \
   --max-new-tokens 256 \
-  --output scripts/results/latency_summary.json
+  --output scripts/results/latency_summary_80b_int4.json
+

@@ -23,14 +23,16 @@ from __future__ import annotations
 
 import argparse
 import gc
+import importlib
 import json
 import logging
 import re
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
-import torch
+import torch as _torch
 from auto_round.inference.convert_model import convert_hf_model
 from dynaexq.runtime import ExpertID
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -45,6 +47,49 @@ from evaluate_calibration_accuracy import (  # type: ignore  # noqa: E402
     DatasetSummary,
     evaluate_dataset,
 )
+
+
+def _ensure_real_torch(module: ModuleType) -> ModuleType:
+    """
+    AutoRound installs helper packages that include a stub ``torch`` package
+    under ``auto_round_extension/torch``.  If that directory is inserted ahead
+    of the real PyTorch installation on ``sys.path`` (for example via a custom
+    ``PYTHONPATH``), then ``import torch`` resolves to the stub and any access
+    to ``torch.Tensor`` raises ``AttributeError``.
+
+    When we detect this situation, demote the shadowing directory to the end of
+    ``sys.path`` and re-import the canonical PyTorch package.
+    """
+
+    if hasattr(module, "Tensor"):
+        return module
+
+    module_file = getattr(module, "__file__", "") or ""
+    logger = logging.getLogger("calibration_eval_mixed")
+
+    if module_file and "auto_round_extension" in module_file:
+        offending_dir = str(Path(module_file).resolve().parents[1])
+        try:
+            sys.path.remove(offending_dir)
+        except ValueError:
+            pass
+        sys.path.append(offending_dir)
+        sys.modules.pop("torch", None)
+        fixed_module = importlib.import_module("torch")
+        if hasattr(fixed_module, "Tensor"):
+            logger.warning(
+                "Resolved PyTorch shadowing from %s by reloading the real torch package.",
+                module_file,
+            )
+            return fixed_module
+
+    raise RuntimeError(
+        "Failed to import PyTorch with tensor support. "
+        "Ensure that auto_round_extension is not shadowing the real torch package."
+    )
+
+
+torch = _ensure_real_torch(_torch)
 
 
 LOGGER = logging.getLogger("calibration_eval_mixed")

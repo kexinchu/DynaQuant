@@ -42,11 +42,17 @@ from typing import Dict, Iterable, List, Optional, Sequence
 
 try:
     from vllm import LLM, SamplingParams
-    from vllm.engine.metrics import StatLoggerBase
 except ImportError as exc:  # pragma: no cover - surfaced to user at runtime
     raise ImportError(
         "benchmark_latency.py requires vLLM. Install via `pip install vllm`."
     ) from exc
+
+try:  # vLLM ≥ 0.6 (V1 logging)
+    from vllm.v1.metrics.loggers import StatLoggerBase as VLLMStatLoggerBase  # type: ignore
+    VLLM_USES_V1_LOGGER = True
+except ImportError:  # pragma: no cover - fallback for older versions
+    from vllm.engine.metrics import StatLoggerBase as VLLMStatLoggerBase  # type: ignore
+    VLLM_USES_V1_LOGGER = False
 
 
 LOGGER = logging.getLogger("dynaexq.latency_benchmark")
@@ -84,37 +90,112 @@ class RequestMeasurement:
     tpop: float
 
 
-class BenchmarkStatLogger(StatLoggerBase):
-    """Collect per-iteration stats directly from vLLM."""
+if VLLM_USES_V1_LOGGER:
 
-    def __init__(self) -> None:
-        super().__init__(local_interval=1e9)  # disable periodic stdout logging
-        self.reset()
+    class _EngineBenchmarkLogger(VLLMStatLoggerBase):
+        """Per-engine logger that captures finished-request stats."""
 
-    def info(self, type: str, obj) -> None:  # pragma: no cover - no-op hook
-        return
+        def __init__(self, vllm_config, engine_index: int = 0) -> None:
+            self.engine_index = engine_index
+            self.reset()
 
-    def reset(self) -> None:
-        self._ttft: List[float] = []
-        self._tpot: List[float] = []
-        self._prompt_tokens: List[int] = []
-        self._decode_tokens: List[int] = []
+        def reset(self) -> None:
+            self._ttft: List[float] = []
+            self._tpot: List[float] = []
+            self._prompt_tokens: List[int] = []
+            self._decode_tokens: List[int] = []
 
-    def log(self, stats) -> None:  # type: ignore[override]
-        self._ttft.extend(stats.time_to_first_tokens_iter)
-        self._tpot.extend(stats.time_per_output_tokens_iter)
-        self._prompt_tokens.extend(stats.num_prompt_tokens_requests)
-        self._decode_tokens.extend(stats.num_generation_tokens_requests)
+        def record(self, scheduler_stats, iteration_stats, engine_idx: int = 0):
+            if iteration_stats is None:
+                return
+            self._ttft.extend(iteration_stats.time_to_first_tokens_iter)
+            self._tpot.extend(iteration_stats.inter_token_latencies_iter)
+            for finished in iteration_stats.finished_requests:
+                self._prompt_tokens.append(finished.num_prompt_tokens)
+                self._decode_tokens.append(finished.num_generation_tokens)
 
-    def consume(self) -> Dict[str, List[float]]:
-        payload = {
-            "ttft": list(self._ttft),
-            "tpot": list(self._tpot),
-            "prompt_tokens": list(self._prompt_tokens),
-            "decode_tokens": list(self._decode_tokens),
-        }
-        self.reset()
-        return payload
+        def log_engine_initialized(self):
+            return
+
+        def consume(self) -> Dict[str, List[float]]:
+            payload = {
+                "ttft": list(self._ttft),
+                "tpot": list(self._tpot),
+                "prompt_tokens": list(self._prompt_tokens),
+                "decode_tokens": list(self._decode_tokens),
+            }
+            self.reset()
+            return payload
+
+    class BenchmarkStatLogger:
+        """Aggregate stats across all engine shards via attached loggers."""
+
+        def __init__(self, llm_engine) -> None:
+            manager = getattr(llm_engine, "logger_manager", None)
+            if manager is None:
+                raise RuntimeError(
+                    "vLLM stats logging is disabled. Re-create LLM with "
+                    "`disable_log_stats=False` to collect benchmark metrics."
+                )
+
+            self._loggers: List[_EngineBenchmarkLogger] = []
+            vllm_config = llm_engine.vllm_config
+            for engine_idx, loggers in manager.per_engine_logger_dict.items():
+                logger = _EngineBenchmarkLogger(vllm_config, engine_idx)
+                loggers.append(logger)
+                self._loggers.append(logger)
+
+        def reset(self) -> None:
+            for logger in self._loggers:
+                logger.reset()
+
+        def consume(self) -> Dict[str, List[float]]:
+            payload = {
+                "ttft": [],
+                "tpot": [],
+                "prompt_tokens": [],
+                "decode_tokens": [],
+            }
+            for logger in self._loggers:
+                stats = logger.consume()
+                for key in payload:
+                    payload[key].extend(stats[key])
+            return payload
+
+
+else:
+
+    class BenchmarkStatLogger(VLLMStatLoggerBase):
+        """Collect per-iteration stats directly from legacy vLLM."""
+
+        def __init__(self) -> None:
+            super().__init__(local_interval=1e9)  # disable periodic stdout logging
+            self.reset()
+
+        def info(self, type: str, obj) -> None:  # pragma: no cover - no-op hook
+            return
+
+        def reset(self) -> None:
+            self._ttft: List[float] = []
+            self._tpot: List[float] = []
+            self._prompt_tokens: List[int] = []
+            self._decode_tokens: List[int] = []
+
+        def log(self, stats) -> None:  # type: ignore[override]
+            self._ttft.extend(stats.time_to_first_tokens_iter)
+            self._tpot.extend(stats.time_per_output_tokens_iter)
+            self._prompt_tokens.extend(stats.num_prompt_tokens_requests)
+            self._decode_tokens.extend(stats.num_generation_tokens_requests)
+
+        def consume(self) -> Dict[str, List[float]]:
+            payload = {
+                "ttft": list(self._ttft),
+                "tpot": list(self._tpot),
+                "prompt_tokens": list(self._prompt_tokens),
+                "decode_tokens": list(self._decode_tokens),
+            }
+            self.reset()
+            return payload
 
 
 def parse_args() -> argparse.Namespace:
@@ -276,18 +357,29 @@ def percentile(values: Sequence[float], q: float) -> Optional[float]:
 def build_measurement(
     sample: PromptSample,
     stats_payload: Dict[str, List[float]],
+    request_output,
 ) -> Optional[RequestMeasurement]:
-    ttft = sum(stats_payload.get("ttft", []))
     prompt_tokens = sum(int(t) for t in stats_payload.get("prompt_tokens", []))
     decode_tokens = sum(int(t) for t in stats_payload.get("decode_tokens", []))
+    ttft = sum(stats_payload.get("ttft", []))
     decode_times = stats_payload.get("tpot", [])
+
+    if request_output is not None:
+        prompt_tokens = len(request_output.prompt_token_ids)
+        decode_tokens = sum(len(output.token_ids)
+                            for output in request_output.outputs)
+        metrics = request_output.metrics
+        if metrics is not None and metrics.first_token_time and metrics.arrival_time:
+            ttft = metrics.first_token_time - metrics.arrival_time
+        if metrics is not None and metrics.finished_time and metrics.first_token_time:
+            decode_times = [
+                metrics.finished_time - metrics.first_token_time
+            ]
 
     if ttft <= 0 or prompt_tokens <= 0:
         LOGGER.warning(
-            "Missing TTFT or prompt tokens for sample %s (ttft=%.4f, tokens=%d)",
+            "Missing TTFT or prompt tokens for sample %s",
             sample.sample_id,
-            ttft,
-            prompt_tokens,
         )
         return None
 
@@ -366,9 +458,13 @@ def run_scenario(
         gpu_memory_utilization=args.gpu_memory_utilization,
         swap_space=args.swap_space_gb,
         max_model_len=args.max_context_length,
+        disable_log_stats=False,
     )
-    stat_logger = BenchmarkStatLogger()
-    llm.llm_engine.add_logger("benchmark_latency", stat_logger)
+    if VLLM_USES_V1_LOGGER:
+        stat_logger = BenchmarkStatLogger(llm.llm_engine)
+    else:  # pragma: no cover - legacy vLLM fallback
+        stat_logger = BenchmarkStatLogger()
+        llm.llm_engine.add_logger("benchmark_latency", stat_logger)
 
     sampling_params = SamplingParams(
         temperature=0.0,
@@ -385,7 +481,7 @@ def run_scenario(
         for idx, sample in enumerate(prompts[:max_total]):
             stat_logger.reset()
             try:
-                llm.generate(
+                request_outputs = llm.generate(
                     sample.text,
                     sampling_params=sampling_params,
                     use_tqdm=args.show_progress,
@@ -397,7 +493,9 @@ def run_scenario(
                 continue
 
             stats_payload = stat_logger.consume()
-            measurement = build_measurement(sample, stats_payload)
+            request_output = request_outputs[0] if request_outputs else None
+            measurement = build_measurement(
+                sample, stats_payload, request_output)
             if measurement is None:
                 failures.append(sample.sample_id)
                 continue
@@ -408,7 +506,8 @@ def run_scenario(
 
             measurements.append(measurement)
     finally:
-        llm.llm_engine.remove_logger("benchmark_latency")
+        if not VLLM_USES_V1_LOGGER:
+            llm.llm_engine.remove_logger("benchmark_latency")
         del llm
         gc.collect()
 
@@ -419,11 +518,13 @@ def run_scenario(
         summary["details"] = [asdict(m) for m in measurements]
 
     LOGGER.info(
-        "%s → prefill %.2f tok/s, decode %.2f tok/s, TPOP %.2f ms "
-        "(samples=%d, failures=%d)",
+        "%s → prefill %.2f tok/s, decode %.2f tok/s, TTFT %.2f s (p95 %.2f), "
+        "TPOP %.2f ms (samples=%d, failures=%d)",
         scenario.name,
         summary.get("prefill_throughput_avg") or 0.0,
         summary.get("decode_throughput_avg") or 0.0,
+        summary.get("prefill_latency_avg") or 0.0,
+        summary.get("prefill_latency_p95") or 0.0,
         summary.get("tpop_avg") or 0.0,
         len(measurements),
         len(failures),
