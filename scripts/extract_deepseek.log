@@ -1,0 +1,34 @@
+/usr/local/lib/python3.12/dist-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+2026-01-23 21:07:19,169 - INFO - Loaded 200 prompts from calibration_datasets/requests/mmlu_pro_200.jsonl
+2026-01-23 21:07:19,300 - INFO - Using device cuda:0
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s]Loading checkpoint shards:  25%|██▌       | 1/4 [00:10<00:32, 10.96s/it]Loading checkpoint shards:  25%|██▌       | 1/4 [00:25<01:16, 25.45s/it]
+Traceback (most recent call last):
+  File "/workspace/DynaQuant/scripts/summarize_expert_activation.py", line 387, in <module>
+    main()
+  File "/workspace/DynaQuant/scripts/summarize_expert_activation.py", line 354, in main
+    model = AutoModelForCausalLM.from_pretrained(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/models/auto/auto_factory.py", line 597, in from_pretrained
+    return model_class.from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 288, in _wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 5176, in from_pretrained
+    ) = cls._load_pretrained_model(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 5639, in _load_pretrained_model
+    _error_msgs, disk_offload_index, cpu_offload_index = load_shard_file(args)
+                                                         ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 946, in load_shard_file
+    disk_offload_index, cpu_offload_index = _load_state_dict_into_meta_model(
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 850, in _load_state_dict_into_meta_model
+    _load_parameter_into_model(model, param_name, param.to(param_device))
+                                                  ^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 2.94 MiB is free. Process 1665815 has 1.34 GiB memory in use. Process 1055861 has 13.07 GiB memory in use. Process 1392393 has 19.48 GiB memory in use. Process 1394680 has 13.48 GiB memory in use. Of the allocated memory 13.22 GiB is allocated by PyTorch, and 3.89 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

@@ -1,0 +1,62 @@
+nohup: ignoring input
+Warning: Both GPUs seem busy, using cuda:0 for input placement
+Note: Model will be automatically distributed across all available GPUs using device_map='auto'
+Input tensors will be placed on: cuda:0
+==========================================
+Expert Activation Batch Size Test
+==========================================
+Dataset: ShareGPT_V3_unfiltered_cleaned_split.json
+Number of queries: 128
+Batch sizes: 1 2 4 8 16 32
+Output directory: results/expert_activation_batch
+Device: cuda:0
+Models base: /workspace/Models
+
+==========================================
+Testing Model: Qwen3-30B-A3B-Instruct-2507
+Path: /workspace/Models/Qwen3-30B-A3B-Instruct-2507
+Quantization: none
+==========================================
+/usr/local/lib/python3.12/dist-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+2026-01-24 20:25:00,774 - INFO - Loaded 128 queries from ShareGPT_V3_unfiltered_cleaned_split.json
+2026-01-24 20:25:01,103 - INFO - Using device cuda:0
+2026-01-24 20:25:01,106 - INFO - Loading model: /workspace/Models/Qwen3-30B-A3B-Instruct-2507
+2026-01-24 20:25:01,106 - INFO - Target device: cuda:0
+2026-01-24 20:25:01,106 - INFO - Loading model from: /workspace/Models/Qwen3-30B-A3B-Instruct-2507
+2026-01-24 20:25:01,106 - INFO - Quantization: none, Target device: cuda:0
+2026-01-24 20:25:01,137 - INFO - Using max_memory: {0: '40GiB', 1: '40GiB'} for 2 GPUs
+2026-01-24 20:25:01,137 - INFO - Using device_map: auto (auto-distribute across 2 GPUs)
+2026-01-24 20:25:01,137 - INFO - Loading FP16 model...
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|▋         | 1/16 [01:41<25:21, 101.41s/it]Loading checkpoint shards:  12%|█▎        | 2/16 [03:39<25:54, 111.05s/it]Loading checkpoint shards:  19%|█▉        | 3/16 [05:41<25:09, 116.10s/it]Loading checkpoint shards:  25%|██▌       | 4/16 [07:36<23:08, 115.67s/it]Loading checkpoint shards:  25%|██▌       | 4/16 [09:09<27:28, 137.42s/it]
+Traceback (most recent call last):
+  File "/workspace/DynaQuant/scripts/test_expert_activation_batch.py", line 826, in <module>
+    main()
+  File "/workspace/DynaQuant/scripts/test_expert_activation_batch.py", line 725, in main
+    model, tokenizer = load_model(args.model_id, args.quantization, device)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/DynaQuant/scripts/test_expert_activation_batch.py", line 573, in load_model
+    model = AutoModelForCausalLM.from_pretrained(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/models/auto/auto_factory.py", line 604, in from_pretrained
+    return model_class.from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 288, in _wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 5176, in from_pretrained
+    ) = cls._load_pretrained_model(
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 5639, in _load_pretrained_model
+    _error_msgs, disk_offload_index, cpu_offload_index = load_shard_file(args)
+                                                         ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 946, in load_shard_file
+    disk_offload_index, cpu_offload_index = _load_state_dict_into_meta_model(
+                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/transformers/modeling_utils.py", line 850, in _load_state_dict_into_meta_model
+    _load_parameter_into_model(model, param_name, param.to(param_device))
+                                                  ^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 47.40 GiB of which 2.50 MiB is free. Process 3394232 has 834.00 MiB memory in use. Process 3399728 has 28.71 GiB memory in use. Process 3455081 has 17.86 GiB memory in use. Of the allocated memory 17.60 GiB is allocated by PyTorch, and 3.37 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)

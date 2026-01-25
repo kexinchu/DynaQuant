@@ -1,0 +1,51 @@
+/usr/local/lib/python3.12/dist-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+2026-01-15 01:22:19,061 - INFO - Using device: cuda:0
+2026-01-15 01:22:19,061 - INFO - Loading weights: W4=/workspace/Models/Qwen3-30B-A3B-Instruct-2507, W2=none
+2026-01-15 01:22:19,678 - INFO - Loading model: /workspace/Models/Qwen3-30B-A3B-Instruct-2507
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|▋         | 1/16 [00:01<00:26,  1.77s/it]Loading checkpoint shards:  12%|█▎        | 2/16 [00:03<00:26,  1.92s/it]Loading checkpoint shards:  19%|█▉        | 3/16 [00:05<00:24,  1.91s/it]Loading checkpoint shards:  25%|██▌       | 4/16 [00:07<00:23,  1.92s/it]Loading checkpoint shards:  31%|███▏      | 5/16 [00:09<00:21,  1.94s/it]Loading checkpoint shards:  38%|███▊      | 6/16 [00:11<00:19,  1.91s/it]Loading checkpoint shards:  44%|████▍     | 7/16 [00:13<00:16,  1.89s/it]Loading checkpoint shards:  50%|█████     | 8/16 [00:15<00:15,  1.89s/it]Loading checkpoint shards:  56%|█████▋    | 9/16 [00:17<00:13,  1.94s/it]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:19<00:11,  1.97s/it]Loading checkpoint shards:  69%|██████▉   | 11/16 [00:21<00:09,  2.00s/it]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:23<00:08,  2.01s/it]Loading checkpoint shards:  81%|████████▏ | 13/16 [00:25<00:05,  1.98s/it]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:27<00:03,  1.98s/it]Loading checkpoint shards:  94%|█████████▍| 15/16 [00:29<00:02,  2.07s/it]Loading checkpoint shards: 100%|██████████| 16/16 [00:29<00:00,  1.54s/it]Loading checkpoint shards: 100%|██████████| 16/16 [00:29<00:00,  1.87s/it]
+2026-01-15 01:23:02,375 - INFO - Model loaded. Num layers: 48
+2026-01-15 01:23:02,375 - INFO - 
+================================================================================
+2026-01-15 01:23:02,375 - INFO - Running A→B transition (LM→Math)
+2026-01-15 01:23:02,375 - INFO - ================================================================================
+
+2026-01-15 01:23:02,375 - INFO - Initializing: Setting up initial state for promotions
+2026-01-15 01:23:02,389 - INFO - Total experts available: 0
+2026-01-15 01:23:02,389 - INFO - Keeping 0 experts in W4 initially
+2026-01-15 01:23:02,389 - INFO - Will downgrade 0 experts to W2
+2026-01-15 01:23:02,389 - INFO - Initiated downgrade for 0 experts
+2026-01-15 01:23:02,389 - INFO - Starting phase A with 100 prompts
+2026-01-15 01:24:05,279 - INFO - Phase A: Processed 50/100 prompts
+2026-01-15 01:25:05,467 - INFO - Phase A: Processed 100/100 prompts
+2026-01-15 01:25:05,467 - INFO - Phase A complete. Processed 100 requests
+2026-01-15 01:25:05,467 - INFO - Phase A duration: 123.08 seconds
+2026-01-15 01:25:05,467 - INFO - Before phase B: Creating promotion opportunities for phase transition
+2026-01-15 01:25:05,468 - INFO - Downgraded 0 experts before phase B to create promotion opportunities
+2026-01-15 01:25:05,468 - INFO - Starting phase B with 100 prompts
+2026-01-15 01:25:42,644 - INFO - Phase B: Processed 50/100 prompts
+2026-01-15 01:26:20,099 - INFO - Phase B: Processed 100/100 prompts
+2026-01-15 01:26:20,099 - INFO - Phase B complete. Processed 100 requests
+2026-01-15 01:26:20,099 - INFO - Phase B duration: 74.63 seconds
+2026-01-15 01:26:20,100 - INFO - Results saved to scripts/results/switch_rate_full.json
+
+====================================================================================================
+Draft Table 2: Switch rate 与数据搬运开销 (A6000)
+====================================================================================================
+Method                         Promotions/min       Bytes/s (HBM)             Max in-flight        备注                  
+                                                    (HBM ingress)             promotions                               
+----------------------------------------------------------------------------------------------------
+DynaExq (EMA + cap)            0                ~0                        0                稳定、可控               
+MP-Offline                     0                ~0                        0                不适应 shift           
+MP-Window (no EMA)             300                40-65 MB/s                10                thrash 风险显著         
+====================================================================================================
+
+自洽校对:
+  DynaExq (EMA + cap): 0/min x 9.3MB ≈ 0.0MB/s
+  MP-Offline: 0/min x 9.3MB ≈ 0.0MB/s
+  MP-Window (no EMA): 300/min x 9.3MB ≈ 46.5MB/s (落在 40-65MB/s)
+
+这类带宽相对 PCIe/NVLink 不是"吞吐瓶颈", 但会与 kernel / KV-cache 竞争, 导致 tail 变差————这正是你需要展示 P99 的原因。
+====================================================================================================
+

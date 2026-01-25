@@ -1,0 +1,34 @@
+model:
+  name: qwen3-moe-30b-a3b
+  layers: 48
+  experts_per_layer: 128
+  topk: 8
+
+precision:
+  hi: fp16
+  lo: int4
+
+scheduler:
+  alpha: 0.9
+  update_period_steps: 200
+  rate_limit: null
+
+memory:
+  device_mem_bytes: 48000000000  # 48GB
+  reserve_kv_bytes: 10000000000  # 10GB
+  reserve_act_bytes: 2000000000  # 2GB
+  reserve_dense_bytes: 5000000000  # 5GB
+  safety_margin_bytes: 1000000000  # 1GB
+  max_inflight: 4
+
+experiments:
+  concurrency: 64
+  input_tokens: 2048
+  output_tokens: 256
+  shift_phases:
+    - wikitext
+    - gsm8k
+    - humaneval
+  phase_duration_s: 180
+  cycles: 3
+

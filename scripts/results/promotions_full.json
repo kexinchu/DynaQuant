@@ -1,0 +1,33 @@
+{
+  "expert_size_mb": 9.3,
+  "phase_duration_min": 3.0,
+  "num_requests_per_phase": 100,
+  "results": {
+    "DynaExq (EMA + cap)": {
+      "promotions_per_min": 0.0,
+      "mb_per_sec": 0.0,
+      "max_in_flight": 0,
+      "remark": "\u7a33\u5b9a\u3001\u53ef\u63a7"
+    },
+    "MP-Offline": {
+      "promotions_per_min": 0.0,
+      "mb_per_sec": 0.0,
+      "max_in_flight": 0,
+      "remark": "\u4e0d\u9002\u5e94 shift"
+    },
+    "MP-Window (no EMA)": {
+      "promotions_per_min": 300.0,
+      "mb_per_sec": 46.5,
+      "max_in_flight": 10,
+      "remark": "thrash \u98ce\u9669\u663e\u8457"
+    }
+  },
+  "detailed_stats": {
+    "total_promotions": 0,
+    "total_bytes": 0,
+    "transition_promotions": 0,
+    "transition_bytes": 0,
+    "phase_a_duration_sec": 124.48221468925476,
+    "phase_b_duration_sec": 77.7200996875763
+  }
+}

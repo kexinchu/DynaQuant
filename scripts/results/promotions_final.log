@@ -1,0 +1,54 @@
+/usr/local/lib/python3.12/dist-packages/torch/cuda/__init__.py:63: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.
+  import pynvml  # type: ignore[import]
+2026-01-15 05:45:11,769 - INFO - Using device: cuda:0
+2026-01-15 05:45:11,769 - INFO - Loading weights: W4=/workspace/Models/Qwen3-30B-A3B-Instruct-2507, W2=none
+2026-01-15 05:45:11,769 - INFO - Loading weights with expert patterns: ['model\\.layers\\.(?P<layer>\\d+)\\.mlp\\.experts\\.(?P<expert>\\d+)', '(?:^|\\.)(?P<layer>\\d+)\\.experts\\.(?P<expert>\\d+)', 'experts(?:\\.layers)?\\.(?P<layer>\\d+)\\.(?P<expert>\\d+)']
+2026-01-15 05:45:12,674 - INFO - Loaded experts: W4=6144, W2=0, Total=6144
+2026-01-15 05:45:12,675 - INFO - Loading model: /workspace/Models/Qwen3-30B-A3B-Instruct-2507
+`torch_dtype` is deprecated! Use `dtype` instead!
+Loading checkpoint shards:   0%|          | 0/16 [00:00<?, ?it/s]Loading checkpoint shards:   6%|▋         | 1/16 [00:01<00:29,  1.94s/it]Loading checkpoint shards:  12%|█▎        | 2/16 [00:04<00:30,  2.14s/it]Loading checkpoint shards:  19%|█▉        | 3/16 [00:06<00:26,  2.04s/it]Loading checkpoint shards:  25%|██▌       | 4/16 [00:08<00:24,  2.03s/it]Loading checkpoint shards:  31%|███▏      | 5/16 [00:10<00:21,  1.97s/it]Loading checkpoint shards:  38%|███▊      | 6/16 [00:12<00:20,  2.08s/it]Loading checkpoint shards:  44%|████▍     | 7/16 [00:14<00:18,  2.09s/it]Loading checkpoint shards:  50%|█████     | 8/16 [00:16<00:16,  2.08s/it]Loading checkpoint shards:  56%|█████▋    | 9/16 [00:18<00:14,  2.08s/it]Loading checkpoint shards:  62%|██████▎   | 10/16 [00:20<00:12,  2.07s/it]Loading checkpoint shards:  69%|██████▉   | 11/16 [00:22<00:10,  2.11s/it]Loading checkpoint shards:  75%|███████▌  | 12/16 [00:25<00:09,  2.34s/it]Loading checkpoint shards:  81%|████████▏ | 13/16 [00:28<00:07,  2.37s/it]Loading checkpoint shards:  88%|████████▊ | 14/16 [00:30<00:04,  2.31s/it]Loading checkpoint shards:  94%|█████████▍| 15/16 [00:32<00:02,  2.30s/it]Loading checkpoint shards: 100%|██████████| 16/16 [00:32<00:00,  1.70s/it]Loading checkpoint shards: 100%|██████████| 16/16 [00:32<00:00,  2.05s/it]
+2026-01-15 05:45:58,414 - INFO - Model loaded. Num layers: 48
+2026-01-15 05:45:58,414 - INFO - 
+================================================================================
+2026-01-15 05:45:58,414 - INFO - Running A→B transition (LM→Math)
+2026-01-15 05:45:58,414 - INFO - ================================================================================
+
+2026-01-15 05:45:58,414 - INFO - Initializing: Setting up initial state for promotions
+2026-01-15 05:45:58,416 - INFO - Found 6144 experts from weights (W4)
+2026-01-15 05:45:58,417 - INFO - Experts distributed across 48 layers
+2026-01-15 05:45:58,417 - INFO - Downgrading some experts to W2 to enable promotions during phase B
+2026-01-15 05:45:58,418 - INFO - Downgraded 0 experts to W2 to enable promotions
+2026-01-15 05:45:58,418 - INFO - Starting phase A with 100 prompts
+2026-01-15 05:46:58,840 - INFO - Phase A: Processed 50/100 prompts
+2026-01-15 05:48:01,027 - INFO - Phase A: Processed 100/100 prompts
+2026-01-15 05:48:01,027 - INFO - Phase A complete. Processed 100 requests
+2026-01-15 05:48:01,027 - INFO - Phase A duration: 122.61 seconds
+2026-01-15 05:48:01,027 - INFO - Before phase B: Preparing for phase transition
+2026-01-15 05:48:01,028 - INFO - Current W4 experts before phase B: 0
+2026-01-15 05:48:01,028 - INFO - Phase B will trigger promotions as new experts become hot
+2026-01-15 05:48:01,028 - INFO - Starting phase B with 100 prompts
+2026-01-15 05:48:36,806 - INFO - Phase B: Processed 50/100 prompts
+2026-01-15 05:49:15,271 - INFO - Phase B: Processed 100/100 prompts
+2026-01-15 05:49:15,271 - INFO - Phase B complete. Processed 100 requests
+2026-01-15 05:49:15,271 - INFO - Phase B duration: 74.24 seconds
+2026-01-15 05:49:15,272 - INFO - Results saved to scripts/results/promotions_final.json
+
+====================================================================================================
+Draft Table 2: Switch rate 与数据搬运开销 (A6000)
+====================================================================================================
+Method                         Promotions/min       Bytes/s (HBM)             Max in-flight        备注                  
+                                                    (HBM ingress)             promotions                               
+----------------------------------------------------------------------------------------------------
+DynaExq (EMA + cap)            0                ~0                        0                稳定、可控               
+MP-Offline                     0                ~0                        0                不适应 shift           
+MP-Window (no EMA)             300                40-65 MB/s                10                thrash 风险显著         
+====================================================================================================
+
+自洽校对:
+  DynaExq (EMA + cap): 0/min x 9.3MB ≈ 0.0MB/s
+  MP-Offline: 0/min x 9.3MB ≈ 0.0MB/s
+  MP-Window (no EMA): 300/min x 9.3MB ≈ 46.5MB/s (落在 40-65MB/s)
+
+这类带宽相对 PCIe/NVLink 不是"吞吐瓶颈", 但会与 kernel / KV-cache 竞争, 导致 tail 变差————这正是你需要展示 P99 的原因。
+====================================================================================================
+
