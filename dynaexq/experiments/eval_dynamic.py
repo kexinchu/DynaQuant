@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import random
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -423,17 +424,20 @@ def _collect_calibration_ranking(
     config: DynaExqConfig,
     *,
     max_input_tokens: int,
-) -> dict[str, list[int]]:
+) -> tuple[dict[str, list[int]], dict[str, float | int]]:
     """Observe routing on independent prompts and rank every layer."""
     if max_input_tokens <= 0:
         raise ValueError("max_input_tokens must be positive")
+    if not prompts:
+        raise ValueError("calibration prompts must not be empty")
     try:
         device = next(wrapper.parameters()).device
     except StopIteration:
         device = torch.device("cpu")
     wrapper.eval()
+    started = time.perf_counter()
     with torch.inference_mode():
-        for _, prompt in prompts:
+        for prompt_index, (_, prompt) in enumerate(prompts, start=1):
             encoded = tokenizer(
                 prompt,
                 return_tensors="pt",
@@ -445,6 +449,21 @@ def _collect_calibration_ranking(
                 attention_mask=encoded.attention_mask.to(device),
                 use_cache=False,
             )
+            if prompt_index % 8 == 0 or prompt_index == len(prompts):
+                elapsed = time.perf_counter() - started
+                print(
+                    json.dumps(
+                        {
+                            "stage": "calibration_forward",
+                            "completed_prompts": prompt_index,
+                            "total_prompts": len(prompts),
+                            "elapsed_seconds": elapsed,
+                            "mean_seconds_per_prompt": elapsed / prompt_index,
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                )
     ranking = {}
     for layer in range(config.model.layers):
         scores = tracker.get_cumulative_layer_scores(layer)
@@ -460,7 +479,12 @@ def _collect_calibration_ranking(
             range(config.model.experts_per_layer),
             key=lambda expert: (-float(scores[expert]), expert),
         )
-    return ranking
+    elapsed = time.perf_counter() - started
+    return ranking, {
+        "completed_prompt_count": len(prompts),
+        "forward_elapsed_seconds": elapsed,
+        "mean_seconds_per_prompt": elapsed / len(prompts),
+    }
 
 
 def main() -> None:
@@ -810,7 +834,7 @@ def main() -> None:
             calibration_metadata["aggregation"] = (
                 "mean_per_prompt_routing_probability_mass"
             )
-            expert_ranking = _collect_calibration_ranking(
+            expert_ranking, calibration_runtime = _collect_calibration_ranking(
                 wrapper,
                 tokenizer,
                 tracker,
@@ -818,6 +842,7 @@ def main() -> None:
                 config,
                 max_input_tokens=args.max_input_tokens,
             )
+            calibration_metadata["runtime"] = calibration_runtime
             result_payload = {
                 "artifact_type": "dynaexq_initial_expert_ranking",
                 "model_config": config.to_dict()["model"],
