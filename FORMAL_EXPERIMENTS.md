@@ -39,6 +39,11 @@ bash scripts/quantize_qwen3_next_static.sh int4
 bash scripts/quantize_qwen3_next_static.sh int2
 ```
 
+Compressed outputs default to `/home/kec23008/Models`; set
+`DYNAEXQ_MODEL_ROOT` to use another persistent volume. The BF16 dynamic source
+stays in `/dev/shm` because retaining all three large snapshots on the current
+persistent filesystem would leave insufficient experiment headroom.
+
 The parent is
 `Intel/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound`: W4/group-128
 experts, W8 non-expert projections, and FP16 gates, exported as

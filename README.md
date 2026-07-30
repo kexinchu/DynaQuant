@@ -90,6 +90,9 @@ bash scripts/quantize_qwen3_next_static.sh int4
 bash scripts/quantize_qwen3_next_static.sh int2
 ```
 
+The script writes compressed outputs under `/home/kec23008/Models` by default;
+override this with `DYNAEXQ_MODEL_ROOT` on another host.
+
 The DynaExQ dynamic INT4/INT2 tiers are independently packed from the pinned
 BF16 checkpoint because the runtime consumes native three-dimensional expert
 tensors rather than static AutoRound QuantLinear modules.

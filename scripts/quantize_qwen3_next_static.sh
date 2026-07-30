@@ -10,14 +10,15 @@ cd "${project_root}"
 mode="${1:-all}"
 repository="Intel/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound"
 requested_revision="master"
-int4_output="/dev/shm/dynaexq-models/qwen3-next-80b-int4-mixed-autoround-official"
-int2_output="/dev/shm/dynaexq-models/qwen3-next-80b-int2-from-int4-formal"
+model_root="${DYNAEXQ_MODEL_ROOT:-/home/kec23008/Models}"
+int4_output="${model_root}/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound"
+int2_output="${model_root}/Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal"
 int4_manifest="results/model_manifests/qwen3_next_80b_int4_mixed_autoround_official.json"
 int4_catalog="results/model_manifests/qwen3_next_80b_int4_mixed_autoround_official_modelscope_catalog.json"
 int2_manifest="results/model_manifests/qwen3_next_80b_int2_from_int4.json"
 
 fetch_int4() {
-    mkdir -p "$(dirname "${int4_output}")"
+    mkdir -p "${model_root}"
     modelscope download "${repository}" \
         --revision "${requested_revision}" \
         --local_dir "${int4_output}" \
