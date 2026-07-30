@@ -44,6 +44,7 @@ class RouterObserver:
         topk_indices: np.ndarray | torch.Tensor,
         logits: Optional[np.ndarray | torch.Tensor] = None,
         topk: Optional[int] = None,
+        selected_weights: Optional[np.ndarray | torch.Tensor] = None,
     ) -> RouterSignal:
         """
         Extract g[l,e] signal from router outputs.
@@ -53,6 +54,9 @@ class RouterObserver:
             topk_indices: Expert indices selected (shape: batch x topk or tokens x topk)
             logits: Optional router logits (if available, used for probability mode)
             topk: Number of experts selected per token (if not inferrable from shape)
+            selected_weights: Already-selected gate weights with exactly the
+                same shape as ``topk_indices``. Prefer this when the router
+                exposes top-k probabilities directly.
         
         Returns:
             RouterSignal with expert activations
@@ -62,6 +66,8 @@ class RouterObserver:
             topk_indices = topk_indices.cpu().numpy()
         if isinstance(logits, torch.Tensor):
             logits = logits.cpu().numpy()
+        if isinstance(selected_weights, torch.Tensor):
+            selected_weights = selected_weights.cpu().numpy()
         
         indices = np.asarray(topk_indices, dtype=np.int32)
         
@@ -77,7 +83,14 @@ class RouterObserver:
         
         # Extract weights if using probability mode
         weights = None
-        if self.use_probabilities and logits is not None:
+        if self.use_probabilities and selected_weights is not None:
+            weights = np.asarray(selected_weights, dtype=np.float32)
+            if weights.shape != indices.shape:
+                raise ValueError(
+                    "selected_weights shape must match topk_indices: "
+                    f"{weights.shape} != {indices.shape}"
+                )
+        elif self.use_probabilities and logits is not None:
             logits_arr = np.asarray(logits, dtype=np.float32)
             if logits_arr.ndim == 2:
                 # Shape: (tokens, num_experts)
@@ -118,7 +131,9 @@ class RouterObserver:
         num_tokens = signal.num_tokens
         
         if self.use_probabilities and signal.expert_weights is not None:
-            # Probability mode: use mean probability
+            # Probability mode: total routed probability mass normalized by
+            # the number of tokens. A mean over only the selections of each
+            # expert would discard invocation frequency.
             weights = signal.expert_weights
             flat_indices = indices.reshape(-1)
             flat_weights = weights.reshape(-1)
@@ -128,8 +143,12 @@ class RouterObserver:
                     g_values[expert_id] = []
                 g_values[expert_id].append(float(weight))
             
-            # Average per expert
-            return {eid: float(np.mean(vals)) for eid, vals in g_values.items()}
+            if num_tokens > 0:
+                return {
+                    eid: float(np.sum(vals) / num_tokens)
+                    for eid, vals in g_values.items()
+                }
+            return {eid: 0.0 for eid in g_values}
         else:
             # Indicator mode: count selections, normalize by tokens * topk
             flat_indices = indices.reshape(-1)
@@ -145,4 +164,3 @@ class RouterObserver:
             if total_selections > 0:
                 return {eid: len(vals) / total_selections for eid, vals in g_values.items()}
             return {eid: 0.0 for eid in g_values.keys()}
-

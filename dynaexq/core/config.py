@@ -32,6 +32,7 @@ class PrecisionConfig:
     """Precision configuration."""
     hi: str  # e.g., "fp16", "int4"
     lo: str  # e.g., "int4", "int2"
+    backend: str = "reference"
 
 
 @dataclass
@@ -40,6 +41,13 @@ class SchedulerConfig:
     alpha: float = 0.9  # EMA smoothing factor
     update_period_steps: int = 200  # T_u: update period in steps
     rate_limit: Optional[int] = None  # Optional rate limit R
+    # δ margin used by PrecisionScheduler.plan() to suppress thrashing.
+    # An outsider expert only displaces a resident if its score exceeds the
+    # lowest resident's score by more than ``delta_score_margin``. See
+    # plan §III-B / §6 and PrecisionScheduler docstring for the algorithm.
+    # Default 0.0 = no hysteresis (plain top-N projection, backward
+    # compatible with pre-Phase-5 behavior).
+    delta_score_margin: float = 0.0
 
 
 @dataclass
@@ -49,6 +57,7 @@ class MemoryConfig:
     reserve_kv_bytes: int = 0
     reserve_act_bytes: int = 0
     reserve_dense_bytes: int = 0
+    reserve_kernel_workspace_bytes: int = 0
     safety_margin_bytes: int = 0
     max_inflight: int = 4  # Max concurrent transitions
 
@@ -89,7 +98,13 @@ class DynaExqConfig:
 
     def to_yaml(self, path: str | Path) -> None:
         """Save configuration to YAML file."""
-        data = {
+        data = self.to_dict()
+        with open(path, "w") as f:
+            yaml.safe_dump(data, f, default_flow_style=False)
+
+    def to_dict(self) -> dict:
+        """Return a JSON/YAML-serializable configuration snapshot."""
+        return {
             "model": {
                 "name": self.model.name,
                 "layers": self.model.layers,
@@ -99,17 +114,22 @@ class DynaExqConfig:
             "precision": {
                 "hi": self.precision.hi,
                 "lo": self.precision.lo,
+                "backend": self.precision.backend,
             },
             "scheduler": {
                 "alpha": self.scheduler.alpha,
                 "update_period_steps": self.scheduler.update_period_steps,
                 "rate_limit": self.scheduler.rate_limit,
+                "delta_score_margin": self.scheduler.delta_score_margin,
             },
             "memory": {
                 "device_mem_bytes": self.memory.device_mem_bytes,
                 "reserve_kv_bytes": self.memory.reserve_kv_bytes,
                 "reserve_act_bytes": self.memory.reserve_act_bytes,
                 "reserve_dense_bytes": self.memory.reserve_dense_bytes,
+                "reserve_kernel_workspace_bytes": (
+                    self.memory.reserve_kernel_workspace_bytes
+                ),
                 "safety_margin_bytes": self.memory.safety_margin_bytes,
                 "max_inflight": self.memory.max_inflight,
             },
@@ -122,7 +142,3 @@ class DynaExqConfig:
                 "cycles": self.experiments.cycles,
             },
         }
-        
-        with open(path, "w") as f:
-            yaml.dump(data, f, default_flow_style=False)
-

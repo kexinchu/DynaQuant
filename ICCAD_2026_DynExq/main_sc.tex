@@ -1,0 +1,69 @@
+\pdfminorversion=7
+\documentclass[journal]{IEEEtran}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage[table]{xcolor}
+\usepackage[caption=false,font=footnotesize]{subfig}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{adjustbox}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\hypersetup{hidelinks}
+
+\newcommand{\systemname}{DynaExQ}
+\newif\ifartifactverified
+% Set true only after scripts/audit_paper_results.py passes on the complete
+% table/figure manifest.
+\artifactverifiedfalse
+\newcommand{\registeredperformancegraphic}[2][]{%
+  \ifartifactverified
+    \includegraphics[#1]{#2}%
+  \else
+    \fbox{\parbox[c][0.72in][c]{0.84\linewidth}{%
+      \centering\scriptsize Registered performance artifact pending}}%
+  \fi
+}
+
+\title{\systemname: Budget-Safe Online Precision Residency for Single-GPU MoE Inference}
+
+\author{Kexin Chu, Dawei Xiang, and Wei Zhang%
+\thanks{The authors are with the University of Connecticut, Storrs, CT 06269
+USA (e-mail: kexin.chu@uconn.edu; ieb24002@uconn.edu;
+wei.13.zhang@uconn.edu). Corresponding author: Wei Zhang.}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Large Mixture-of-Experts (MoE) models are difficult to serve on one GPU because all expert weights must remain addressable although each token activates only a small subset. Offloading reduces resident memory but can expose PCIe transfers when batched routing produces a dense expert working set. Uniform post-training quantization avoids transfers but cannot reassign its limited high-precision capacity when routing distributions change. \systemname\ instead treats expert precision residency as online resource allocation under an explicit expert-memory budget. A routing-driven policy selects high-traffic experts, while an admission-controlled transition mechanism copies prepared precision versions on a separate CUDA stream and publishes a new expert handle only after transfer completion. Partitioned fixed-block pools bound the runtime-owned resident and in-flight transition footprint. Across three MoE models and six workloads, \systemname\ recovers up to 79\% of the quality gap between uniform INT2 and INT4. Performance experiments compare its fully resident execution against uniform PTQ on all models and the pinned official MoE-Infinity runtime on the supported Qwen3-30B model. Component studies quantify the effects of online selection, asynchronous transitions, hysteresis, and the high-precision budget.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Mixture-of-Experts, large language model inference, GPU memory management, mixed-precision quantization, runtime systems
+\end{IEEEkeywords}
+
+\ifartifactverified\else
+\begin{center}
+\colorbox{red!12}{\parbox{0.94\linewidth}{\centering\textbf{Internal draft.}
+Result provenance is incomplete; this PDF is not submission-ready.}}
+\end{center}
+\fi
+
+\input{01_introduction}
+\input{02_background}
+\input{03_design}
+\input{04_implement}
+\input{05_evaluation}
+\input{06_relate_works}
+\input{08_discussion}
+\input{07_conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

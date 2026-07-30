@@ -15,17 +15,21 @@ Modules:
 from .router_observer import RouterObserver
 from .hotness_tracker import HotnessTracker
 from .budget_init import BudgetInitializer
+from .budget_tracker import BudgetTracker, Reservation
 from .scheduler import PrecisionScheduler, TransitionReq
 from .registry import ExpertRegistry, ExpertHandle, ExpertKey
 from .memory_pool import MemoryPool, PoolAllocator
 from .transition_engine import TransitionEngine
 from .weight_store import ModelWeightStore
 from .config import DynaExqConfig, Tier
+from .quant import QuantFormat, PackedTensor, pack, dequant_to_fp16, fused_linear
 
 __all__ = [
     "RouterObserver",
     "HotnessTracker",
     "BudgetInitializer",
+    "BudgetTracker",
+    "Reservation",
     "PrecisionScheduler",
     "ExpertRegistry",
     "ExpertHandle",
@@ -35,6 +39,11 @@ __all__ = [
     "TransitionEngine",
     "TransitionReq",
     "ModelWeightStore",
+    "QuantFormat",
+    "PackedTensor",
+    "pack",
+    "dequant_to_fp16",
+    "fused_linear",
     "DynaExqConfig",
     "Tier",
 ]

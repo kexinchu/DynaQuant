@@ -1,0 +1,145 @@
+{
+  "architectures": [
+    "PhiMoEForCausalLM"
+  ],
+  "artifact_type": "quantized_model_manifest",
+  "created_at": "2026-07-29T20:31:08.650646+00:00",
+  "declared_hidden_layer_count": 32,
+  "file_count": 22,
+  "files": [
+    {
+      "path": "chat_template.jinja",
+      "sha256": "78d976a442bcde2f0be15aafbb8e3050e1104f86732266f68403251b89982a90",
+      "size_bytes": 430
+    },
+    {
+      "path": "config.json",
+      "sha256": "8184698eb12edbce3b73a8eb955be3cc3c5cb63ac1f11329f2362bc0e3ddfc68",
+      "size_bytes": 4833
+    },
+    {
+      "path": "configuration_phimoe.py",
+      "sha256": "5fe33723126ed0e34153dfb3e03bf8cb4f0f917b07eef16b0857664864892d38",
+      "size_bytes": 12266
+    },
+    {
+      "path": "generation_config.json",
+      "sha256": "6c67ba1d438f4c62ef2b3a12f5181e0e4de0cd594f660b0afb14ba21072b35ef",
+      "size_bytes": 193
+    },
+    {
+      "path": "model-00001-of-00011.safetensors",
+      "sha256": "dbba5ef691a7df874f97b9ec7306be98871beb0ab4ce1804849e69b338969bb2",
+      "size_bytes": 2144430120
+    },
+    {
+      "path": "model-00002-of-00011.safetensors",
+      "sha256": "7d763479e1178951a6fcd9ad0b2f41c76e5897e37e1f278dab6447913e947b82",
+      "size_bytes": 2136105504
+    },
+    {
+      "path": "model-00003-of-00011.safetensors",
+      "sha256": "3ed90fbe596dcb17182c565ad64d164c71c362003b568a30abeec5ff84e1f48b",
+      "size_bytes": 2136105512
+    },
+    {
+      "path": "model-00004-of-00011.safetensors",
+      "sha256": "1fb574fd817d4cb3924ed9d957b7e98451d899a43cd8e8a1f77072d735d90c11",
+      "size_bytes": 2136105936
+    },
+    {
+      "path": "model-00005-of-00011.safetensors",
+      "sha256": "2a90fdb8c90bb95ab2d3d92c609e7ef8a39d580441eb9df86dc5b9ceef5a502e",
+      "size_bytes": 2136106032
+    },
+    {
+      "path": "model-00006-of-00011.safetensors",
+      "sha256": "7ee11eff595cefe9e7f8c2d77009905c8a4b0343e56dccce0fb84cd6a4b10fa9",
+      "size_bytes": 2136106040
+    },
+    {
+      "path": "model-00007-of-00011.safetensors",
+      "sha256": "db650fd130438b612410bb3fe4fdc6292fc7cfffb7f6dfead6b8a1104fed4835",
+      "size_bytes": 2144463880
+    },
+    {
+      "path": "model-00008-of-00011.safetensors",
+      "sha256": "df562278de86b91b7b70bd2df06f1ba414ba10438408194a4329aa54d9d95835",
+      "size_bytes": 2136106032
+    },
+    {
+      "path": "model-00009-of-00011.safetensors",
+      "sha256": "925c2c05dd09eab2ac1e06fdfac70e2c5ef2a497f36ca6c8012a5b10f529e593",
+      "size_bytes": 2136106024
+    },
+    {
+      "path": "model-00010-of-00011.safetensors",
+      "sha256": "a7f587aba5ac1236173f1ceeeecf866bd54c86231ab5ba8eda6436afd3d1cdcc",
+      "size_bytes": 2136106008
+    },
+    {
+      "path": "model-00011-of-00011.safetensors",
+      "sha256": "03d87d7a69734b144e59745868f83c9d414ab9d8c525a5b5b73f7563e05ba118",
+      "size_bytes": 770602856
+    },
+    {
+      "path": "model.safetensors.index.json",
+      "sha256": "7516249e8b3c9d339387bf38bb58ea6a91f4da0d010bdf2df496466f724c67e6",
+      "size_bytes": 469505
+    },
+    {
+      "path": "modeling_phimoe.py",
+      "sha256": "77e1c8be765df7488f875694e5f932728309c579db6df834404e00524a3228ca",
+      "size_bytes": 80542
+    },
+    {
+      "path": "quantization_config.json",
+      "sha256": "7289c90b10c7e6df297085bee31e219b212ccbe160eedd7328f43758a282b303",
+      "size_bytes": 249
+    },
+    {
+      "path": "quantization_provenance.json",
+      "sha256": "8cff2b208d2f78791d590bd54d3e1581588207ba36b2176be62b888cae4449b0",
+      "size_bytes": 2936
+    },
+    {
+      "path": "sample_finetune.py",
+      "sha256": "9acc81473c3dbcc61188bf6cbc65f6ebed3e47b17dae6cac5227079580604de2",
+      "size_bytes": 6849
+    },
+    {
+      "path": "tokenizer.json",
+      "sha256": "1f851a956f7d7d4a20d3f5a83eb85a3578d9fed600c9b4374e97a0319b54a3ab",
+      "size_bytes": 3620756
+    },
+    {
+      "path": "tokenizer_config.json",
+      "sha256": "9332da112b1adfa7760308c1f0cd5f71061b1ec5222def8e6b1199a244c11851",
+      "size_bytes": 410
+    }
+  ],
+  "index_file": "model.safetensors.index.json",
+  "indexed_tensor_bytes": 22147709568,
+  "local_path": "/dev/shm/dynaexq-models/phi35-moe-w4a16-autoround-formal",
+  "model_type": "phimoe",
+  "quantization_provenance": {
+    "path": "/dev/shm/dynaexq-models/phi35-moe-w4a16-autoround-formal/quantization_provenance.json",
+    "sha256": "8cff2b208d2f78791d590bd54d3e1581588207ba36b2176be62b888cae4449b0"
+  },
+  "required_terminal_tensors_verified": [
+    "lm_head.weight",
+    "model.embed_tokens.weight",
+    "model.norm.weight"
+  ],
+  "schema_version": "1.0",
+  "snapshot_size_bytes": 22152542913,
+  "source_manifest": {
+    "path": "/home/kec23008/DynaQuant/results/model_manifests/phi35_moe_bf16.json",
+    "sha256": "1c967a6d67b9f07e0eafcb01d11adac51f3a964d35616084220218a734aaafb2"
+  },
+  "tensor_count": 5285,
+  "verified_hidden_layer_count": 32,
+  "verified_safetensors_tensor_count": 5285,
+  "verified_tensor_bytes": 22147709568,
+  "weight_shard_count": 11
+}

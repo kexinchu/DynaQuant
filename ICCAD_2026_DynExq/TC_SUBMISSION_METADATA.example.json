@@ -1,0 +1,19 @@
+{
+  "venue": "IEEE Transactions on Computers",
+  "article_type": "regular_paper",
+  "review_model": "single_anonymous",
+  "authors": [
+    {
+      "name": "Given Name Family Name",
+      "affiliation": "Department, Institution, City, Country",
+      "email": "author@example.edu",
+      "orcid": "REPLACE-WITH-ORCID"
+    }
+  ],
+  "corresponding_author_email": "author@example.edu",
+  "prior_version": {
+    "status": "none",
+    "declaration": "No portion of this manuscript is under review or published elsewhere."
+  },
+  "human_or_animal_research": false
+}

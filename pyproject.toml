@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dynaexq"
+version = "0.1.0"
+description = "Budget-safe online precision residency for Mixture-of-Experts inference"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "accelerate>=1.0",
+  "datasets>=3.0",
+  "numpy>=1.24",
+  "nvidia-ml-py>=12.0",
+  "PyYAML>=6.0",
+  "safetensors>=0.4",
+  "torch>=2.1",
+  "transformers>=4.57,<6",
+]
+
+[project.optional-dependencies]
+autoround = ["auto-round"]
+gptq = [
+  "optimum==2.2.0",
+  "gptqmodel==7.2.0",
+  "protobuf==7.35.1",
+]
+test = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dynaexq*"]
+
+[tool.pytest.ini_options]
+testpaths = ["dynaexq/tests"]
+addopts = "-ra"

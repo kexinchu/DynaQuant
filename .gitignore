@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# Local experiment/runtime products.
+*.log
+nohup.out
+
+# Rebuilt IEEE manuscript intermediates and submission PDF.
+ICCAD_2026_DynExq/main_sc.aux
+ICCAD_2026_DynExq/main_sc.bbl
+ICCAD_2026_DynExq/main_sc.blg
+ICCAD_2026_DynExq/main_sc.fdb_latexmk
+ICCAD_2026_DynExq/main_sc.fls
+ICCAD_2026_DynExq/main_sc.log
+ICCAD_2026_DynExq/main_sc.out
+ICCAD_2026_DynExq/main_sc.pdf
+ICCAD_2026_DynExq/main_sc.txt

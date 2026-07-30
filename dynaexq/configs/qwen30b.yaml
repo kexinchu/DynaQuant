@@ -7,17 +7,20 @@ model:
 precision:
   hi: fp16
   lo: int4
+  backend: reference
 
 scheduler:
   alpha: 0.9
   update_period_steps: 200
   rate_limit: null
+  delta_score_margin: 0.01
 
 memory:
   device_mem_bytes: 48000000000  # 48GB
   reserve_kv_bytes: 10000000000  # 10GB
   reserve_act_bytes: 2000000000  # 2GB
   reserve_dense_bytes: 5000000000  # 5GB
+  reserve_kernel_workspace_bytes: 0  # auto: 2x max INT4 expert per inflight
   safety_margin_bytes: 1000000000  # 1GB
   max_inflight: 4
 
@@ -31,4 +34,3 @@ experiments:
     - humaneval
   phase_duration_s: 180
   cycles: 3
-
