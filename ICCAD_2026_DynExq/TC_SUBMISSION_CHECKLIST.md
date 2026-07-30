@@ -11,27 +11,26 @@ submission call on 2026-07-29:
 - [x] IEEE journal template (`IEEEtran`, journal mode).
 - [x] Regular-paper length: 12 formatted double-column pages, including
   references. Verified with `pdfinfo`.
-- [x] Abstract length: 169 words, within the 100--200 word range.
+- [x] Abstract length: 189 words, within the 100--200 word range.
 - [x] Abstract contains no citations or displayed mathematics.
 - [x] Index terms are present.
 - [x] TC scope is explicit: runtime systems, software--hardware interaction,
   accelerator memory management, performance evaluation, and emerging
   machine-learning computing.
-- [ ] Replace `Anonymous Authors` with the real author list and affiliations.
-  TC does not offer the optional double-anonymous review route described by
-  the Computer Society guidance.
+- [x] Author names, University of Connecticut affiliation, emails, and
+  corresponding author are in the manuscript; complete ORCIDs are in the
+  submission metadata and cover letter.
 
 ## Originality and prior versions
 
-- [ ] Confirm that no version is simultaneously under review elsewhere.
-- [ ] Confirm whether the `ICCAD_2026_DynExq` directory represents a submitted
-  or published conference paper. If it does, cite that paper, provide the
-  detailed difference statement required at submission, demonstrate at least
-  40% new impacting technical/scientific material, and check that verbatim
-  similarity is below 30%.
+- [x] The authors confirm that no version is simultaneously under review.
+- [x] The ICCAD submission was rejected and unpublished; it is not a prior
+  publication or an archival conference version. This history is disclosed in
+  `TC_SUBMISSION_METADATA.json` and `TC_COVER_LETTER.md`.
 - [x] Prepare an internal section-by-section extension-statement template
   (`TC_EXTENSION_STATEMENT_TEMPLATE.md`).
-- [ ] Add any required preprint submission notice if a public preprint exists.
+- [x] The authors report no other version, including no public preprint that
+  requires disclosure.
 
 ## Technical evidence gate
 
@@ -55,10 +54,9 @@ submission call on 2026-07-29:
 
 - [ ] Run the IEEE LaTeX Analyzer on the final source bundle.
 - [ ] Include high-resolution figure files individually.
-- [x] Prepare an internal cover-letter template explaining TC scope fit
-  (`TC_COVER_LETTER_DRAFT.md`).
-- [ ] Replace its author/originality/artifact placeholders and insert only
-  audited headline results.
+- [x] Prepare `TC_COVER_LETTER.md` with the TC scope fit, author metadata, and
+  rejected-unpublished ICCAD disclosure. It intentionally contains no
+  unaudited numerical headline.
 - [ ] If applicable, attach the conference paper and journal-extension
   difference statement.
 - [ ] Check PDF metadata, author metadata, acknowledgments, funding,

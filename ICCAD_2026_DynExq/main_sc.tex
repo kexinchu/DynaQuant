@@ -12,7 +12,13 @@
 \usepackage{enumitem}
 \usepackage{amsmath}
 \usepackage{mathtools}
-\hypersetup{hidelinks}
+\hypersetup{
+  hidelinks,
+  pdftitle={DynaExQ: Budget-Safe Dynamic Expert Precision for Single-GPU MoE Inference},
+  pdfauthor={Kexin Chu, Dawei Xiang, and Wei Zhang},
+  pdfsubject={IEEE Transactions on Computers regular paper},
+  pdfkeywords={GPU memory management, large language model inference, mixed-precision quantization, Mixture-of-Experts, runtime systems}
+}
 
 \newcommand{\systemname}{DynaExQ}
 \newif\ifartifactverified
@@ -28,7 +34,7 @@
   \fi
 }
 
-\title{\systemname: Budget-Safe Online Precision Residency for Single-GPU MoE Inference}
+\title{\systemname: Budget-Safe Dynamic Expert Precision for Single-GPU MoE Inference}
 
 \author{Kexin Chu, Dawei Xiang, and Wei Zhang%
 \thanks{The authors are with the University of Connecticut, Storrs, CT 06269
@@ -40,11 +46,11 @@ wei.13.zhang@uconn.edu). Corresponding author: Wei Zhang.}}
 \maketitle
 
 \begin{abstract}
-Large Mixture-of-Experts (MoE) models are difficult to serve on one GPU because all expert weights must remain addressable although each token activates only a small subset. Offloading reduces resident memory but can expose PCIe transfers when batched routing produces a dense expert working set. Uniform post-training quantization avoids transfers but cannot reassign its limited high-precision capacity when routing distributions change. \systemname\ instead treats expert precision residency as online resource allocation under an explicit expert-memory budget. A routing-driven policy selects high-traffic experts, while an admission-controlled transition mechanism copies prepared precision versions on a separate CUDA stream and publishes a new expert handle only after transfer completion. Partitioned fixed-block pools bound the runtime-owned resident and in-flight transition footprint. Across three MoE models and six workloads, \systemname\ recovers up to 79\% of the quality gap between uniform INT2 and INT4. Performance experiments compare its fully resident execution against uniform PTQ on all models and the pinned official MoE-Infinity runtime on the supported Qwen3-30B model. Component studies quantify the effects of online selection, asynchronous transitions, hysteresis, and the high-precision budget.
+Large mixture-of-experts (MoE) models activate only a few experts per token, yet unconstrained routing requires every expert to remain available. On a single GPU, expert offloading can expose host-to-device transfers as batched routing expands the active set, whereas assigning one low precision to all experts keeps them resident but fixes their fidelity before deployment. \systemname\ instead reallocates a fixed number of higher-precision expert slots online. It estimates expert utility from router-selected probability mass, stabilizes decisions with hysteresis, and retains one executable representation of every routed expert on the GPU. Precision changes use precomputed host representations, fixed-block device pools, and admission control. Versioned immutable handles are published only after an asynchronous copy completes; read leases and per-stream CUDA events delay reclamation until no dispatch can reference the old block. The resulting invariant bounds resident expert, staging, and conversion-workspace memory, while declared reservations cover the remaining model state, activations, and KV cache. Across three MoE families and six workloads, \systemname\ recovers up to 79\% of the quality gap between the all-low and reference expert tiers. Experiments further characterize throughput, tail latency, memory compliance, component contributions, and sensitivity to the higher-precision budget.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Mixture-of-Experts, large language model inference, GPU memory management, mixed-precision quantization, runtime systems
+GPU memory management, large language model inference, mixed-precision quantization, Mixture-of-Experts, runtime systems
 \end{IEEEkeywords}
 
 \ifartifactverified\else

@@ -13,8 +13,8 @@
 - Relationship to this manuscript: [conference paper / workshop paper /
   other]
 
-The submitted journal manuscript, “DynaExQ: Budget-Safe Online Precision
-Residency for Single-GPU MoE Inference,” extends the work above. The prior
+The submitted journal manuscript, “DynaExQ: Budget-Safe Dynamic Expert
+Precision for Single-GPU MoE Inference,” extends the work above. The prior
 paper is cited as Reference [X] in the journal manuscript and is included with
 the submission.
 

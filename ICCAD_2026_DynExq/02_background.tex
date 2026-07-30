@@ -5,13 +5,13 @@ On a single accelerator, expert weights dominate the memory footprint; they comp
 
 \subsection{Offloading and Prefetching}
 \label{sec:background-offload}
-A family of systems treats GPU memory as a managed cache and fetches experts on demand~\cite{li2023adaptive,yi2023edgemoe,xue2024moe,eliseev2023fast,hwang2024pre,zhong2024adapmoe,tang2024hobbit,song2024promoe,kong2024swapmoe,shen2025expertflow}. These methods work best when each iteration activates a small, stable working set. We measure density as the number of unique selected experts per MoE layer, first over all nonpadding tokens in a 2,048-token-capped prefill and then over the immediately following one-token decode. Each table cell averages five deterministic prompt blocks and all routed layers; batch-$b$ uses the first $b$ prompts of the same 32-prompt block. In practice, activation becomes substantially denser as batch size grows: for Qwen3-30B at batch~32, \autoref{tab:expert_activation_ratio} shows 94.0\% of experts selected during prefill and 26.0\% in the next decode step. The distinction matters: accumulating selections over many decode steps would overstate the instantaneous working set. To isolate its transfer consequence, \autoref{fig:waiting-vs-prompt} replays measured per-layer active sets from a cold cache and serially copies each missed expert from pinned host memory to the GPU. The result measures the exposed transfer burden of blocking on-demand offload, not the end-to-end behavior of an overlapping system and not ExpertFlow.
+A family of systems treats GPU memory as a managed cache and fetches experts on demand~\cite{li2023adaptive,yi2023edgemoe,xue2024moe,eliseev2023fast,hwang2024pre,zhong2024adapmoe,tang2024hobbit,song2024promoe,kong2024swapmoe,shen2025expertflow}. Their opportunity for overlap depends on the size and predictability of the active set. We define instantaneous density as the number of unique selected experts per MoE layer, measured over all nonpadding tokens in a 2,048-token-capped prefill or over the immediately following one-token decode. Each table entry averages five deterministic prompt blocks and all routed layers; batch-$b$ uses the first $b$ prompts of the same 32-prompt block. \autoref{tab:expert_activation_ratio} shows that density rises with batch size: for Qwen3-30B at batch~32, prefill selects 94.0\% of experts and the next decode step selects 26.0\%. Measuring one decode step avoids conflating instantaneous demand with the union accumulated over a long generation. To quantify the transfer consequence in isolation, \autoref{fig:waiting-vs-prompt} replays measured per-layer active sets from a cold cache and serially copies each missed expert from pinned host memory. This microbenchmark reports exposed transfer time for blocking on-demand movement; it is not an end-to-end measurement of an overlapping offload system.
 
 \begin{center}
 \colorbox{gray!10}{%
 \parbox{0.96\linewidth}{%
 \textbf{Observation 1.}
-MoE activation can become dense in prefill and at larger batch sizes, expanding the expert working set beyond what offloading can reliably stage. Frequent evictions and fetches then introduce GPU waiting time.}}
+Prefill and larger batches can activate a substantial fraction of the expert pool. A larger instantaneous working set reduces the transfer slack available to an offload cache and increases the cost of misses.}}
 \end{center}
 
 \begin{table}[t]
@@ -47,7 +47,7 @@ MoE activation can become dense in prefill and at larger batch sizes, expanding 
 \subsection{Static Post-Training Quantization}
 \label{sec:background-ptq}
 
-PTQ compresses weights to low bit-widths without retraining. General-purpose schemes such as GPTQ~\cite{frantar2022gptq}, AWQ~\cite{lin2024awq}, SmoothQuant~\cite{xiao2023smoothquant}, and LLM.int8()~\cite{dettmers2022gptint8} have been extended to MoE-specific settings~\cite{kim2023mixturequantizedexpertsmoqe,duanmu2025mxmoe,zhang2025moqe}, where routing-induced imbalance, biased calibration data, and heterogeneous execution require per-expert or per-block bit allocation. PTQ avoids cross-tier movement on the critical path and achieves the lowest raw per-step latency, but most pipelines fix a precision map offline, implicitly assuming expert importance is stable at inference time.
+PTQ compresses weights to low bit-widths without retraining. General-purpose schemes such as GPTQ~\cite{frantar2022gptq}, AWQ~\cite{lin2024awq}, SmoothQuant~\cite{xiao2023smoothquant}, and LLM.int8()~\cite{dettmers2022gptint8} have been extended to MoE-specific settings~\cite{kim2023mixturequantizedexpertsmoqe,duanmu2025mxmoe,zhang2025moqe}, where routing imbalance and heterogeneous expert sensitivity motivate per-expert or per-block bit allocation. Once deployed, PTQ incurs no precision-migration traffic. Most pipelines nevertheless fix their precision map during calibration, implicitly treating the resulting expert ranking as stable at inference time.
 
 \begin{figure*}[t]
     \centering
@@ -80,7 +80,7 @@ That assumption is brittle for MoE. Expert utilization is heavy-tailed and the i
 \colorbox{gray!10}{%
 \parbox{0.96\linewidth}{%
 \textbf{Observation 2.}
-MoE expert usage is heavy-tailed and workload-dependent: a small hot set dominates cumulative invocations, and its identity shifts across tasks. Static precision maps therefore misallocate high-precision capacity under realistic workload mixes.}}
+MoE expert usage is heavy-tailed and workload-dependent: a small set receives much of the traffic, but its membership changes across tasks. A precision map optimized for one routing distribution can therefore become stale.}}
 \end{center}
 
 \subsection{Motivation and Challenges for Online Precision Control}
@@ -92,7 +92,7 @@ The observations above suggest adapting expert precision online under a strict G
 \colorbox{gray!10}{%
 \parbox{0.96\linewidth}{%
 \textbf{Observation 3.}
-When low precision is applied primarily to cold experts, increasing the fraction of quantized experts per layer yields a smooth and controllable increase in perplexity, suggesting a predictable quality--memory tradeoff.}}
+When demotion follows a fixed cold-to-hot ranking, perplexity changes smoothly with the low-precision quota. Expert precision therefore exposes a controllable quality--memory tradeoff.}}
 \end{center}
 
 \begin{figure}[t]
