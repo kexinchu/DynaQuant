@@ -19,10 +19,14 @@ int2_manifest="results/model_manifests/qwen3_next_80b_int2_from_int4.json"
 
 fetch_int4() {
     mkdir -p "${model_root}"
-    modelscope download "${repository}" \
+    # ModelScope defaults to one HTTP range per multi-GB shard. Two files
+    # with eight ranges each is substantially faster while keeping the total
+    # connection count bounded.
+    MODELSCOPE_DOWNLOAD_PARALLELS="${MODELSCOPE_DOWNLOAD_PARALLELS:-8}" \
+      modelscope download "${repository}" \
         --revision "${requested_revision}" \
         --local_dir "${int4_output}" \
-        --max-workers 8
+        --max-workers "${MODELSCOPE_MAX_WORKERS:-2}"
 }
 
 register_int4() {
