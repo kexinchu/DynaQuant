@@ -35,6 +35,14 @@ def test_autoround_load_config_pins_checkpoint_format_and_backend(tmp_path):
                     "group_size": 64,
                     "sym": True,
                     "packing_format": "auto_round:auto_gptq",
+                    "autoround_version": "0.12.0",
+                    "extra_config": {
+                        "model.layers.0.self_attn.q_proj": {"bits": 8},
+                        "model.layers.0.mlp.gate": {
+                            "bits": 16,
+                            "data_type": "float",
+                        },
+                    },
                 }
             }
         ),
@@ -44,6 +52,10 @@ def test_autoround_load_config_pins_checkpoint_format_and_backend(tmp_path):
     assert config.bits == 2
     assert config.group_size == 64
     assert config.backend == "triton"
+    assert config.packing_format == "auto_round:auto_gptq"
+    assert config.autoround_version == "0.12.0"
+    assert config.extra_config["model.layers.0.self_attn.q_proj"]["bits"] == 8
+    assert config.extra_config["model.layers.0.mlp.gate"]["bits"] == 16
 
 
 def test_extract_final_integer_prefers_explicit_final_answer():

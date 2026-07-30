@@ -724,12 +724,15 @@ def autoround_load_config(model_path: str, backend: str | None):
         raise ValueError("checkpoint is not an AutoRound checkpoint")
     from transformers import AutoRoundConfig
 
+    preserved = dict(quantization)
+    for key in ("bits", "group_size", "sym", "backend", "quant_method"):
+        preserved.pop(key, None)
     return AutoRoundConfig(
         bits=int(quantization["bits"]),
         group_size=int(quantization["group_size"]),
         sym=bool(quantization["sym"]),
         backend=backend,
-        packing_format=str(quantization["packing_format"]),
+        **preserved,
     )
 
 
