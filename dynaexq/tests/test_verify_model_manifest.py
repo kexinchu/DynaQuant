@@ -57,6 +57,7 @@ def test_verify_model_manifest_hashes_every_file(tmp_path):
     assert result["relocated"] is False
     assert result["verified_safetensors_tensor_count"] == 4
     assert len(result["manifest_sha256"]) == 64
+    assert len(result["verification_script_sha256"]) == 64
 
 
 def test_verify_model_manifest_rejects_content_change(tmp_path):

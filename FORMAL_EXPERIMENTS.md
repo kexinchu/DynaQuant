@@ -25,7 +25,8 @@ After any download or resume, verify all snapshot bytes before a formal run:
 
 ```bash
 python scripts/verify_model_manifest.py \
-  --manifest results/model_manifests/qwen3_next_80b_a3b_bf16.json
+  --manifest results/model_manifests/qwen3_next_80b_a3b_bf16.json \
+  --output results/model_manifests/qwen3_next_80b_a3b_bf16.verification.json
 ```
 
 ## Static Qwen3-Next checkpoints

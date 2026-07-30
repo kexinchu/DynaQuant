@@ -7,6 +7,8 @@ import argparse
 import hashlib
 import json
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -107,8 +109,10 @@ def verify_manifest(
         raise ValueError("snapshot byte total differs from manifest")
     return {
         "artifact_type": "model_manifest_verification",
+        "schema_version": "1.0",
         "manifest": str(manifest_path),
         "manifest_sha256": _sha256(manifest_path),
+        "verification_script_sha256": _sha256(Path(__file__)),
         "declared_local_path": str(declared_path),
         "verified_local_path": str(snapshot),
         "relocated": snapshot != declared_path,
@@ -127,13 +131,30 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         help="Optional explicit path for a relocated byte-identical snapshot.",
     )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        help="Optional JSON artifact path inside the repository.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = _parse_args()
+    started = time.perf_counter()
     result = verify_manifest(args.manifest, model_dir=args.model_dir)
-    print(json.dumps(result, indent=2, sort_keys=True))
+    result["verified_at"] = datetime.now(timezone.utc).isoformat()
+    result["elapsed_seconds"] = time.perf_counter() - started
+    rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    if args.output is not None:
+        output = args.output.expanduser().resolve()
+        if not output.is_relative_to(REPOSITORY_ROOT):
+            raise SystemExit("--output must be inside the repository")
+        if output.exists():
+            raise SystemExit(f"refusing to overwrite output: {output}")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(rendered, encoding="utf-8")
+    print(rendered, end="")
 
 
 if __name__ == "__main__":
