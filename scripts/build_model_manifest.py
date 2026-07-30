@@ -17,6 +17,9 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 HEX_REVISION_RE = re.compile(r"^[0-9a-f]{40,64}$")
 LAYER_KEY_RE = re.compile(r"^model\.layers\.(\d+)\.")
+NUMBERED_SAFETENSORS_SHARD_RE = re.compile(
+    r"^.+-(\d+)-of-(\d+)\.safetensors$"
+)
 SAFETENSORS_DTYPE_BYTES = {
     "BOOL": 1,
     "U8": 1,
@@ -92,6 +95,7 @@ def _validate_safetensors_index(
     shards: list[str],
     *,
     indexed_tensor_bytes: int,
+    declared_primary_shards: int | None,
 ) -> dict[str, int]:
     if not all(name.endswith(".safetensors") for name in shards):
         return {}
@@ -106,7 +110,7 @@ def _validate_safetensors_index(
             raise ValueError("weight index contains an invalid shard mapping")
         indexed_by_shard[shard].add(tensor_name)
 
-    verified_bytes = 0
+    bytes_by_shard: dict[str, int] = {}
     for shard in shards:
         header = _read_safetensors_header(model_dir / shard)
         actual_names = set(header)
@@ -118,6 +122,7 @@ def _validate_safetensors_index(
                 f"safetensors index/header mismatch in {shard}: "
                 f"missing={missing[:3]}, extra={extra[:3]}"
             )
+        shard_bytes = 0
         for tensor_name, descriptor in header.items():
             if not isinstance(descriptor, dict):
                 raise ValueError(
@@ -153,15 +158,47 @@ def _validate_safetensors_index(
                 raise ValueError(
                     f"invalid tensor byte range for {tensor_name}"
                 )
-            verified_bytes += expected_bytes
-    if verified_bytes != indexed_tensor_bytes:
+            shard_bytes += expected_bytes
+        bytes_by_shard[shard] = shard_bytes
+
+    verified_bytes = sum(bytes_by_shard.values())
+    primary_shards = list(shards)
+    if declared_primary_shards is not None:
+        numbered_parts: dict[int, str] = {}
+        for shard in shards:
+            match = NUMBERED_SAFETENSORS_SHARD_RE.match(shard)
+            if match is None or int(match.group(2)) != declared_primary_shards:
+                continue
+            part = int(match.group(1))
+            if part in numbered_parts:
+                raise ValueError("weight index has duplicate numbered shards")
+            numbered_parts[part] = shard
+        expected_parts = set(range(1, declared_primary_shards + 1))
+        if set(numbered_parts) != expected_parts:
+            raise ValueError(
+                "weight index does not contain every declared primary shard"
+            )
+        primary_shards = [
+            numbered_parts[part] for part in sorted(numbered_parts)
+        ]
+
+    verified_indexed_bytes = sum(
+        bytes_by_shard[shard] for shard in primary_shards
+    )
+    if verified_indexed_bytes != indexed_tensor_bytes:
         raise ValueError(
             "weight-index total_size does not match safetensors headers: "
-            f"{indexed_tensor_bytes} != {verified_bytes}"
+            f"{indexed_tensor_bytes} != {verified_indexed_bytes}"
         )
     return {
         "verified_safetensors_tensor_count": len(weight_map),
         "verified_tensor_bytes": verified_bytes,
+        "verified_indexed_tensor_bytes": verified_indexed_bytes,
+        "verified_primary_shard_count": len(primary_shards),
+        "verified_auxiliary_tensor_bytes": (
+            verified_bytes - verified_indexed_bytes
+        ),
+        "verified_auxiliary_shard_count": len(shards) - len(primary_shards),
     }
 
 
@@ -250,6 +287,13 @@ def _validate_weight_index(
         or total_size <= 0
     ):
         raise ValueError("weight index has no valid total tensor size")
+    declared_primary_shards = index.get("metadata", {}).get("total_shards")
+    if declared_primary_shards is not None and (
+        isinstance(declared_primary_shards, bool)
+        or not isinstance(declared_primary_shards, int)
+        or declared_primary_shards <= 0
+    ):
+        raise ValueError("weight index has an invalid primary shard count")
     return {
         "index_file": indexes[0].relative_to(model_dir).as_posix(),
         "tensor_count": len(weight_map),
@@ -261,6 +305,7 @@ def _validate_weight_index(
             weight_map,
             shards,
             indexed_tensor_bytes=total_size,
+            declared_primary_shards=declared_primary_shards,
         ),
     }
 

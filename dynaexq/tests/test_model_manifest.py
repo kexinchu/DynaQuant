@@ -63,6 +63,8 @@ def test_build_model_manifest_hashes_complete_snapshot(tmp_path):
     assert manifest["tensor_count"] == 4
     assert manifest["verified_safetensors_tensor_count"] == 4
     assert manifest["verified_tensor_bytes"] == 16
+    assert manifest["verified_indexed_tensor_bytes"] == 16
+    assert manifest["verified_auxiliary_tensor_bytes"] == 0
     assert manifest["verified_hidden_layer_count"] == 1
     assert manifest["weight_shard_count"] == 1
     assert manifest["file_count"] == 3
@@ -120,3 +122,27 @@ def test_build_model_manifest_rejects_index_header_mismatch(tmp_path):
             repository="org/model",
             revision="d" * 40,
         )
+
+
+def test_build_model_manifest_verifies_indexed_auxiliary_shard(tmp_path):
+    model = _snapshot(tmp_path)
+    extra_name = "model_extra_tensors.safetensors"
+    save_file({"model.layers.0.extra": torch.ones(2)}, model / extra_name)
+    index_path = model / "model.safetensors.index.json"
+    index = json.loads(index_path.read_text(encoding="utf-8"))
+    index["metadata"]["total_shards"] = 1
+    index["weight_map"]["model.layers.0.extra"] = extra_name
+    index_path.write_text(json.dumps(index), encoding="utf-8")
+
+    manifest = build_manifest(
+        model,
+        provider="huggingface",
+        repository="org/model",
+        revision="e" * 40,
+    )
+    assert manifest["indexed_tensor_bytes"] == 16
+    assert manifest["verified_indexed_tensor_bytes"] == 16
+    assert manifest["verified_tensor_bytes"] == 24
+    assert manifest["verified_primary_shard_count"] == 1
+    assert manifest["verified_auxiliary_shard_count"] == 1
+    assert manifest["verified_auxiliary_tensor_bytes"] == 8
