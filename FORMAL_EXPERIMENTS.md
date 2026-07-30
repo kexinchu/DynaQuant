@@ -21,6 +21,13 @@ revision after a reboot. Dynamic expert packing requires the original
 three-dimensional expert tensors and therefore does not load the static
 AutoRound QuantLinear checkpoint.
 
+After any download or resume, verify all snapshot bytes before a formal run:
+
+```bash
+python scripts/verify_model_manifest.py \
+  --manifest results/model_manifests/qwen3_next_80b_a3b_bf16.json
+```
+
 ## Static Qwen3-Next checkpoints
 
 Fetch and content-register Intel's official mixed-AutoRound INT4 checkpoint,
