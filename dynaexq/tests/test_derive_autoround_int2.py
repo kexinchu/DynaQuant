@@ -82,6 +82,64 @@ def test_w4_to_w2_is_deterministic():
         assert torch.equal(left, right)
 
 
+def test_integer_domain_requantization_matches_explicit_w4_reconstruction():
+    generator = torch.Generator().manual_seed(23)
+    weight = torch.randn(32, 256, generator=generator)
+    qweight4, qzeros4, scales4 = _make_w4_parent(weight)
+    qweight2, qzeros2, scales2 = requantize_autogptq_tensor(
+        qweight4,
+        qzeros4,
+        scales4,
+    )
+
+    unsigned4 = _unpack_axis0(qweight4, 4).reshape(2, 128, 32)
+    zp4 = _unpack_axis1(qzeros4, 4, out_features=32) + 1
+    reconstructed = (
+        (unsigned4 - zp4.unsqueeze(1)) * scales4.float().unsqueeze(1)
+    ).reshape(4, 64, 32)
+    reference_scales = reconstructed.abs().amax(dim=1).clamp(min=1e-10)
+    reference_signed = torch.round(
+        reconstructed / reference_scales.unsqueeze(1)
+    ).clamp(-2, 1)
+    actual_signed = (
+        _unpack_axis0(qweight2, 2).reshape(4, 64, 32) - 2
+    )
+
+    assert torch.equal(actual_signed, reference_signed)
+    assert torch.equal(
+        _unpack_axis1(qzeros2, 2, out_features=32),
+        torch.ones(4, 32, dtype=torch.int64),
+    )
+    assert torch.equal(scales2, reference_scales.to(torch.float16))
+
+
+def test_integer_domain_requantization_handles_negative_parent_scales():
+    weight = torch.linspace(-2, 2, steps=32 * 256).reshape(32, 256)
+    qweight4, qzeros4, scales4 = _make_w4_parent(weight)
+    scales4[:, ::2] *= -1
+    qweight2, _, scales2 = requantize_autogptq_tensor(
+        qweight4,
+        qzeros4,
+        scales4,
+    )
+
+    unsigned4 = _unpack_axis0(qweight4, 4).reshape(2, 128, 32)
+    zp4 = _unpack_axis1(qzeros4, 4, out_features=32) + 1
+    reconstructed = (
+        (unsigned4 - zp4.unsqueeze(1)) * scales4.float().unsqueeze(1)
+    ).reshape(4, 64, 32)
+    reference_scales = reconstructed.abs().amax(dim=1).clamp(min=1e-10)
+    reference_signed = torch.round(
+        reconstructed / reference_scales.unsqueeze(1)
+    ).clamp(-2, 1)
+    actual_signed = (
+        _unpack_axis0(qweight2, 2).reshape(4, 64, 32) - 2
+    )
+
+    assert torch.equal(actual_signed, reference_signed)
+    assert torch.equal(scales2, reference_scales.to(torch.float16))
+
+
 def test_w4_to_w2_rejects_non_autogptq_integer_layout():
     weight = torch.ones(32, 256)
     qweight, qzeros, scales = _make_w4_parent(weight)

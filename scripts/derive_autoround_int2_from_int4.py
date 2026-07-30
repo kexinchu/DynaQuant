@@ -31,7 +31,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
 from scripts.build_model_manifest import validate_local_snapshot
 
 
-ALGORITHM = "dynaexq_autogptq_w4_to_w2_rtn_v1"
+ALGORITHM = "dynaexq_autogptq_w4_to_w2_rtn_integer_domain_v2"
 IGNORED_PROVIDER_FILES = {".msc", ".mv"}
 
 
@@ -135,6 +135,8 @@ def requantize_autogptq_tensor(
 
     unsigned = _unpack_axis0(qweight, source_bits)
     in_features, out_features = unsigned.shape
+    if source_group_size % target_group_size:
+        raise ValueError("target groups must evenly partition source groups")
     if in_features % source_group_size or in_features % target_group_size:
         raise ValueError("input features do not satisfy source/target groups")
     if out_features % (32 // target_bits):
@@ -151,22 +153,40 @@ def requantize_autogptq_tensor(
         source_bits,
         out_features=out_features,
     ) + 1
-    reconstructed = (
+    signed_source = (
         unsigned.reshape(source_groups, source_group_size, out_features)
         - zero_points.unsqueeze(1)
-    ) * scales.to(torch.float32).unsqueeze(1)
-    reconstructed = reconstructed.reshape(in_features, out_features)
+    ).to(torch.int8)
 
     target_groups = in_features // target_group_size
-    grouped = reconstructed.reshape(
+    grouped_codes = signed_source.reshape(
         target_groups,
         target_group_size,
         out_features,
     )
     # For signed W2, AutoRound uses representable values [-2, -1, 0, 1]
-    # and divides absmax by qmax=1.
-    target_scales = grouped.abs().amax(dim=1).clamp(min=1e-10)
-    signed = torch.round(grouped / target_scales.unsqueeze(1)).clamp(-2, 1)
+    # and divides absmax by qmax=1.  The W4 scale is constant across each
+    # 128-value source group.  Since target groups (64) evenly partition
+    # source groups, q2 = round((q4*s4)/(max(abs(q4))*s4)); s4 cancels.
+    # Working in the integer domain avoids a full reconstructed FP32 matrix.
+    code_absmax = grouped_codes.abs().amax(dim=1)
+    safe_code_absmax = code_absmax.clamp(min=1)
+    source_scales_for_target = scales.to(torch.float32).repeat_interleave(
+        source_group_size // target_group_size,
+        dim=0,
+    )
+    target_scales = (
+        source_scales_for_target.abs() * code_absmax.to(torch.float32)
+    ).clamp(min=1e-10)
+    effective_codes = torch.where(
+        source_scales_for_target.unsqueeze(1) < 0,
+        -grouped_codes,
+        grouped_codes,
+    )
+    signed = torch.round(
+        effective_codes.to(torch.float32)
+        / safe_code_absmax.unsqueeze(1).to(torch.float32)
+    ).clamp(-2, 1)
     unsigned_target = (signed.to(torch.int64) + 2).reshape(
         in_features,
         out_features,
@@ -380,6 +400,9 @@ def derive_checkpoint(
                 "rounding": "torch_round_nearest_even",
                 "source_zero_point_convention": "stored_zp_plus_one",
                 "target_stored_zero_point": 1,
+                "negative_source_scale_handling": (
+                    "fold_sign_into_target_codes_and_store_positive_scale"
+                ),
             },
             "dependencies": {
                 package: importlib.metadata.version(package)
