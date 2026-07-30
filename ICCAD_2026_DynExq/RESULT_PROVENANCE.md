@@ -162,8 +162,12 @@ manifest and verifies the hashes of all 17 PDFs used by the manuscript.
   0--23 of 32) and is explicitly rejected. Its complete locally quantized
   W4A16 replacement now has structural, per-file, source, calibration, and
   execution provenance and has passed real generation with the AutoRound
-  Triton backend. Clean-commit calibration rankings and registered formal
-  runs are still required.
+  Triton backend. Intel's official Qwen3-Next mixed INT4 checkpoint is now
+  pinned by a complete ModelScope content-set catalog, and the locally derived
+  mixed INT2 checkpoint is bound to that parent manifest and has passed
+  independent structural and per-file verification. Real Qwen3-Next Triton
+  generation, clean-commit calibration rankings, and registered formal runs
+  are still required.
 
 ## Required evidence for each reported operating point
 

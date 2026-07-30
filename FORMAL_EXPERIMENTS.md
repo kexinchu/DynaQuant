@@ -52,11 +52,22 @@ exposes a moving `master` reference, so registration hashes its complete
 remote path/size/SHA-256 catalog into a stable content-set revision and then
 verifies every local file.
 
+The verified persistent paths are
+`/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound`
+and
+`/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal`.
+Their committed manifests are
+`results/model_manifests/qwen3_next_80b_int4_mixed_autoround_official.json`
+and `results/model_manifests/qwen3_next_80b_int2_from_int4.json`.
+
 The INT2 converter reconstructs the parent's W4 values, applies symmetric
 W2/group-64 RTN, and repacks them in the same AutoGPTQ layout. W8 and FP16
 override tensors are preserved. It is a calibration-free requantization from
 INT4, not a direct BF16-to-INT2 AutoRound run; the provenance and paper must
-disclose the possibility of compounded quantization error.
+disclose the possibility of compounded quantization error. The converter
+defaults to at most 32 PyTorch CPU threads and records the selected count;
+larger thread pools are not assumed to improve this many-small-matrix
+workload.
 
 Static paper-protocol evaluation must pass `--autoround-backend triton`.
 Remote model code and automatic kernel selection are disabled.

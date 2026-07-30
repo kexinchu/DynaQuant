@@ -171,14 +171,21 @@ def test_checkpoint_derivation_records_parent_and_preserves_dense_tensors(
     }
     shard_name = "model-00001-of-00001.safetensors"
     save_file(tensors, parent / shard_name)
+    extra_name = "model_extra_tensors.safetensors"
+    extra_tensor_name = "model.layers.0.mlp.experts.0.gate_proj.extra"
+    extra_tensors = {extra_tensor_name: torch.ones(8)}
+    save_file(extra_tensors, parent / extra_name)
     total_size = sum(
         tensor.numel() * tensor.element_size() for tensor in tensors.values()
     )
     (parent / "model.safetensors.index.json").write_text(
         json.dumps(
             {
-                "metadata": {"total_size": total_size},
-                "weight_map": {name: shard_name for name in tensors},
+                "metadata": {"total_shards": 1, "total_size": total_size},
+                "weight_map": {
+                    **{name: shard_name for name in tensors},
+                    extra_tensor_name: extra_name,
+                },
             }
         ),
         encoding="utf-8",
@@ -229,6 +236,15 @@ def test_checkpoint_derivation_records_parent_and_preserves_dense_tensors(
     assert child_config["quantization_config"]["bits"] == 2
     assert child_config["quantization_config"]["group_size"] == 64
     assert provenance["output"]["converted_w4_modules"] == 1
+    assert provenance["output"]["primary_tensor_bytes"] < (
+        provenance["output"]["tensor_bytes_before_provenance"]
+    )
+    child_index = json.loads(
+        (output / "model.safetensors.index.json").read_text()
+    )
+    assert child_index["metadata"]["total_size"] == provenance["output"][
+        "primary_tensor_bytes"
+    ]
     assert provenance["calibration"]["sample_count"] == 0
     assert (output / "tokenizer_config.json").is_file()
     child_tensors = load_file(str(output / shard_name))

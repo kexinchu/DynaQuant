@@ -28,7 +28,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from scripts.build_model_manifest import validate_local_snapshot
+from scripts.build_model_manifest import (
+    NUMBERED_SAFETENSORS_SHARD_RE,
+    validate_local_snapshot,
+)
 
 
 ALGORITHM = "dynaexq_autogptq_w4_to_w2_rtn_integer_domain_v2"
@@ -237,6 +240,7 @@ def derive_checkpoint(
     *,
     parent_manifest_path: Path,
     target_group_size: int = 64,
+    cpu_threads: int | None = None,
 ) -> dict[str, Any]:
     parent = parent.expanduser().resolve()
     output = output.expanduser().resolve()
@@ -247,6 +251,10 @@ def derive_checkpoint(
         raise FileExistsError(f"refusing to overwrite output: {output}")
     if target_group_size <= 0:
         raise ValueError("target group size must be positive")
+    if cpu_threads is None:
+        cpu_threads = min(32, os.cpu_count() or 1)
+    if cpu_threads <= 0:
+        raise ValueError("CPU thread count must be positive")
     parent_manifest, parent_manifest_sha256 = _load_parent_manifest(
         parent_manifest_path,
         parent,
@@ -297,6 +305,10 @@ def derive_checkpoint(
     converted_modules = 0
     copied_quantized_modules = 0
     output_tensor_bytes = 0
+    primary_output_tensor_bytes = 0
+    declared_primary_shards = index.get("metadata", {}).get("total_shards")
+    previous_cpu_threads = torch.get_num_threads()
+    torch.set_num_threads(cpu_threads)
     try:
         _copy_support_files(parent, temporary, shard_names)
         for shard_name in sorted(shard_names):
@@ -339,10 +351,17 @@ def derive_checkpoint(
                     copied_quantized_modules += 1
                 consumed.update((tensor_name, qzeros_name, scales_name))
             save_file(output_tensors, str(temporary / shard_name))
-            output_tensor_bytes += sum(
+            shard_tensor_bytes = sum(
                 tensor.numel() * tensor.element_size()
                 for tensor in output_tensors.values()
             )
+            output_tensor_bytes += shard_tensor_bytes
+            match = NUMBERED_SAFETENSORS_SHARD_RE.match(shard_name)
+            if declared_primary_shards is None or (
+                match is not None
+                and int(match.group(2)) == declared_primary_shards
+            ):
+                primary_output_tensor_bytes += shard_tensor_bytes
 
         target_qconfig = dict(qconfig)
         target_qconfig.update(
@@ -367,7 +386,7 @@ def derive_checkpoint(
         )
         target_index = dict(index)
         target_metadata = dict(target_index.get("metadata", {}))
-        target_metadata["total_size"] = output_tensor_bytes
+        target_metadata["total_size"] = primary_output_tensor_bytes
         target_index["metadata"] = target_metadata
         (temporary / "model.safetensors.index.json").write_text(
             json.dumps(target_index, indent=2, sort_keys=True) + "\n",
@@ -403,6 +422,7 @@ def derive_checkpoint(
                 "negative_source_scale_handling": (
                     "fold_sign_into_target_codes_and_store_positive_scale"
                 ),
+                "cpu_threads": cpu_threads,
             },
             "dependencies": {
                 package: importlib.metadata.version(package)
@@ -414,6 +434,10 @@ def derive_checkpoint(
                 "architectures": config.get("architectures"),
                 "converted_w4_modules": converted_modules,
                 "copied_override_quantized_modules": copied_quantized_modules,
+                "primary_tensor_bytes": primary_output_tensor_bytes,
+                "auxiliary_tensor_bytes": (
+                    output_tensor_bytes - primary_output_tensor_bytes
+                ),
                 "tensor_bytes_before_provenance": output_tensor_bytes,
             },
             "limitations": [
@@ -432,6 +456,8 @@ def derive_checkpoint(
         # Preserve partial output for forensic diagnosis; a subsequent run
         # refuses to reuse it.
         raise
+    finally:
+        torch.set_num_threads(previous_cpu_threads)
     return provenance
 
 
@@ -441,6 +467,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--parent-manifest", required=True, type=Path)
     parser.add_argument("--target-group-size", type=int, default=64)
+    parser.add_argument(
+        "--cpu-threads",
+        type=int,
+        default=min(32, os.cpu_count() or 1),
+        help="PyTorch CPU threads (default: min(32, available CPUs))",
+    )
     return parser.parse_args()
 
 
@@ -451,6 +483,7 @@ def main() -> None:
         args.output,
         parent_manifest_path=args.parent_manifest,
         target_group_size=args.target_group_size,
+        cpu_threads=args.cpu_threads,
     )
     print(
         json.dumps(
