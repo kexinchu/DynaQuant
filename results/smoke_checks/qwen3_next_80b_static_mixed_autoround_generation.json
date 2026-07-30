@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "artifact_type": "non_formal_model_smoke_check",
+  "created_at": "2026-07-30T05:05:09Z",
+  "formal_result": false,
+  "git": {
+    "commit": "e253775afd9d674cbb3f1e34a73581b90002bb5e",
+    "dirty": false
+  },
+  "hardware": {
+    "physical_gpu": "NVIDIA RTX A6000",
+    "physical_gpu_uuid": "GPU-513bd779-a9a3-bcfc-e831-b41f91b87b80",
+    "physical_gpu_memory_mib": 49140,
+    "driver": "610.43.02",
+    "cuda_visible_devices": "0"
+  },
+  "environment": {
+    "python": "3.13.12",
+    "torch": "2.10.0+cu128",
+    "cuda_runtime": "12.8",
+    "transformers": "5.12.1",
+    "auto_round": "0.12.3",
+    "backend": "triton",
+    "pytorch_alloc_conf": "expandable_segments:True",
+    "auto_round_cpp_extension_loaded": false,
+    "auto_round_cpp_extension_limitation": "AutoRound 0.12.3 requires torch >= 2.11.0 for its installed C++ extension; this smoke check used the Triton/torch fallback."
+  },
+  "generation": {
+    "prompt": "The University of Connecticut is located in",
+    "max_new_tokens": 1,
+    "do_sample": false
+  },
+  "checkpoints": {
+    "official_int4": {
+      "path": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound",
+      "manifest": "results/model_manifests/qwen3_next_80b_int4_mixed_autoround_official.json",
+      "manifest_sha256": "08022d034970ca76ec1026a25a607f12352d707138539b4d0d1d1e669d1417fa",
+      "bits": 4,
+      "group_size": 128,
+      "extra_config_entries": 398,
+      "load_seconds": 172.2635755679803,
+      "torch_peak_allocated_bytes": 43570816000,
+      "torch_peak_reserved_bytes": 50608472064,
+      "generated_token_id": 794,
+      "generated_text": "The University of Connecticut is located in St",
+      "load_valid": true,
+      "generation_valid": true
+    },
+    "derived_int2": {
+      "path": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal",
+      "manifest": "results/model_manifests/qwen3_next_80b_int2_from_int4.json",
+      "manifest_sha256": "b85ac9685764ec4cba3f194f700b89e39b4279f43e9c77aaa16f1873fa827969",
+      "bits": 2,
+      "group_size": 64,
+      "extra_config_entries": 398,
+      "load_seconds": 165.3867570250295,
+      "torch_peak_allocated_bytes": 25451422720,
+      "torch_peak_reserved_bytes": 47500492800,
+      "generated_token_id": 0,
+      "generated_text": "The University of Connecticut is located in!",
+      "load_valid": true,
+      "generation_valid": true
+    }
+  },
+  "acceptance": {
+    "single_physical_gpu_per_model": true,
+    "remote_code_disabled": true,
+    "explicit_backend": true,
+    "mixed_precision_overrides_preserved": true,
+    "shared_gpu_isolation_formally_monitored": false,
+    "quality_claim_valid": false,
+    "performance_claim_valid": false
+  },
+  "notes": [
+    "The smoke checks ran sequentially on physical GPU 0 and loaded one checkpoint at a time.",
+    "Torch allocator counters are diagnostic and do not replace the formal 2 ms NVML process high-water monitor.",
+    "A one-token greedy generation proves executable loading and inference only; it is not a quality or latency result."
+  ]
+}

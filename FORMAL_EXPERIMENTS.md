@@ -71,6 +71,12 @@ workload.
 
 Static paper-protocol evaluation must pass `--autoround-backend triton`.
 Remote model code and automatic kernel selection are disabled.
+The reproduction wrapper also defaults `PYTORCH_ALLOC_CONF` to
+`expandable_segments:True` for static quality and performance commands unless
+the caller supplies another value. Without expandable segments, concurrent
+materialization of the checkpoint's more than 220,000 tensors fragmented an
+A6000 before the official INT4 checkpoint could finish loading. The effective
+allocator configuration is recorded in every evaluation artifact.
 
 ## Shared-GPU acceptance
 

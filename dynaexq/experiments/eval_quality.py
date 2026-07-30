@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.metadata
 import json
 import math
 import os
@@ -578,6 +579,10 @@ def environment_metadata() -> dict[str, Any]:
         transformers_version = transformers.__version__
     except ImportError:
         transformers_version = None
+    try:
+        auto_round_version = importlib.metadata.version("auto-round")
+    except importlib.metadata.PackageNotFoundError:
+        auto_round_version = None
     max_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     # Linux reports KiB; macOS reports bytes.
     process_max_rss_bytes = (
@@ -590,8 +595,10 @@ def environment_metadata() -> dict[str, Any]:
         "platform": platform.platform(),
         "torch": torch.__version__,
         "transformers": transformers_version,
+        "auto_round": auto_round_version,
         "cuda_runtime": torch.version.cuda,
         "cudnn": torch.backends.cudnn.version(),
+        "pytorch_alloc_conf": os.environ.get("PYTORCH_ALLOC_CONF"),
         "gpus": gpu_names,
         "process_max_rss_bytes": process_max_rss_bytes,
         "git": _git_metadata(),

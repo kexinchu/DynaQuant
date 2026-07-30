@@ -17,11 +17,23 @@ if [[ $# -gt 0 ]]; then
     shift
 fi
 
+configure_torch_allocator() {
+    # Qwen3-Next mixed AutoRound exposes more than 220k checkpoint tensors.
+    # Expandable segments prevent concurrent materialization from reserving
+    # nearly all A6000 memory as unusable fragments. Preserve an explicit
+    # caller choice and record the resulting value in experiment metadata.
+    if [[ -z "${PYTORCH_ALLOC_CONF:-}" ]]; then
+        export PYTORCH_ALLOC_CONF="expandable_segments:True"
+    fi
+}
+
 case "${command_name}" in
     quality)
+        configure_torch_allocator
         python -m dynaexq.experiments.eval_quality "$@"
         ;;
     perf)
+        configure_torch_allocator
         python -m dynaexq.experiments.eval_perf "$@"
         ;;
     moe-infinity)
