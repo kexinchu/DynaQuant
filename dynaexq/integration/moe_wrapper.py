@@ -26,6 +26,10 @@ from ..core import (
     TransitionEngine,
     Tier,
 )
+from .generation_utils import (
+    last_logit_only_kwargs,
+    prepare_one_token_decode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -214,6 +218,9 @@ class MoEWrapper:
             if pad_token_id is not None
             else (eos_ids[0] if eos_ids else 0)
         )
+        last_logit_kwargs = last_logit_only_kwargs(self)
+        initial_forward_kwargs = dict(last_logit_kwargs)
+        initial_forward_kwargs.update(kwargs)
 
         for _ in range(max_new_tokens):
             if past is None:
@@ -221,15 +228,17 @@ class MoEWrapper:
                     input_ids=generated,
                     attention_mask=attention_mask,
                     use_cache=True,
-                    **kwargs,
+                    **initial_forward_kwargs,
                 )
             else:
-                prepared = self.model.prepare_inputs_for_generation(
-                    generated,
+                prepared = prepare_one_token_decode(
+                    self.model,
+                    generated=generated,
+                    next_token=next_token[:, None],
                     past_key_values=past,
                     attention_mask=attention_mask,
-                    use_cache=True,
                 )
+                prepared.update(last_logit_kwargs)
                 outputs = self.forward(**prepared)
             next_token = outputs.logits[:, -1, :].argmax(dim=-1)
             if finished.any():

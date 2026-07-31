@@ -32,6 +32,10 @@ from ..core import (
     TransitionEngine,
 )
 from ..core.quant import budget_safe_dispatch_available
+from ..integration.generation_utils import (
+    last_logit_only_kwargs,
+    prepare_one_token_decode,
+)
 from ..integration.moe_wrapper import MoEWrapper
 from .metrics import MetricsCollector
 from .metrics import LatencyMetrics
@@ -585,11 +589,13 @@ def run_shift_experiment(
         if torch.cuda.is_available():
             torch.cuda.synchronize()
         started = time.perf_counter()
+        last_logit_kwargs = last_logit_only_kwargs(wrapper)
         with torch.inference_mode():
             outputs = wrapper.forward(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 use_cache=True,
+                **last_logit_kwargs,
             )
             next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
             generated = torch.cat((input_ids, next_token), dim=1)
@@ -602,12 +608,14 @@ def run_shift_experiment(
             first_token_at = time.perf_counter()
 
             for _ in range(config.experiments.output_tokens - 1):
-                prepared = model.prepare_inputs_for_generation(
-                    generated,
+                prepared = prepare_one_token_decode(
+                    model,
+                    generated=generated,
+                    next_token=next_token,
                     past_key_values=past,
                     attention_mask=attention_mask,
-                    use_cache=True,
                 )
+                prepared.update(last_logit_kwargs)
                 outputs = wrapper.forward(**prepared)
                 next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
                 past = outputs.past_key_values

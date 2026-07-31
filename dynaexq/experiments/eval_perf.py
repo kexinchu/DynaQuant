@@ -19,6 +19,10 @@ from typing import Any, Callable
 
 import torch
 
+from ..integration.generation_utils import (
+    last_logit_only_kwargs,
+    prepare_one_token_decode,
+)
 from .gpu_memory import NvmlProcessMemoryMonitor
 from .eval_quality import (
     SCHEMA_VERSION,
@@ -113,6 +117,7 @@ def _one_generation(
     if output_length <= 0:
         raise ValueError("output_length must be positive")
 
+    last_logit_kwargs = last_logit_only_kwargs(model)
     _sync_cuda()
     _reset_peak_memory()
     if process_memory_monitor is not None:
@@ -124,6 +129,7 @@ def _one_generation(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
                 use_cache=True,
+                **last_logit_kwargs,
             )
             next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
             generated = torch.cat((input_ids, next_token), dim=1)
@@ -138,12 +144,14 @@ def _one_generation(
                 # The model helper supplies architecture-specific
                 # position/cache arguments and slices ``generated`` to the
                 # uncached token.
-                prepared = model.prepare_inputs_for_generation(
-                    generated,
+                prepared = prepare_one_token_decode(
+                    model,
+                    generated=generated,
+                    next_token=next_token,
                     past_key_values=past,
                     attention_mask=attention_mask,
-                    use_cache=True,
                 )
+                prepared.update(last_logit_kwargs)
                 outputs = model(**prepared)
                 next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
                 past = outputs.past_key_values
