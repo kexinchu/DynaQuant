@@ -123,6 +123,7 @@ class TransitionEngine:
         self._repatriations = 0
         self._repatriated_bytes = 0
         self._precise_fence_reclaims = 0
+        self._unused_handle_reclaims = 0
         self._global_sync_reclaims = 0
         self._stage_timings: list[TransitionStage] = []
     
@@ -470,8 +471,18 @@ class TransitionEngine:
             with self._stats_lock:
                 self._precise_fence_reclaims += 1
             return
+        if not old_handle.was_leased_for_dispatch:
+            # This representation was published but no routed kernel ever
+            # acquired it. There is therefore no compute-stream work to
+            # fence. This is common when a paired swap immediately moves a
+            # fresh staging handle into its resident hole.
+            with self._stats_lock:
+                self._unused_handle_reclaims += 1
+            return
         # No precise fence was recorded — fall back to the conservative
-        # global sync. The CPU path is a no-op.
+        # global sync only if dispatch did acquire the handle. The CPU path
+        # is a no-op. A formal CUDA run rejects this fallback because every
+        # successful dispatch must release its lease with an event.
         self._fallback_global_sync()
         with self._stats_lock:
             self._global_sync_reclaims += 1
@@ -615,7 +626,10 @@ class TransitionEngine:
         # transitions. Lease the exact snapshotted handle so another worker
         # cannot publish a replacement and recycle that block during the
         # device-to-device copy.
-        leased_handle = self.registry.acquire_handle(candidate_key)
+        leased_handle = self.registry.acquire_handle(
+            candidate_key,
+            record_dispatch=False,
+        )
         if leased_handle is not candidate_handle:
             if leased_handle is not None:
                 self.registry.release_handle(leased_handle)
@@ -814,6 +828,7 @@ class TransitionEngine:
                 "repatriations": self._repatriations,
                 "repatriated_bytes": self._repatriated_bytes,
                 "precise_fence_reclaims": self._precise_fence_reclaims,
+                "unused_handle_reclaims": self._unused_handle_reclaims,
                 "global_sync_reclaims": self._global_sync_reclaims,
                 "stage_timing_summary": stage_timing_summary,
             }
@@ -857,6 +872,7 @@ class TransitionEngine:
             self._repatriations = 0
             self._repatriated_bytes = 0
             self._precise_fence_reclaims = 0
+            self._unused_handle_reclaims = 0
             self._global_sync_reclaims = 0
             self._stage_timings.clear()
     

@@ -129,6 +129,10 @@ class ExpertHandle:
     # published immediately, but this handle's block cannot be reclaimed
     # while a forward lease is active.
     active_readers: int = field(default=0, init=False, repr=False)
+    # Set only by execution-path leases. Transition-engine maintenance may
+    # lease a staging handle for repatriation without making it a dispatch
+    # consumer. A never-dispatched handle has no compute work to fence.
+    was_leased_for_dispatch: bool = field(default=False, init=False)
 
     def __post_init__(self) -> None:
         if self.quant_meta is not None:
@@ -244,12 +248,24 @@ class ExpertRegistry:
         """
         return self._handles.get(key)
 
-    def acquire_handle(self, key: ExpertKey) -> Optional[ExpertHandle]:
-        """Acquire a read lease on the currently published handle."""
+    def acquire_handle(
+        self,
+        key: ExpertKey,
+        *,
+        record_dispatch: bool = True,
+    ) -> Optional[ExpertHandle]:
+        """Acquire a read lease on the currently published handle.
+
+        Runtime maintenance passes ``record_dispatch=False`` because its
+        device-to-device copy is synchronized directly and is not compute
+        work that must leave a forward-stream event on the handle.
+        """
         with self._global_lock:
             handle = self._handles.get(key)
             if handle is not None:
                 handle.active_readers += 1
+                if record_dispatch:
+                    handle.was_leased_for_dispatch = True
             return handle
 
     def release_handle(

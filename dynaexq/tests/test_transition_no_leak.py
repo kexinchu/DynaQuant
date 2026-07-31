@@ -289,6 +289,8 @@ def test_concurrent_paired_swap_drains_both_tiers_from_staging(monkeypatch):
         stats = engine.get_stats()
         assert stats["failed_transitions"] == 0
         assert stats["accepted_requests"] == 4  # bootstrap + paired swap
+        assert stats["global_sync_reclaims"] == 0
+        assert stats["unused_handle_reclaims"] > 0
     finally:
         engine.shutdown()
 

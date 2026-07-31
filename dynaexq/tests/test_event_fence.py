@@ -14,7 +14,8 @@ The contract being guarded:
 3. ``TransitionEngine._fence_before_reclaim(old_handle)``:
    - Calls ``old_handle.last_use_event.synchronize()`` when set and
      does NOT call the global fallback.
-   - Calls the global fallback (``_fallback_global_sync``) when no
+   - Reclaims a never-dispatched handle without a device sync.
+   - Calls the global fallback when a dispatch lease existed but no
      per-handle event was recorded.
 
 4. A full promote→demote cycle routes the old handle's fence correctly:
@@ -212,14 +213,33 @@ def test_fence_before_reclaim_waits_for_every_compute_stream():
         engine.shutdown()
 
 
-def test_fence_before_reclaim_falls_back_when_no_event():
-    """If last_use_event is None, the engine calls the global fallback.
-    On CPU the real fallback is a no-op, so we monkey-patch a spy."""
+def test_fence_before_reclaim_skips_sync_for_never_dispatched_handle():
     engine, _, _ = _make_engine()
     try:
         calls = []
         engine._fallback_global_sync = lambda: calls.append("global")  # type: ignore[method-assign]
         handle = ExpertHandle(tier=Tier.LO, last_use_event=None)
+
+        engine._fence_before_reclaim(handle)
+
+        assert calls == []
+        assert engine.get_stats()["unused_handle_reclaims"] == 1
+    finally:
+        engine.shutdown()
+
+
+def test_fence_before_reclaim_falls_back_after_unfenced_dispatch():
+    """A dispatch lease without its required event remains fail-safe."""
+    engine, _, registry = _make_engine()
+    try:
+        calls = []
+        engine._fallback_global_sync = lambda: calls.append("global")  # type: ignore[method-assign]
+        key = ExpertKey(0, 0)
+        handle = ExpertHandle(tier=Tier.LO, last_use_event=None)
+        registry.register(key, handle)
+        leased = registry.acquire_handle(key)
+        assert leased is handle
+        registry.release_handle(leased)
 
         engine._fence_before_reclaim(handle)
 
@@ -321,7 +341,11 @@ def test_demote_without_mark_used_falls_back_to_global_sync():
         )
         _wait(engine)
 
-        # Deliberately NO mark_used call here.
+        # Simulate a faulty execution path that leased the handle but
+        # deliberately released it without its required event.
+        leased = registry.acquire_handle(key)
+        assert leased is not None
+        registry.release_handle(leased)
 
         assert engine.enqueue(
             TransitionReq(key=key, src=Tier.HI, dst=Tier.LO, reason="down", issued_step=1)
