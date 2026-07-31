@@ -18,6 +18,7 @@ from dynaexq.core import (
 )
 from dynaexq.core.quant import QuantFormat
 from dynaexq.integration.moe_wrapper import MoEWrapper
+from dynaexq.integration.qwen3_next_adapter import attach_qwen3_next_experts
 from dynaexq.experiments.run_shift import load_model
 
 transformers = pytest.importorskip("transformers")
@@ -303,3 +304,87 @@ def test_qwen3_next_fused_chunk_preload_is_exact_for_fp16():
                 rtol=0,
                 atol=0,
             )
+
+
+class _FakeAutoRoundProjection(torch.nn.Module):
+    def __init__(self, out_features: int, in_features: int):
+        super().__init__()
+        self.weight = torch.nn.Parameter(
+            torch.randn(out_features, in_features, dtype=torch.float16)
+        )
+        self.register_buffer(
+            "qweight",
+            torch.zeros(in_features // 8, out_features, dtype=torch.int32),
+        )
+        self.register_buffer(
+            "qzeros",
+            torch.zeros(1, max(1, out_features // 8), dtype=torch.int32),
+        )
+        self.register_buffer(
+            "scales",
+            torch.ones(1, out_features, dtype=torch.float16),
+        )
+
+
+class Qwen3NextMLP(torch.nn.Module):
+    """AutoRound-like unfused expert; class name is part of the adapter ABI."""
+
+    def __init__(self):
+        super().__init__()
+        self.gate_proj = _FakeAutoRoundProjection(8, 16)
+        self.up_proj = _FakeAutoRoundProjection(8, 16)
+        self.down_proj = _FakeAutoRoundProjection(16, 8)
+        self.act_fn = torch.nn.functional.silu
+        self.native_calls = 0
+
+    def forward(self, hidden_states):
+        self.native_calls += 1
+        gate = torch.nn.functional.linear(
+            hidden_states,
+            self.gate_proj.weight,
+        )
+        up = torch.nn.functional.linear(hidden_states, self.up_proj.weight)
+        return torch.nn.functional.linear(
+            self.act_fn(gate) * up,
+            self.down_proj.weight,
+        )
+
+
+def test_qwen3_next_unfused_autoround_expert_uses_registry_handle():
+    torch.manual_seed(31)
+    expert = Qwen3NextMLP()
+    experts = torch.nn.ModuleList([expert])
+    hidden_states = torch.randn(3, 16, dtype=torch.float16)
+    with torch.inference_mode():
+        expected = expert(hidden_states)
+    assert expert.native_calls == 1
+
+    registry = ExpertRegistry()
+    registry.register(
+        ExpertKey(0, 0),
+        ExpertHandle(
+            tier=Tier.HI,
+            quant_meta={
+                "gate_proj": pack(
+                    expert.gate_proj.weight.detach(),
+                    QuantFormat.FP16,
+                ),
+                "up_proj": pack(
+                    expert.up_proj.weight.detach(),
+                    QuantFormat.FP16,
+                ),
+                "down_proj": pack(
+                    expert.down_proj.weight.detach(),
+                    QuantFormat.FP16,
+                ),
+            },
+        ),
+    )
+    assert attach_qwen3_next_experts(experts, registry, 0)
+    with torch.inference_mode():
+        actual = expert(hidden_states)
+    torch.testing.assert_close(actual, expected, rtol=0, atol=0)
+    assert expert.native_calls == 1
+    assert (
+        registry.handle_snapshot()[ExpertKey(0, 0)].active_readers == 0
+    )

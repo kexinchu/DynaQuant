@@ -311,6 +311,12 @@ class MoEWrapper:
                     and (
                         hasattr(module, "top_k")
                         or hasattr(module, "num_experts")
+                        or (
+                            isinstance(module, torch.nn.Linear)
+                            and self._experts_per_layer is not None
+                            and module.out_features
+                            == self._experts_per_layer
+                        )
                     )
                 )
             )

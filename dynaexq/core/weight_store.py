@@ -37,6 +37,7 @@ from typing import Optional
 
 import torch
 
+from .autogptq import packed_from_autogptq
 from .config import Tier
 from .quant import (
     DEFAULT_GROUP_SIZE,
@@ -152,6 +153,28 @@ class ModelWeightStore:
         cached = self._packed_cache.get(cache_key)
         if cached is not None:
             return cached
+
+        quantized_slots = self._fetch_autogptq_modules(key)
+        if quantized_slots is not None:
+            target_fmt = self._tier_fmt(tier)
+            packed_slots = {
+                slot: self._maybe_pin(
+                    self._with_resident_footprint(
+                        packed_from_autogptq(
+                            module.qweight,
+                            module.qzeros,
+                            module.scales,
+                            source_bits=int(module.bits),
+                            source_group_size=int(module.group_size),
+                            target_format=target_fmt,
+                            g_idx=getattr(module, "g_idx", None),
+                        )
+                    )
+                )
+                for slot, module in quantized_slots.items()
+            }
+            self._packed_cache[cache_key] = packed_slots
+            return packed_slots
 
         raw_slots = self._fetch_raw_slots(key)
         target_fmt = self._tier_fmt(tier)
@@ -471,6 +494,40 @@ class ModelWeightStore:
                 f"container={len(container)}, config={count}"
             )
         for expert_module in container:
+            autogptq_linears = [
+                getattr(expert_module, slot)
+                for slot in ("gate_proj", "up_proj", "down_proj")
+                if ModelWeightStore._is_autogptq_linear(
+                    getattr(expert_module, slot, None)
+                )
+            ]
+            if autogptq_linears:
+                if len(autogptq_linears) != 3:
+                    raise RuntimeError(
+                        f"incomplete AutoGPTQ expert in layer {layer}"
+                    )
+                if any(
+                    getattr(linear, "bias", None) is not None
+                    for linear in autogptq_linears
+                ):
+                    raise RuntimeError(
+                        "AutoGPTQ expert biases are not represented by PackedTensor"
+                    )
+                for linear in autogptq_linears:
+                    for name in ("qweight", "qzeros", "scales", "g_idx"):
+                        value = getattr(linear, name, None)
+                        if not isinstance(value, torch.Tensor):
+                            continue
+                        released_bytes += value.numel() * value.element_size()
+                        empty = torch.empty(0, dtype=value.dtype, device="cpu")
+                        if isinstance(value, torch.nn.Parameter):
+                            empty = torch.nn.Parameter(
+                                empty,
+                                requires_grad=False,
+                            )
+                        setattr(linear, name, empty)
+                continue
+
             linears = [
                 getattr(expert_module, slot)
                 for slot in (
@@ -527,6 +584,34 @@ class ModelWeightStore:
         # Avoid eager quantization for sizing: derive the exact packed size
         # of every expert projection from its source shape.
         target_fmt = self._tier_fmt(tier)
+        quantized_slots = self._fetch_autogptq_modules(key)
+        if quantized_slots is not None:
+            total = 0
+            for module in quantized_slots.values():
+                out_features = int(module.outfeatures)
+                in_features = int(module.infeatures)
+                group_size = (
+                    in_features
+                    if target_fmt == QuantFormat.FP16
+                    else DEFAULT_GROUP_SIZE[target_fmt]
+                )
+                total += compute_packed_nbytes(
+                    out_features,
+                    in_features,
+                    target_fmt,
+                    group_size,
+                )
+                if (
+                    self.enable_int4_kernel_cache
+                    and target_fmt == QuantFormat.INT4
+                ):
+                    total += (
+                        out_features
+                        * (in_features // group_size)
+                        * 2
+                    )
+            return total
+
         total = 0
         for raw in self._fetch_raw_slots(key).values():
             if raw.dim() != 2:
@@ -795,6 +880,49 @@ class ModelWeightStore:
             f"Cannot identify a complete expert projection layout for {key} "
             f"({type(expert).__name__})"
         )
+
+    @staticmethod
+    def _is_autogptq_linear(module: object) -> bool:
+        """Whether ``module`` exposes the audited AutoGPTQ matrix contract."""
+        return (
+            isinstance(module, torch.nn.Module)
+            and isinstance(getattr(module, "qweight", None), torch.Tensor)
+            and isinstance(getattr(module, "qzeros", None), torch.Tensor)
+            and isinstance(getattr(module, "scales", None), torch.Tensor)
+            and isinstance(getattr(module, "bits", None), int)
+            and isinstance(getattr(module, "group_size", None), int)
+            and isinstance(getattr(module, "infeatures", None), int)
+            and isinstance(getattr(module, "outfeatures", None), int)
+        )
+
+    def _fetch_autogptq_modules(
+        self,
+        key: ExpertKey,
+    ) -> dict[str, torch.nn.Module] | None:
+        """Return an unfused AutoRound expert's three quantized projections."""
+        container = self._get_expert_container(key)
+        if not isinstance(container, (torch.nn.ModuleList, list, tuple)):
+            return None
+        if key.expert >= len(container):
+            raise ValueError(f"Expert {key} not found in expert container")
+        expert = container[key.expert]
+        slots = {
+            slot: getattr(expert, slot, None)
+            for slot in ("gate_proj", "up_proj", "down_proj")
+        }
+        recognized = {
+            slot: module
+            for slot, module in slots.items()
+            if self._is_autogptq_linear(module)
+        }
+        if not recognized:
+            return None
+        if set(recognized) != set(slots):
+            raise ValueError(
+                f"Incomplete AutoGPTQ expert {key}; found slots "
+                f"{sorted(recognized)}"
+            )
+        return recognized
 
     def _fetch_raw_weight_slot(self, key: ExpertKey, slot: str) -> torch.Tensor:
         """Get a raw fp16 2-D weight tensor for a specific slot of ``key``."""

@@ -27,6 +27,7 @@ if TYPE_CHECKING:
 
 
 _SUPPORTED_EXPERT_CLASSES = {"Qwen3NextExperts"}
+_SUPPORTED_UNFUSED_EXPERT_CLASSES = {"Qwen3NextMLP"}
 
 
 def _record_and_release(
@@ -105,6 +106,86 @@ def _handle_forward(
     return final_hidden_states
 
 
+def _unfused_handle_forward(
+    module: torch.nn.Module,
+    hidden_states: torch.Tensor,
+) -> torch.Tensor:
+    """Execute one AutoRound-unfused routed expert through its handle."""
+    key = ExpertKey(
+        module._dynaexq_layer_idx,
+        module._dynaexq_expert_idx,
+    )
+    handle = module._dynaexq_registry.acquire_handle(key)
+    if handle is None:
+        raise RuntimeError(
+            f"Qwen3-Next routed expert {key} has no registered handle"
+        )
+
+    output = None
+    try:
+        gate_up = handle.get_packed("gate_up_proj")
+        down = handle.get_packed("down_proj")
+        if gate_up is not None:
+            if down is None:
+                raise RuntimeError(
+                    f"Qwen3-Next routed expert {key} is missing down_proj"
+                )
+            gate, up = fused_linear(hidden_states, gate_up).chunk(2, dim=-1)
+        else:
+            gate_proj = handle.get_packed("gate_proj")
+            up_proj = handle.get_packed("up_proj")
+            if gate_proj is None or up_proj is None or down is None:
+                raise RuntimeError(
+                    f"Qwen3-Next routed expert {key} has an incomplete "
+                    "gate/up/down projection set"
+                )
+            gate = fused_linear(hidden_states, gate_proj)
+            up = fused_linear(hidden_states, up_proj)
+        output = fused_linear(module.act_fn(gate) * up, down)
+        return output
+    finally:
+        _record_and_release(module, handle, output)
+
+
+def _attach_unfused_experts(
+    experts: torch.nn.ModuleList,
+    registry: "ExpertRegistry",
+    layer_index: int,
+) -> bool:
+    if not experts:
+        raise RuntimeError("Qwen3-Next expert ModuleList is empty")
+    if not all(
+        type(expert).__name__ in _SUPPORTED_UNFUSED_EXPERT_CLASSES
+        for expert in experts
+    ):
+        return False
+
+    for expert_index, expert in enumerate(experts):
+        projections = [
+            getattr(expert, slot, None)
+            for slot in ("gate_proj", "up_proj", "down_proj")
+        ]
+        valid = all(
+            isinstance(projection, torch.nn.Module)
+            and isinstance(getattr(projection, "qweight", None), torch.Tensor)
+            and isinstance(getattr(projection, "qzeros", None), torch.Tensor)
+            and isinstance(getattr(projection, "scales", None), torch.Tensor)
+            for projection in projections
+        )
+        if not valid:
+            raise RuntimeError(
+                "unsupported unfused Qwen3NextMLP layout; expected three "
+                "AutoGPTQ/AutoRound quantized projections"
+            )
+        if not hasattr(expert, "_dynaexq_original_forward"):
+            expert._dynaexq_original_forward = expert.forward
+            expert.forward = MethodType(_unfused_handle_forward, expert)
+        expert._dynaexq_registry = registry
+        expert._dynaexq_layer_idx = int(layer_index)
+        expert._dynaexq_expert_idx = expert_index
+    return True
+
+
 def attach_qwen3_next_experts(
     experts: torch.nn.Module,
     registry: "ExpertRegistry",
@@ -117,6 +198,8 @@ def attach_qwen3_next_experts(
     raises immediately because silently accepting a changed Transformers
     implementation would invalidate both correctness and byte accounting.
     """
+    if isinstance(experts, torch.nn.ModuleList):
+        return _attach_unfused_experts(experts, registry, layer_index)
     if type(experts).__name__ not in _SUPPORTED_EXPERT_CLASSES:
         return False
 

@@ -32,6 +32,13 @@ from scripts.build_model_manifest import (
     NUMBERED_SAFETENSORS_SHARD_RE,
     validate_local_snapshot,
 )
+from dynaexq.core.autogptq import (
+    pack_axis0 as _pack_axis0,
+    pack_axis1 as _pack_axis1,
+    requantize_autogptq_tensor,
+    unpack_axis0 as _unpack_axis0,
+    unpack_axis1 as _unpack_axis1,
+)
 
 
 ALGORITHM = "dynaexq_autogptq_w4_to_w2_rtn_integer_domain_v2"
@@ -59,150 +66,6 @@ def _load_parent_manifest(path: Path, parent: Path) -> tuple[dict[str, Any], str
     if Path(str(manifest.get("local_path", ""))).resolve() != parent:
         raise ValueError("parent manifest local_path does not match --parent")
     return manifest, _sha256(path)
-
-
-def _unpack_axis0(packed: torch.Tensor, bits: int) -> torch.Tensor:
-    """Unpack AutoGPTQ qweight to unsigned values shaped [in, out]."""
-    pack_factor = 32 // bits
-    shifts = torch.arange(pack_factor, dtype=torch.int64) * bits
-    values = (
-        packed.to(torch.int64).unsqueeze(1)
-        >> shifts.view(1, pack_factor, 1)
-    ) & ((1 << bits) - 1)
-    return values.reshape(packed.shape[0] * pack_factor, packed.shape[1])
-
-
-def _unpack_axis1(
-    packed: torch.Tensor,
-    bits: int,
-    *,
-    out_features: int,
-) -> torch.Tensor:
-    """Unpack AutoGPTQ qzeros to stored values shaped [groups, out]."""
-    pack_factor = 32 // bits
-    shifts = torch.arange(pack_factor, dtype=torch.int64) * bits
-    values = (
-        packed.to(torch.int64).unsqueeze(-1)
-        >> shifts.view(1, 1, pack_factor)
-    ) & ((1 << bits) - 1)
-    return values.reshape(packed.shape[0], -1)[:, :out_features]
-
-
-def _pack_axis0(values: torch.Tensor, bits: int) -> torch.Tensor:
-    """Pack unsigned values shaped [in, out] as AutoGPTQ qweight."""
-    pack_factor = 32 // bits
-    if values.shape[0] % pack_factor:
-        raise ValueError("input features are not divisible by the pack factor")
-    grouped = values.to(torch.int64).reshape(
-        values.shape[0] // pack_factor,
-        pack_factor,
-        values.shape[1],
-    )
-    shifts = torch.arange(pack_factor, dtype=torch.int64) * bits
-    packed = torch.sum(grouped << shifts.view(1, pack_factor, 1), dim=1)
-    return packed.to(torch.int32)
-
-
-def _pack_axis1(values: torch.Tensor, bits: int) -> torch.Tensor:
-    """Pack stored zero points shaped [groups, out] as AutoGPTQ qzeros."""
-    pack_factor = 32 // bits
-    if values.shape[1] % pack_factor:
-        raise ValueError("output features are not divisible by the pack factor")
-    grouped = values.to(torch.int64).reshape(
-        values.shape[0],
-        values.shape[1] // pack_factor,
-        pack_factor,
-    )
-    shifts = torch.arange(pack_factor, dtype=torch.int64) * bits
-    packed = torch.sum(grouped << shifts.view(1, 1, pack_factor), dim=2)
-    return packed.to(torch.int32)
-
-
-def requantize_autogptq_tensor(
-    qweight: torch.Tensor,
-    qzeros: torch.Tensor,
-    scales: torch.Tensor,
-    *,
-    source_bits: int = 4,
-    source_group_size: int = 128,
-    target_bits: int = 2,
-    target_group_size: int = 64,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """Requantize one AutoGPTQ matrix without materializing an FP16 model."""
-    if source_bits != 4 or target_bits != 2:
-        raise ValueError("this audited converter only supports W4-to-W2")
-    if qweight.dtype != torch.int32 or qzeros.dtype != torch.int32:
-        raise ValueError("AutoGPTQ qweight and qzeros must be int32")
-    if scales.ndim != 2 or qweight.ndim != 2 or qzeros.ndim != 2:
-        raise ValueError("invalid AutoGPTQ tensor rank")
-
-    unsigned = _unpack_axis0(qweight, source_bits)
-    in_features, out_features = unsigned.shape
-    if source_group_size % target_group_size:
-        raise ValueError("target groups must evenly partition source groups")
-    if in_features % source_group_size or in_features % target_group_size:
-        raise ValueError("input features do not satisfy source/target groups")
-    if out_features % (32 // target_bits):
-        raise ValueError("output features do not satisfy W2 packing")
-    source_groups = in_features // source_group_size
-    if tuple(scales.shape) != (source_groups, out_features):
-        raise ValueError("source scale shape does not match qweight")
-    if qzeros.shape[0] != source_groups:
-        raise ValueError("source zero-point groups do not match qweight")
-
-    # AutoGPTQ stores (zero_point - 1); inference adds one after unpacking.
-    zero_points = _unpack_axis1(
-        qzeros,
-        source_bits,
-        out_features=out_features,
-    ) + 1
-    signed_source = (
-        unsigned.reshape(source_groups, source_group_size, out_features)
-        - zero_points.unsqueeze(1)
-    ).to(torch.int8)
-
-    target_groups = in_features // target_group_size
-    grouped_codes = signed_source.reshape(
-        target_groups,
-        target_group_size,
-        out_features,
-    )
-    # For signed W2, AutoRound uses representable values [-2, -1, 0, 1]
-    # and divides absmax by qmax=1.  The W4 scale is constant across each
-    # 128-value source group.  Since target groups (64) evenly partition
-    # source groups, q2 = round((q4*s4)/(max(abs(q4))*s4)); s4 cancels.
-    # Working in the integer domain avoids a full reconstructed FP32 matrix.
-    code_absmax = grouped_codes.abs().amax(dim=1)
-    safe_code_absmax = code_absmax.clamp(min=1)
-    source_scales_for_target = scales.to(torch.float32).repeat_interleave(
-        source_group_size // target_group_size,
-        dim=0,
-    )
-    target_scales = (
-        source_scales_for_target.abs() * code_absmax.to(torch.float32)
-    ).clamp(min=1e-10)
-    effective_codes = torch.where(
-        source_scales_for_target.unsqueeze(1) < 0,
-        -grouped_codes,
-        grouped_codes,
-    )
-    signed = torch.round(
-        effective_codes.to(torch.float32)
-        / safe_code_absmax.unsqueeze(1).to(torch.float32)
-    ).clamp(-2, 1)
-    unsigned_target = (signed.to(torch.int64) + 2).reshape(
-        in_features,
-        out_features,
-    )
-    target_qweight = _pack_axis0(unsigned_target, target_bits)
-
-    # AutoGPTQ stores zero_point - 1, hence W2 symmetric zp=2 is stored as 1.
-    stored_zeros = torch.ones(
-        (target_groups, out_features),
-        dtype=torch.int64,
-    )
-    target_qzeros = _pack_axis1(stored_zeros, target_bits)
-    return target_qweight, target_qzeros, target_scales.to(torch.float16)
 
 
 def _read_json(path: Path, label: str) -> dict[str, Any]:
