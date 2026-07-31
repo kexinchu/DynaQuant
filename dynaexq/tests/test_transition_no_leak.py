@@ -18,6 +18,7 @@ CUDA. The TransitionEngine internally short-circuits its CUDA stream when
 
 from __future__ import annotations
 
+import threading
 import time
 
 import pytest
@@ -212,6 +213,105 @@ def test_staging_handle_is_repatriated_after_paired_swap_frees_resident_slot(
         assert alloc.snapshot()["staging"]["used_blocks"] == 0
         assert engine.get_stats()["repatriations"] == 1
         assert 1 in staging_reader_counts
+    finally:
+        engine.shutdown()
+
+
+def test_concurrent_paired_swap_drains_both_tiers_from_staging(monkeypatch):
+    """The later half must repair either publish ordering of a swap."""
+    block_size = 4096
+    alloc = PoolAllocator(
+        num_layers=1,
+        hi_pool_sizes=[block_size],
+        lo_pool_sizes=[block_size],
+        device=torch.device("cpu"),
+        block_size_bytes=block_size,
+        staging_pool_size_bytes=2 * block_size,
+        staging_block_size_bytes=block_size,
+    )
+    registry = ExpertRegistry()
+    engine = TransitionEngine(
+        registry=registry,
+        pool_allocator=alloc,
+        weight_store=_StubWeightStore(),  # type: ignore[arg-type]
+        max_workers=2,
+        max_inflight=2,
+    )
+    try:
+        demote_key = ExpertKey(0, 0)
+        promote_key = ExpertKey(0, 1)
+        for key, tier in ((demote_key, Tier.HI), (promote_key, Tier.LO)):
+            assert engine.enqueue(
+                TransitionReq(key, tier, tier, "bootstrap", 0)
+            )
+            assert engine.wait_ready(key, timeout=5)
+
+        demotion_scanned = threading.Event()
+        original_register = registry.register
+
+        def ordered_register(key, handle):
+            if key == promote_key and handle.tier == Tier.HI:
+                assert demotion_scanned.wait(timeout=5)
+            return original_register(key, handle)
+
+        monkeypatch.setattr(registry, "register", ordered_register)
+        original_drain = engine._drain_layer_repatriations
+
+        def observed_drain(layer):
+            original_drain(layer)
+            demoted = registry.get_handle(demote_key)
+            not_yet_promoted = registry.get_handle(promote_key)
+            if (
+                demoted is not None
+                and demoted.tier == Tier.LO
+                and demoted.block.pool_name == "staging"
+                and not_yet_promoted is not None
+                and not_yet_promoted.tier == Tier.LO
+            ):
+                demotion_scanned.set()
+
+        monkeypatch.setattr(
+            engine,
+            "_drain_layer_repatriations",
+            observed_drain,
+        )
+        unit = (
+            TransitionReq(demote_key, Tier.HI, Tier.LO, "swap_out", 1),
+            TransitionReq(promote_key, Tier.LO, Tier.HI, "swap_in", 1),
+        )
+        assert engine.enqueue_many(unit)
+        assert engine.wait_ready(demote_key, timeout=5)
+        assert engine.wait_ready(promote_key, timeout=5)
+
+        assert registry.get_handle(demote_key).block.pool_name == "lo:0"
+        assert registry.get_handle(promote_key).block.pool_name == "hi:0"
+        assert alloc.snapshot()["staging"]["used_blocks"] == 0
+        stats = engine.get_stats()
+        assert stats["failed_transitions"] == 0
+        assert stats["accepted_requests"] == 4  # bootstrap + paired swap
+    finally:
+        engine.shutdown()
+
+
+def test_transition_unit_capacity_rejection_is_all_or_none():
+    engine, _, registry = _make_engine()
+    engine.max_inflight = 1
+    try:
+        unit = (
+            TransitionReq(
+                ExpertKey(0, 0), Tier.HI, Tier.LO, "swap_out", 1
+            ),
+            TransitionReq(
+                ExpertKey(0, 1), Tier.LO, Tier.HI, "swap_in", 1
+            ),
+        )
+        assert engine.enqueue_many(unit) is False
+        assert registry.get_handle(unit[0].key) is None
+        assert registry.get_handle(unit[1].key) is None
+        stats = engine.get_stats()
+        assert stats["accepted_requests"] == 0
+        assert stats["rejected_inflight_limit"] == 2
+        assert stats["active_transitions"] == 0
     finally:
         engine.shutdown()
 

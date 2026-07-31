@@ -344,6 +344,36 @@ def test_enqueue_returns_false_when_budget_full():
         engine.shutdown()
 
 
+def test_transition_unit_budget_rejection_rolls_back_first_reservation():
+    one_size = compute_packed_nbytes(4, 64, QuantFormat.FP16, 64)
+    engine, _, registry, bt, _ = _make_engine_with_budget(
+        hi_cap=one_size,
+        lo_cap=one_size * 4,
+        staging_cap=one_size * 4,
+    )
+    try:
+        unit = (
+            TransitionReq(
+                ExpertKey(0, 0), Tier.LO, Tier.HI, "first", 0
+            ),
+            TransitionReq(
+                ExpertKey(0, 1), Tier.LO, Tier.HI, "second", 0
+            ),
+        )
+        assert engine.enqueue_many(unit) is False
+        assert registry.get_handle(unit[0].key) is None
+        assert registry.get_handle(unit[1].key) is None
+        snapshot = bt.snapshot()
+        assert snapshot["hi_pending"] == 0
+        assert snapshot["hi_committed"] == 0
+        stats = engine.get_stats()
+        assert stats["accepted_requests"] == 0
+        assert stats["rejected_budget"] == 2
+        assert stats["active_transitions"] == 0
+    finally:
+        engine.shutdown()
+
+
 def test_enqueue_succeeds_after_eviction_releases_budget():
     """
     Cap is sized so exactly ONE HI expert fits at a time. Promote a, then

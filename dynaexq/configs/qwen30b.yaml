@@ -12,7 +12,7 @@ precision:
 scheduler:
   alpha: 0.9
   update_period_steps: 200
-  rate_limit: null
+  rate_limit: 4  # two indivisible swaps, matched to max_inflight
   delta_score_margin: 0.01
 
 memory:

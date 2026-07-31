@@ -7,6 +7,8 @@ import pytest
 import torch
 
 from dynaexq.core import DynaExqConfig
+from dynaexq.core import ExpertKey, Tier
+from dynaexq.core.scheduler import TransitionReq
 from dynaexq.experiments.eval_dynamic import (
     _ablation_paper_metrics,
     _configure_ablation,
@@ -99,6 +101,24 @@ def test_wrapper_records_raw_scheduler_control_plane_samples():
     assert len(stats["scheduler_update_samples_ms"]) == 1
     assert stats["scheduler_mean_ms"] >= 0.0
     assert stats["scheduler_p99_ms"] == stats["scheduler_mean_ms"]
+
+
+def test_wrapper_preserves_adjacent_scheduler_swap_as_one_unit():
+    requests = [
+        TransitionReq(
+            ExpertKey(3, 4), Tier.HI, Tier.LO, "leave", 200
+        ),
+        TransitionReq(
+            ExpertKey(3, 9), Tier.LO, Tier.HI, "enter", 200
+        ),
+        TransitionReq(
+            ExpertKey(7, 2), Tier.LO, Tier.HI, "cold_start", 200
+        ),
+    ]
+    assert MoEWrapper._transition_units(requests) == [
+        (requests[0], requests[1]),
+        (requests[2],),
+    ]
 
 
 def test_ablation_paper_metrics_are_derived_from_raw_results():

@@ -509,11 +509,21 @@ class MoEWrapper:
             
             # Execute transitions if engine available
             if self.transition_engine is not None:
-                for req in requests:
-                    if self.transition_engine.enqueue(req):
-                        logger.debug(f"Enqueued transition: {req.key} {req.src}->{req.dst}")
+                for unit in self._transition_units(requests):
+                    if self.transition_engine.enqueue_many(unit):
+                        logger.debug(
+                            "Enqueued transition unit: %s",
+                            ", ".join(
+                                f"{req.key} {req.src}->{req.dst}"
+                                for req in unit
+                            ),
+                        )
                     else:
-                        logger.warning(f"Failed to enqueue transition: {req.key}")
+                        logger.warning(
+                            "Deferred transition unit at step %s: %s",
+                            self._step,
+                            ", ".join(str(req.key) for req in unit),
+                        )
             
             # Update current tiers
             # Do not optimistically update tiers for rejected or in-flight
@@ -522,6 +532,28 @@ class MoEWrapper:
         except Exception as e:
             logger.error(f"Error updating scheduler at step {self._step}: {e}")
             raise
+
+    @staticmethod
+    def _transition_units(requests):
+        """Recover the scheduler's adjacent, indivisible swap units."""
+        units = []
+        index = 0
+        while index < len(requests):
+            first = requests[index]
+            if index + 1 < len(requests):
+                second = requests[index + 1]
+                if (
+                    first.key.layer == second.key.layer
+                    and first.issued_step == second.issued_step
+                    and first.dst == Tier.LO
+                    and second.dst == Tier.HI
+                ):
+                    units.append((first, second))
+                    index += 2
+                    continue
+            units.append((first,))
+            index += 1
+        return units
     
     def _sync_tier_assignments(self) -> None:
         """Sync current tier assignments from registry."""

@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from dataclasses import replace
-from typing import Callable, Optional
+from typing import Callable, Iterable, Optional
 
 import torch
 
@@ -27,6 +27,10 @@ from .weight_store import ModelWeightStore
 
 # For backward compatibility, alias WeightStore
 WeightStore = ModelWeightStore
+
+
+class _AdmissionRejected(Exception):
+    """Internal sentinel for an all-or-none transition-unit rejection."""
 
 
 @dataclass
@@ -130,22 +134,48 @@ class TransitionEngine:
             True if enqueued, False if rejected (queue full, already in
             flight, or BudgetTracker reservation refused).
         """
+        return self.enqueue_many((req,))
+
+    def enqueue_many(self, requests: Iterable[TransitionReq]) -> bool:
+        """Atomically admit one scheduler transition unit.
+
+        A steady-state replacement consists of a demotion followed by its
+        matching promotion.  Admitting those requests independently can
+        accept only the first half when the executor reaches its in-flight
+        limit, leaving a staging-backed handle without the transition that
+        creates its destination-tier resident hole.  This method reserves
+        executor slots and byte budgets for the complete unit before any
+        worker is submitted.
+        """
+        requests = tuple(requests)
+        if not requests:
+            raise ValueError("transition unit must not be empty")
+        keys = [req.key for req in requests]
+        if len(set(keys)) != len(keys):
+            raise ValueError("transition unit contains duplicate expert keys")
+
         with self._stats_lock:
-            self._enqueue_attempts += 1
+            self._enqueue_attempts += len(requests)
+
+        sizes = []
+        for req in requests:
+            sizes.append(self.weight_store.get_byte_size(req.key, req.dst))
 
         with self._transition_lock:
-            if len(self._active_transitions) >= self.max_inflight:
+            if (
+                len(self._active_transitions) + len(requests)
+                > self.max_inflight
+            ):
                 with self._stats_lock:
-                    self._rejected_inflight_limit += 1
+                    self._rejected_inflight_limit += len(requests)
                 return False
-
-            key = req.key
-            if key in self._active_transitions:
+            if any(key in self._active_transitions for key in keys):
                 with self._stats_lock:
-                    self._rejected_duplicate += 1
+                    self._rejected_duplicate += len(requests)
                 return False  # Already in progress
 
-            self._active_transitions[key] = threading.Event()
+            for key in keys:
+                self._active_transitions[key] = threading.Event()
 
         # Reserve HBM bytes against the budget BEFORE the worker thread
         # touches the pool. The worker is the only place that allocates
@@ -154,25 +184,41 @@ class TransitionEngine:
         # backpressure: failed reservation → request is rejected and the
         # caller (Scheduler) defers it until evict-driven release frees
         # bytes.
-        reservation: Optional[Reservation] = None
+        reservations: list[Optional[Reservation]] = []
         try:
-            nbytes = self.weight_store.get_byte_size(req.key, req.dst)
-        except Exception:
+            for req, nbytes in zip(requests, sizes):
+                reservation = None
+                if self.budget_tracker is not None:
+                    reservation = self.budget_tracker.try_reserve(
+                        nbytes,
+                        req.dst,
+                    )
+                    if reservation is None:
+                        raise _AdmissionRejected
+                reservations.append(reservation)
+        except _AdmissionRejected:
+            for reservation in reservations:
+                if reservation is not None and self.budget_tracker is not None:
+                    self.budget_tracker.release(reservation)
             with self._transition_lock:
-                self._active_transitions.pop(req.key, None)
+                for key in keys:
+                    self._active_transitions.pop(key, None)
+            with self._stats_lock:
+                self._rejected_budget += len(requests)
+            return False
+        except Exception:
+            for reservation in reservations:
+                if reservation is not None and self.budget_tracker is not None:
+                    if not reservation.is_released():
+                        self.budget_tracker.release(reservation)
+            with self._transition_lock:
+                for key in keys:
+                    self._active_transitions.pop(key, None)
             raise
-        if self.budget_tracker is not None:
-            reservation = self.budget_tracker.try_reserve(nbytes, req.dst)
-            if reservation is None:
-                with self._transition_lock:
-                    self._active_transitions.pop(req.key, None)
-                with self._stats_lock:
-                    self._rejected_budget += 1
-                return False
 
         with self._stats_lock:
-            self._accepted_requests += 1
-            self._accepted_bytes += nbytes
+            self._accepted_requests += len(requests)
+            self._accepted_bytes += sum(sizes)
 
         # The reservation travels with the request without mutating
         # TransitionReq, so the scheduler-facing dataclass stays free of
@@ -180,19 +226,19 @@ class TransitionEngine:
         # opposite of the production path and is used only for the
         # blocking-migration ablation.
         try:
-            if self.synchronous:
-                self._execute_transition(req, reservation)
-            else:
-                self._executor.submit(
-                    self._execute_transition,
-                    req,
-                    reservation,
-                )
+            for req, reservation in zip(requests, reservations):
+                if self.synchronous:
+                    self._execute_transition(req, reservation)
+                else:
+                    self._executor.submit(
+                        self._execute_transition,
+                        req,
+                        reservation,
+                    )
         except Exception:
-            if reservation is not None and self.budget_tracker is not None:
-                self.budget_tracker.release(reservation)
-            with self._transition_lock:
-                self._active_transitions.pop(req.key, None)
+            # Executor submission can fail only during an invalid concurrent
+            # shutdown.  Preserve fail-closed behavior; ordinary workers own
+            # the reservations once submitted and complete their cleanup.
             raise
         return True
     
@@ -342,7 +388,7 @@ class TransitionEngine:
                 # move one same-layer/same-tier staging handle into it so
                 # transient capacity cannot become permanently occupied.
                 if old_handle.block.pool_name != "staging":
-                    self._repatriate_one(key.layer, old_handle.tier)
+                    self._drain_layer_repatriations(key.layer)
             stage.reclaim_ms = (time.time() - reclaim_start) * 1000
             
             stage.total_ms = (time.time() - start_time) * 1000
@@ -633,6 +679,21 @@ class TransitionEngine:
                 self.registry.release_handle(candidate_handle)
             if not published and resident_block.in_use:
                 self.pool_allocator.free_block(resident_block)
+
+    def _drain_layer_repatriations(self, layer: int) -> None:
+        """Fill every compatible resident hole from the staging pool.
+
+        Concurrent halves of a swap may publish in either order.  Draining
+        only the tier of the handle just reclaimed misses the case where the
+        peer publishes after that first scan.  The later worker therefore
+        scans both tiers and repeats until no compatible move remains.
+        """
+        while True:
+            moved = False
+            for tier in (Tier.HI, Tier.LO):
+                moved = self._repatriate_one(layer, tier) or moved
+            if not moved:
+                return
 
     @staticmethod
     def _single_packed_to_bytes(packed: PackedTensor) -> torch.Tensor:
