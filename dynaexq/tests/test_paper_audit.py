@@ -128,6 +128,18 @@ def test_activation_density_parser_covers_every_table_cell():
     assert rows[("deepseek_v2_lite", "prefill")][-1] == 96.3
 
 
+def test_mechanism_claims_replace_deepseek_with_phi35():
+    mechanism_claims = (
+        audit.REQUIRED_CLAIMS["activation_density"]
+        | audit.REQUIRED_CLAIMS["offload_waiting"]
+    )
+    assert "activation_density:phi35:prefill" in mechanism_claims
+    assert "activation_density:phi35:decode" in mechanism_claims
+    assert "offload_waiting:phi35" in mechanism_claims
+    assert not any("deepseek_v2_lite" in claim for claim in mechanism_claims)
+    assert audit.OFFLOAD_MODEL_CONTRACTS["phi35"] == (32, 16, 2)
+
+
 def test_complete_manifest_verifies_all_groups_and_hashes(tmp_path, monkeypatch):
     artifact = tmp_path / "artifact.json"
     artifact.write_text(

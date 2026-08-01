@@ -39,7 +39,6 @@ MODEL_FILES = {
 }
 MODEL_LABELS = {
     **MODEL_FILES,
-    "deepseek_v2_lite": "DeepSeek-V2-Lite",
 }
 METHOD_LABELS = {
     "static_ptq": "Static PTQ",
@@ -195,7 +194,7 @@ def _render_sensitivity(claims: dict[str, dict], output_dir: Path) -> list[Path]
 def _render_waiting(claims: dict[str, dict], output_dir: Path) -> list[Path]:
     fig, axis = plt.subplots(figsize=(4.5, 2.65))
     for model, color, marker in (
-        ("deepseek_v2_lite", "#4c78a8", "o"),
+        ("phi35", "#4c78a8", "o"),
         ("qwen30b", "#f2cf5b", "s"),
         ("qwen80b", "#b279a2", "^"),
     ):

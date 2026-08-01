@@ -50,12 +50,12 @@ MEASURED_TRIALS = 10
 MODEL_CONTRACTS = {
     "qwen30b": (48, 128),
     "qwen80b": (48, 512),
-    "deepseek_v2_lite": (26, 64),
+    "phi35": (32, 16),
 }
 MODEL_TOPK = {
     "qwen30b": 8,
     "qwen80b": 10,
-    "deepseek_v2_lite": 6,
+    "phi35": 2,
 }
 
 

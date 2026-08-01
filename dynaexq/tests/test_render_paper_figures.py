@@ -42,7 +42,7 @@ def _claims() -> dict:
                     "average_accuracy_pct": 50.0 + ratio / 10.0,
                 }
             }
-    for model in ("qwen30b", "qwen80b", "deepseek_v2_lite"):
+    for model in ("qwen30b", "qwen80b", "phi35"):
         claims[f"offload_waiting:{model}"] = {
             "benchmark": {
                 "points": [
