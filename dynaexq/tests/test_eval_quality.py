@@ -14,6 +14,7 @@ from dynaexq.experiments.datasets import (
 from dynaexq.experiments.eval_quality import (
     PAPER_PROTOCOL,
     _continuation_logprobs,
+    _validated_cuda_device_map,
     autoround_load_config,
     checkpoint_metadata,
     compute_perplexity,
@@ -23,6 +24,36 @@ from dynaexq.experiments.eval_quality import (
     paper_quality_method,
     wilson_interval,
 )
+
+
+def test_validated_cuda_device_map_requires_exact_all_cuda_placement():
+    model = SimpleNamespace(
+        hf_device_map={
+            "model.embed_tokens": 0,
+            "model.layers.0": "cuda:0",
+            "model.layers.31": 1,
+            "lm_head": "1",
+        }
+    )
+    serialized, devices = _validated_cuda_device_map(model, 2)
+    assert devices == [0, 1]
+    assert serialized["model.layers.31"] == "1"
+
+
+@pytest.mark.parametrize(
+    "device_map",
+    [
+        {"model.layers.0": 0},
+        {"model.layers.0": 0, "model.layers.31": "cpu"},
+        {"model.layers.0": 0, "model.layers.31": "disk"},
+    ],
+)
+def test_validated_cuda_device_map_rejects_incomplete_or_offloaded_placement(
+    device_map,
+):
+    model = SimpleNamespace(hf_device_map=device_map)
+    with pytest.raises(RuntimeError):
+        _validated_cuda_device_map(model, 2)
 
 
 def test_autoround_load_config_pins_checkpoint_format_and_backend(tmp_path):

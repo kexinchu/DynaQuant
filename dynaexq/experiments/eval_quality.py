@@ -173,6 +173,45 @@ def _model_device(model: torch.nn.Module) -> torch.device:
         return torch.device("cpu")
 
 
+def _validated_cuda_device_map(
+    model: torch.nn.Module,
+    required_count: int,
+) -> tuple[dict[str, str], list[int]]:
+    """Return an auditable all-CUDA Accelerate placement or fail closed."""
+    if required_count <= 0:
+        raise ValueError("required CUDA device count must be positive")
+    raw_map = getattr(model, "hf_device_map", None)
+    if not isinstance(raw_map, dict) or not raw_map:
+        raise RuntimeError(
+            "a required multi-GPU run did not expose a non-empty hf_device_map"
+        )
+    serialized = {str(module): str(target) for module, target in raw_map.items()}
+    cuda_indices: set[int] = set()
+    invalid_targets: set[str] = set()
+    for target in raw_map.values():
+        if isinstance(target, int):
+            cuda_indices.add(target)
+            continue
+        device = str(target)
+        if device.isdigit():
+            cuda_indices.add(int(device))
+        elif device.startswith("cuda:") and device[5:].isdigit():
+            cuda_indices.add(int(device[5:]))
+        else:
+            invalid_targets.add(device)
+    if invalid_targets:
+        raise RuntimeError(
+            "multi-GPU quality run contains non-CUDA placement targets: "
+            f"{sorted(invalid_targets)}"
+        )
+    if len(cuda_indices) != required_count:
+        raise RuntimeError(
+            "multi-GPU quality run resolved to "
+            f"{sorted(cuda_indices)}, expected exactly {required_count} CUDA devices"
+        )
+    return serialized, sorted(cuda_indices)
+
+
 def _continuation_logprobs(
     model: torch.nn.Module,
     tokenizer,
@@ -778,7 +817,28 @@ def main() -> None:
         help="Comma-separated benchmark names",
     )
     parser.add_argument("--output", required=True)
-    parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--device",
+        default="cuda",
+        help="Device holding input tensors and the first dispatched module",
+    )
+    parser.add_argument(
+        "--device-map",
+        default=None,
+        help=(
+            "Optional Transformers/Accelerate model placement strategy, such "
+            "as 'auto'. Defaults to --device for single-device runs."
+        ),
+    )
+    parser.add_argument(
+        "--require-cuda-device-count",
+        type=int,
+        default=None,
+        help=(
+            "Fail unless hf_device_map uses exactly this many CUDA devices "
+            "and contains no CPU or disk placement"
+        ),
+    )
     parser.add_argument("--n-samples", type=int, default=None)
     parser.add_argument(
         "--paper-protocol",
@@ -858,15 +918,23 @@ def main() -> None:
     model_kwargs = {}
     if quantization_config is not None:
         model_kwargs["quantization_config"] = quantization_config
+    requested_device_map = args.device_map or args.device
     model = AutoModelForCausalLM.from_pretrained(
         args.model,
         revision=revision,
         dtype=dtype,
-        device_map=args.device,
+        device_map=requested_device_map,
         trust_remote_code=False,
         **model_kwargs,
     )
     model.eval()
+    resolved_device_map = None
+    resolved_cuda_devices = None
+    if args.require_cuda_device_count is not None:
+        resolved_device_map, resolved_cuda_devices = _validated_cuda_device_map(
+            model,
+            args.require_cuda_device_count,
+        )
     benchmarks = [name.strip() for name in args.benchmarks.split(",") if name.strip()]
     results = evaluate(
         model,
@@ -896,6 +964,12 @@ def main() -> None:
         "quantization": args.quantization,
         "inference_backend": args.autoround_backend,
         "device": args.device,
+        "model_placement": {
+            "requested_device_map": requested_device_map,
+            "required_cuda_device_count": args.require_cuda_device_count,
+            "resolved_device_map": resolved_device_map,
+            "resolved_cuda_devices": resolved_cuda_devices,
+        },
         "seed": args.seed,
         "evaluation_protocol": (
             PAPER_PROTOCOL if args.paper_protocol else {"name": "custom"}
