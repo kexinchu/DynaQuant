@@ -12,6 +12,11 @@ from scripts import audit_paper_results as audit
 from scripts import benchmark_blocking_offload as offload
 
 
+def test_phi35_offload_contract_matches_checkpoint_architecture():
+    assert offload.MODEL_CONTRACTS["phi35"] == (32, 16)
+    assert offload.MODEL_TOPK["phi35"] == 2
+
+
 def _trace() -> dict:
     layer_ids = list(range(48))
     expert_bytes = [1000 + layer for layer in layer_ids]

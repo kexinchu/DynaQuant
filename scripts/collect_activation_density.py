@@ -31,7 +31,7 @@ BATCH_SIZES = (1, 2, 4, 8, 16, 32)
 MODEL_CONTRACTS = {
     "qwen30b": {"experts": 128, "topk": 8},
     "qwen80b": {"experts": 512, "topk": 10},
-    "deepseek_v2_lite": {"experts": 64, "topk": 6},
+    "phi35": {"experts": 16, "topk": 2},
 }
 
 

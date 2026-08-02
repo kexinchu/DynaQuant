@@ -64,6 +64,13 @@ class _UnboundedCausalLM:
         del input_ids
 
 
+def test_phi35_router_contract_matches_checkpoint_architecture():
+    assert collector_module.MODEL_CONTRACTS["phi35"] == {
+        "experts": 16,
+        "topk": 2,
+    }
+
+
 def test_collector_masks_padding_and_resets_between_stages():
     model = _TinyMoE()
     collector = ActivationDensityCollector(
