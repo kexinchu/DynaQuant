@@ -20,6 +20,7 @@ if str(ROOT) not in sys.path:
 from dynaexq.experiments.eval_quality import (
     PAPER_PROTOCOL,
     SCHEMA_VERSION,
+    autoround_load_config,
     checkpoint_metadata,
     environment_metadata,
 )
@@ -304,7 +305,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(
         args.model_path,
         revision=revision,
-        trust_remote_code=True,
+        trust_remote_code=False,
     )
     try:
         windows, window_source = build_token_windows(tokenizer, rows)
@@ -313,12 +314,17 @@ def main() -> None:
     device_map: str | dict[str, str] = (
         "auto" if args.device == "auto" else {"": args.device}
     )
+    quantization_config = autoround_load_config(
+        args.model_path,
+        "triton",
+    )
     model = AutoModelForCausalLM.from_pretrained(
         args.model_path,
         revision=revision,
-        torch_dtype="auto",
-        trust_remote_code=True,
+        dtype=torch.float16,
+        trust_remote_code=False,
         device_map=device_map,
+        quantization_config=quantization_config,
     )
     device = model.get_input_embeddings().weight.device
     router_contract = ROUTER_CONTRACTS[args.paper_model]
