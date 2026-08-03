@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use DynaExQ in your research, please cite this software."
+title: "DynaExQ: Budget-Safe Online Precision Residency for Mixture-of-Experts Inference"
+type: software
+authors:
+  - family-names: Chu
+    given-names: Kexin
+  - family-names: Xiang
+    given-names: Dawei
+  - family-names: Zhang
+    given-names: Wei
+version: 0.1.0
+date-released: 2026-08-03
+repository-code: "https://github.com/kexinchu/DynaQuant"
+license: Apache-2.0

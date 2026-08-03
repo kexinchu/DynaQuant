@@ -1,0 +1,115 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Packaging and virtual environments
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+
+# Local credentials and editor state
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+
+# Logs and transient experiment output
+*.log
+nohup.out
+logs/
+scripts/results/
+results/**
+!results/release/
+!results/release/**
+
+# Local datasets, traces, and model artifacts
+ShareGPT*.json
+calibration_datasets/compiled/
+calibration_datasets/formal/
+calibration_datasets/requests/
+activations/*.json
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.tar.gz
+
+# Generated plots and notebooks with local outputs
+scripts/*.pdf
+scripts/*.png
+scripts/*.ipynb
+
+# LaTeX build products and private submission material
+ICCAD_2026_DynExq/
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz
+
+# Local research notes and machine-specific launchers
+Paper_Write.md
+agent_experience.md
+autoround_exam.py
+plan.md
+run_80b_eval.sh
+run_eval.sh
+run.sh
+run_ppl.sh
+analyze_expert_activation.py
+results_*.json
+
+# Components retained locally but not part of the v0.1 public API
+docs/
+dynaexq/configuration_utils.py
+dynaexq/runtime/
+dynaexq/models/deepseek_v2/
+dynaexq/integration/hooks_deepspeed.py
+dynaexq/integration/hooks_sglang.py
+dynaexq/tests/test_paper_audit.py
+dynaexq/tests/test_register_paper_artifact.py
+dynaexq/tests/test_render_paper_figures.py
+dynaexq/tests/test_tc_submission_audit.py
+
+# Machine-specific queues, backfills, and exploratory launchers
+scripts/audit_all_experiment_data.py
+scripts/audit_tc_submission.py
+scripts/backup_*.sh
+scripts/bench_*.py
+scripts/benchmark_latency*.py
+scripts/consolidate_*.sh
+scripts/eval_*.py
+scripts/evaluate_*.py
+scripts/experiment_*.py
+scripts/inspect_*.sh
+scripts/merge_*.py
+scripts/monitor_*.sh
+scripts/patch_*.py
+scripts/perf_test_*.py
+scripts/prepare_*.sh
+scripts/quantize_int2_*.py
+scripts/register_paper_artifact.py
+scripts/render_paper_figures.py
+scripts/run_*.py
+scripts/run_*.sh
+scripts/sort_*.py
+scripts/summarize_*.py
+scripts/test_*.py
+scripts/train_*.sh
+scripts/update_*.py
+scripts/watch_*.sh
+scripts/accuracy.md
+scripts/latency.md
+scripts/ppl.md

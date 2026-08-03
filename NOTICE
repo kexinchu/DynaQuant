@@ -1,0 +1,10 @@
+DynaExQ
+Copyright 2026 DynaExQ Authors
+
+This product includes adapted model implementation files derived from the
+Hugging Face Transformers project and model-family implementations distributed
+under the Apache License 2.0. Their original copyright and license headers are
+retained in the corresponding source files.
+
+Model names and trademarks belong to their respective owners. Inclusion of an
+adapter does not imply endorsement by the model authors or vendors.

@@ -14,10 +14,9 @@ swap:
   upgrade_latency_ms: 0
   downgrade_latency_ms: 0
 storage:
-  ssd_path: /mnt/ssd/experts.bin
-  index_path: /mnt/ssd/experts.index
+  ssd_path: ./data/experts.bin
+  index_path: ./data/experts.index
 streams:
   memcpy_h2d: 2
   memcpy_d2h: 1
   compute: 2
-
