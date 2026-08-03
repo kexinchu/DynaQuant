@@ -1,0 +1,113 @@
+{
+  "schema_version": "1.0",
+  "description": "Immutable model registry and paper-method bindings for DynaExQ.",
+  "artifacts": {
+    "phi35_bf16": {
+      "repository": "microsoft/Phi-3.5-MoE-instruct",
+      "revision": "43688451b462a3351d8580625ebe1931adb3986d",
+      "precision": "BF16",
+      "origin": "upstream",
+      "default_local_directory": "Phi-3.5-MoE-instruct-BF16-pinned",
+      "manifest": "results/model_manifests/phi35_moe_bf16.json",
+      "expected_snapshot_bytes": 83749236641
+    },
+    "phi35_w4a16": {
+      "repository": "Kris2017/Phi-3.5-MoE-instruct-W4A16-AutoRound",
+      "revision": "f10b941e9e9416157b7a179738547d8195a362c2",
+      "precision": "W4A16 mixed AutoRound",
+      "origin": "dynaexq_release",
+      "default_local_directory": "Phi-3.5-MoE-instruct-W4A16-AutoRound-formal",
+      "manifest": "results/model_manifests/phi35_moe_w4a16_autoround_formal_persistent.json",
+      "expected_safetensors_bytes": 22148343944
+    },
+    "qwen30_bf16": {
+      "repository": "Qwen/Qwen3-30B-A3B-Instruct-2507",
+      "revision": "0d7cf23991f47feeb3a57ecb4c9cee8ea4a17bfe",
+      "precision": "BF16",
+      "origin": "upstream",
+      "default_local_directory": "Qwen3-30B-A3B-Instruct-2507-BF16-pinned",
+      "manifest": "results/model_manifests/qwen3_30b_a3b_instruct_2507_bf16.json",
+      "expected_snapshot_bytes": 61084262963
+    },
+    "qwen30_w4a16": {
+      "repository": "Kris2017/Qwen3-30B-A3B-Instruct-2507-W4A16-AutoRound",
+      "revision": "e465a4602bc00969566df94cf7df9efd456e3d12",
+      "precision": "W4A16 mixed AutoRound",
+      "origin": "dynaexq_release",
+      "default_local_directory": "Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+      "expected_safetensors_bytes": 17832235920
+    },
+    "qwen80_bf16": {
+      "repository": "Qwen/Qwen3-Next-80B-A3B-Instruct",
+      "revision": "9c7f2fbe84465e40164a94cc16cd30b6999b0cc7",
+      "precision": "BF16",
+      "origin": "upstream",
+      "default_local_directory": "Qwen3-Next-80B-A3B-Instruct-BF16-pinned",
+      "manifest": "results/model_manifests/qwen3_next_80b_a3b_bf16.json",
+      "expected_snapshot_bytes": 162682272937
+    },
+    "qwen80_w4a16": {
+      "repository": "Kris2017/Qwen3-Next-80B-A3B-Instruct-W4A16-AutoRound",
+      "revision": "5ab73a71e9dd1c61258f070ecd55cfd16fc69e1d",
+      "precision": "W4A16 mixed AutoRound",
+      "origin": "dynaexq_release",
+      "default_local_directory": "Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound",
+      "manifest": "results/model_manifests/qwen3_next_80b_int4_mixed_autoround_official.json",
+      "expected_safetensors_bytes": 44130110448
+    },
+    "qwen80_w2a16": {
+      "repository": "Kris2017/Qwen3-Next-80B-A3B-Instruct-W2A16-AutoRound-derived",
+      "revision": "4945447f0aa3cfbdc2069296545bb52cfb026220",
+      "precision": "W2A16 mixed AutoRound-derived",
+      "origin": "dynaexq_release",
+      "default_local_directory": "Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal",
+      "manifest": "results/model_manifests/qwen3_next_80b_int2_from_int4.json",
+      "expected_safetensors_bytes": 25624062504
+    }
+  },
+  "paper_models": {
+    "phi35_moe": {
+      "paper_label": "Phi-3.5-MoE",
+      "methods": {
+        "FP16": {"artifact": "phi35_bf16"},
+        "INT4": {"artifact": "phi35_w4a16"},
+        "DynaExQ": {
+          "source_artifact": "phi35_bf16",
+          "high_precision": "FP16",
+          "low_precision": "INT4"
+        }
+      }
+    },
+    "qwen3_30b": {
+      "paper_label": "Qwen3-30B",
+      "methods": {
+        "FP16": {"artifact": "qwen30_bf16"},
+        "INT4": {"artifact": "qwen30_w4a16"},
+        "DynaExQ": {
+          "source_artifact": "qwen30_bf16",
+          "high_precision": "FP16",
+          "low_precision": "INT4"
+        }
+      }
+    },
+    "qwen3_next_80b": {
+      "paper_label": "Qwen3-Next-80B",
+      "methods": {
+        "BF16 source": {"artifact": "qwen80_bf16"},
+        "INT4": {"artifact": "qwen80_w4a16"},
+        "INT2": {"artifact": "qwen80_w2a16"},
+        "DynaExQ": {
+          "source_artifact": "qwen80_w4a16",
+          "high_precision": "INT4",
+          "low_precision": "INT2"
+        }
+      }
+    }
+  },
+  "rejected_local_artifacts": {
+    "Phi-3.5-MoE-instruct-mixed-AutoRound": {
+      "reason": "Incomplete checkpoint: only layers 0-23 of 32 and missing embedding, final norm, and language-model head.",
+      "action": "Do not publish or use; safe to delete."
+    }
+  }
+}

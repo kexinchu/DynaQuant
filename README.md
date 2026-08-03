@@ -126,6 +126,18 @@ Published checkpoints:
 The immutable Hub revisions and byte-level verification summary are recorded
 in `release/huggingface/manifest.json`.
 
+`release/model_registry.json` maps the paper labels and methods to their exact
+upstream or DynaExQ-release artifacts. It also records the precision tiers used
+by each dynamic configuration. Inspect, verify, or restore those associations
+with:
+
+```bash
+python scripts/model_registry.py list
+python scripts/model_registry.py resolve qwen3_next_80b DynaExQ
+python scripts/model_registry.py verify-remote
+python scripts/model_registry.py download qwen80_w2a16 --output-root /path/to/Models
+```
+
 For example, a static-checkpoint performance run can be launched with:
 
 ```bash
