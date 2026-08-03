@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "verified_at": "2026-08-03T19:48:24Z",
+  "namespace": "Kris2017",
+  "models": [
+    {
+      "repository": "Kris2017/Phi-3.5-MoE-instruct-W4A16-AutoRound",
+      "revision": "f10b941e9e9416157b7a179738547d8195a362c2",
+      "source_directory": "Phi-3.5-MoE-instruct-W4A16-AutoRound-formal",
+      "payload_file_count": 22,
+      "remote_file_count": 24,
+      "safetensors_bytes": 22148343944
+    },
+    {
+      "repository": "Kris2017/Qwen3-30B-A3B-Instruct-2507-W4A16-AutoRound",
+      "revision": "e465a4602bc00969566df94cf7df9efd456e3d12",
+      "source_directory": "Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+      "payload_file_count": 16,
+      "remote_file_count": 18,
+      "safetensors_bytes": 17832235920
+    },
+    {
+      "repository": "Kris2017/Qwen3-Next-80B-A3B-Instruct-W4A16-AutoRound",
+      "revision": "5ab73a71e9dd1c61258f070ecd55cfd16fc69e1d",
+      "source_directory": "Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound",
+      "payload_file_count": 25,
+      "remote_file_count": 27,
+      "safetensors_bytes": 44130110448
+    },
+    {
+      "repository": "Kris2017/Qwen3-Next-80B-A3B-Instruct-W2A16-AutoRound-derived",
+      "revision": "4945447f0aa3cfbdc2069296545bb52cfb026220",
+      "source_directory": "Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal",
+      "payload_file_count": 25,
+      "remote_file_count": 27,
+      "safetensors_bytes": 25624062504
+    }
+  ],
+  "verification": {
+    "method": "Compared every non-README payload filename and byte size against the local release directory using the Hugging Face API.",
+    "missing_files": 0,
+    "size_mismatches": 0,
+    "unexpected_payload_files": 0,
+    "model_cards_present": 4
+  }
+}

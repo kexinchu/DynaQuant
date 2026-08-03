@@ -116,6 +116,16 @@ The upload uses the `Kris2017` namespace by default, creates public model
 repositories, and can be resumed safely after interruption. Set
 `HF_NAMESPACE` to override the target namespace.
 
+Published checkpoints:
+
+- [Phi-3.5-MoE-instruct W4A16 AutoRound](https://huggingface.co/Kris2017/Phi-3.5-MoE-instruct-W4A16-AutoRound)
+- [Qwen3-30B-A3B-Instruct-2507 W4A16 AutoRound](https://huggingface.co/Kris2017/Qwen3-30B-A3B-Instruct-2507-W4A16-AutoRound)
+- [Qwen3-Next-80B-A3B-Instruct W4A16 AutoRound](https://huggingface.co/Kris2017/Qwen3-Next-80B-A3B-Instruct-W4A16-AutoRound)
+- [Qwen3-Next-80B-A3B-Instruct W2A16 AutoRound-derived](https://huggingface.co/Kris2017/Qwen3-Next-80B-A3B-Instruct-W2A16-AutoRound-derived)
+
+The immutable Hub revisions and byte-level verification summary are recorded
+in `release/huggingface/manifest.json`.
+
 For example, a static-checkpoint performance run can be launched with:
 
 ```bash
