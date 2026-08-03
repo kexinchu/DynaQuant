@@ -42,6 +42,7 @@ MODEL_FILES = {
 }
 MODEL_LABELS = {
     **MODEL_FILES,
+    "qwen80b": "Qwen3-Next-80B",
 }
 METHOD_LABELS = {
     "static_ptq": "Static PTQ",
