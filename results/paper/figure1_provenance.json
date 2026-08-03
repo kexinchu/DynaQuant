@@ -1,14 +1,14 @@
 {
   "schema_version": 2,
   "artifact_type": "paper_figure_bundle",
-  "created_at": "2026-08-03T00:08:14.217903+00:00",
+  "created_at": "2026-08-03T00:09:48.581744+00:00",
   "inputs": {
     "offload_waiting:phi35": "87e03ab494c111482e2f860eda45aa87ce7d2997fec20e5c5a9b3ec2d1e7235f",
     "offload_waiting:qwen30b": "15a9fcfc9d5fae3518d468e8ab125a34a820ee205765dc76fa90e4bad95c0bd8",
     "offload_waiting:qwen80b": "a2942508d939dfb46c279129116e79b73282db25dac412789a8e24b23b464e20"
   },
   "figures": {
-    "ICCAD_2026_DynExq/figures/waiting_latency_vs_prompt_length.pdf": "d34b28fd2eaa5c7cd83e4bc6bc5c2b4ba6694a3a0401a9c3ec8d1dd5472de7cb"
+    "ICCAD_2026_DynExq/figures/waiting_latency_vs_prompt_length.pdf": "9a72f47ba6b3a919ce13ed86e75526c76c5b781129beb486ab4046635861a180"
   },
   "command": "/home/kec23008/miniconda3/bin/python scripts/render_paper_figures.py --manifest results/paper/manifest.json --group offload_waiting --output-dir ICCAD_2026_DynExq/figures --provenance results/paper/figure1_provenance.json",
   "environment": {
@@ -24,9 +24,9 @@
       "NVIDIA RTX A6000",
       "NVIDIA RTX A6000"
     ],
-    "process_max_rss_bytes": 646750208,
+    "process_max_rss_bytes": 646488064,
     "git": {
-      "commit": "986be5ee2b4e4cac9769f571e7f4df7389b853e5",
+      "commit": "d528a5840c14c2fb5a861a6d5d3a9235c22be4c6",
       "dirty": false
     }
   }
