@@ -1,0 +1,250 @@
+{
+  "config": {
+    "int4_path": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+    "fp16_path": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507",
+    "n_hot_experts": 2,
+    "n_layers_promoted": 48
+  },
+  "swap_stats": {
+    "replaced_experts": 96,
+    "total_h2d_ms": 42.9,
+    "total_h2d_mb": 906.0,
+    "gpu_mem_after_gb": 18.59
+  },
+  "baseline_mem_gb": 17.83,
+  "int4_results": [
+    {
+      "prompt": "What is the capital of France? Answer concisely.",
+      "response": " Paris.",
+      "latency_ms": 8619.5,
+      "output_tokens": 3
+    },
+    {
+      "prompt": "Solve: If 3x + 7 = 22, what is x?",
+      "response": " To solve the equation \\( 3x + 7 = 22 \\), follow these steps:\n\n1. **Subtract 7 from both sides**",
+      "latency_ms": 17504.7,
+      "output_tokens": 32
+    },
+    {
+      "prompt": "What are the main causes of climate change? Be brief.",
+      "response": " The main causes of climate change are human activities that increase greenhouse gas emissions, primarily:\n\n1. **Burning fossil fuels** (coal, oil, and gas",
+      "latency_ms": 16710.4,
+      "output_tokens": 32
+    }
+  ],
+  "mixed_results": [
+    {
+      "prompt": "What is the capital of France? Answer concisely.",
+      "response": " Paris.",
+      "latency_ms": 2849.2,
+      "output_tokens": 3
+    },
+    {
+      "prompt": "Solve: If 3x + 7 = 22, what is x?",
+      "response": " To solve the equation \\( 3x + 7 = 22 \\), follow these steps:\n\n1. **Subtract 7 from both sides**",
+      "latency_ms": 16073.7,
+      "output_tokens": 32
+    },
+    {
+      "prompt": "What are the main causes of climate change? Be brief.",
+      "response": " The main causes of climate change are human activities that increase greenhouse gas emissions, primarily:\n\n1. **Burning fossil fuels** (coal, oil, and gas",
+      "latency_ms": 16671.9,
+      "output_tokens": 32
+    }
+  ],
+  "hot_experts_per_layer": {
+    "0": [
+      114,
+      45
+    ],
+    "1": [
+      88,
+      119
+    ],
+    "2": [
+      47,
+      40
+    ],
+    "3": [
+      84,
+      16
+    ],
+    "4": [
+      52,
+      109
+    ],
+    "5": [
+      17,
+      13
+    ],
+    "6": [
+      71,
+      53
+    ],
+    "7": [
+      109,
+      18
+    ],
+    "8": [
+      38,
+      116
+    ],
+    "9": [
+      10,
+      64
+    ],
+    "10": [
+      53,
+      26
+    ],
+    "11": [
+      21,
+      28
+    ],
+    "12": [
+      56,
+      28
+    ],
+    "13": [
+      104,
+      42
+    ],
+    "14": [
+      91,
+      5
+    ],
+    "15": [
+      59,
+      10
+    ],
+    "16": [
+      87,
+      34
+    ],
+    "17": [
+      78,
+      18
+    ],
+    "18": [
+      71,
+      8
+    ],
+    "19": [
+      18,
+      59
+    ],
+    "20": [
+      38,
+      26
+    ],
+    "21": [
+      10,
+      0
+    ],
+    "22": [
+      98,
+      69
+    ],
+    "23": [
+      21,
+      4
+    ],
+    "24": [
+      65,
+      113
+    ],
+    "25": [
+      104,
+      91
+    ],
+    "26": [
+      5,
+      91
+    ],
+    "27": [
+      59,
+      14
+    ],
+    "28": [
+      34,
+      65
+    ],
+    "29": [
+      18,
+      78
+    ],
+    "30": [
+      71,
+      27
+    ],
+    "31": [
+      109,
+      59
+    ],
+    "32": [
+      38,
+      71
+    ],
+    "33": [
+      10,
+      87
+    ],
+    "34": [
+      98,
+      69
+    ],
+    "35": [
+      21,
+      7
+    ],
+    "36": [
+      56,
+      113
+    ],
+    "37": [
+      104,
+      91
+    ],
+    "38": [
+      91,
+      5
+    ],
+    "39": [
+      59,
+      10
+    ],
+    "40": [
+      34,
+      95
+    ],
+    "41": [
+      74,
+      48
+    ],
+    "42": [
+      32,
+      120
+    ],
+    "43": [
+      78,
+      96
+    ],
+    "44": [
+      94,
+      30
+    ],
+    "45": [
+      107,
+      85
+    ],
+    "46": [
+      38,
+      89
+    ],
+    "47": [
+      57,
+      14
+    ]
+  },
+  "timestamp": "2026-04-10T15:57:05"
+}

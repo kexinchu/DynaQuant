@@ -1,0 +1,12 @@
+{
+  "model": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507",
+  "thinking": true,
+  "n_mmlu_samples": 200,
+  "accuracy_pct": 72.0,
+  "correct": 144,
+  "skipped": 2,
+  "gen_time_s": 188.0,
+  "load_time_s": 129.1,
+  "max_new_tokens": 4096,
+  "timestamp": "2026-04-10T23:21:50"
+}

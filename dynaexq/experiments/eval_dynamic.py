@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import random
+import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -37,6 +40,82 @@ PERPLEXITY_LOW_RATIOS_PCT = (0, 15, 30, 45, 60, 75, 90, 100)
 ROUTING_HOTSET_WORKLOADS = ("wikitext", "gsm8k", "humaneval")
 ROUTING_HOTSET_LAYER = 15
 CALIBRATION_SPLITS = {"train", "validation", "dev", "calibration"}
+
+
+def _wait_for_idle_physical_gpu(
+    physical_gpu_index: int,
+    *,
+    max_used_memory_mib: int,
+    poll_seconds: int,
+) -> None:
+    """Wait after checkpoint hashing so a shared GPU is still loadable."""
+    if physical_gpu_index < 0:
+        raise ValueError("physical GPU index must be non-negative")
+    if max_used_memory_mib < 0:
+        raise ValueError("idle GPU memory threshold must be non-negative")
+    if poll_seconds <= 0:
+        raise ValueError("idle GPU poll interval must be positive")
+
+    last_reported_minute = -1
+    started = time.monotonic()
+    while True:
+        try:
+            result = subprocess.run(
+                [
+                    "nvidia-smi",
+                    f"--id={physical_gpu_index}",
+                    "--query-gpu=memory.used,utilization.gpu",
+                    "--format=csv,noheader,nounits",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            fields = [part.strip() for part in result.stdout.strip().split(",")]
+            if len(fields) != 2:
+                raise ValueError("unexpected nvidia-smi field count")
+            used_memory_mib, utilization_pct = map(int, fields)
+        except (OSError, subprocess.CalledProcessError, ValueError) as error:
+            raise RuntimeError(
+                "unable to query the requested physical GPU"
+            ) from error
+
+        elapsed = time.monotonic() - started
+        if used_memory_mib <= max_used_memory_mib and utilization_pct == 0:
+            print(
+                json.dumps(
+                    {
+                        "stage": "shared_gpu_wait",
+                        "status": "idle",
+                        "physical_gpu_index": physical_gpu_index,
+                        "used_memory_mib": used_memory_mib,
+                        "utilization_pct": utilization_pct,
+                        "elapsed_seconds": elapsed,
+                    },
+                    sort_keys=True,
+                ),
+                flush=True,
+            )
+            return
+
+        elapsed_minute = int(elapsed // 60)
+        if elapsed_minute != last_reported_minute:
+            last_reported_minute = elapsed_minute
+            print(
+                json.dumps(
+                    {
+                        "stage": "shared_gpu_wait",
+                        "status": "busy",
+                        "physical_gpu_index": physical_gpu_index,
+                        "used_memory_mib": used_memory_mib,
+                        "utilization_pct": utilization_pct,
+                        "elapsed_seconds": elapsed,
+                    },
+                    sort_keys=True,
+                ),
+                flush=True,
+            )
+        time.sleep(poll_seconds)
 
 
 def _paper_model_key(config: DynaExqConfig) -> str | None:
@@ -423,17 +502,20 @@ def _collect_calibration_ranking(
     config: DynaExqConfig,
     *,
     max_input_tokens: int,
-) -> dict[str, list[int]]:
+) -> tuple[dict[str, list[int]], dict[str, float | int]]:
     """Observe routing on independent prompts and rank every layer."""
     if max_input_tokens <= 0:
         raise ValueError("max_input_tokens must be positive")
+    if not prompts:
+        raise ValueError("calibration prompts must not be empty")
     try:
         device = next(wrapper.parameters()).device
     except StopIteration:
         device = torch.device("cpu")
     wrapper.eval()
+    started = time.perf_counter()
     with torch.inference_mode():
-        for _, prompt in prompts:
+        for prompt_index, (_, prompt) in enumerate(prompts, start=1):
             encoded = tokenizer(
                 prompt,
                 return_tensors="pt",
@@ -445,6 +527,21 @@ def _collect_calibration_ranking(
                 attention_mask=encoded.attention_mask.to(device),
                 use_cache=False,
             )
+            if prompt_index % 8 == 0 or prompt_index == len(prompts):
+                elapsed = time.perf_counter() - started
+                print(
+                    json.dumps(
+                        {
+                            "stage": "calibration_forward",
+                            "completed_prompts": prompt_index,
+                            "total_prompts": len(prompts),
+                            "elapsed_seconds": elapsed,
+                            "mean_seconds_per_prompt": elapsed / prompt_index,
+                        },
+                        sort_keys=True,
+                    ),
+                    flush=True,
+                )
     ranking = {}
     for layer in range(config.model.layers):
         scores = tracker.get_cumulative_layer_scores(layer)
@@ -460,7 +557,12 @@ def _collect_calibration_ranking(
             range(config.model.experts_per_layer),
             key=lambda expert: (-float(scores[expert]), expert),
         )
-    return ranking
+    elapsed = time.perf_counter() - started
+    return ranking, {
+        "completed_prompt_count": len(prompts),
+        "forward_elapsed_seconds": elapsed,
+        "mean_seconds_per_prompt": elapsed / len(prompts),
+    }
 
 
 def main() -> None:
@@ -475,6 +577,15 @@ def main() -> None:
         help="Exactly one execution device (for example cuda:0)",
     )
     parser.add_argument("--hash-model-files", action="store_true")
+    parser.add_argument(
+        "--wait-for-idle-physical-gpu",
+        type=int,
+        default=None,
+        help=(
+            "After checkpoint hashing, wait for this physical NVML GPU index "
+            "to have <=1 GiB resident memory and zero utilization."
+        ),
+    )
     parser.add_argument(
         "--initial-map",
         help=(
@@ -756,6 +867,36 @@ def main() -> None:
             )
         except ValueError as error:
             parser.error(str(error))
+    if args.wait_for_idle_physical_gpu is not None:
+        if device.type != "cuda":
+            parser.error("--wait-for-idle-physical-gpu requires a CUDA device")
+        visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES")
+        logical_index = 0 if device.index is None else device.index
+        if visible_devices:
+            visible_tokens = [
+                token.strip()
+                for token in visible_devices.split(",")
+                if token.strip()
+            ]
+            if logical_index >= len(visible_tokens):
+                parser.error("CUDA device is outside CUDA_VISIBLE_DEVICES")
+            physical_token = visible_tokens[logical_index]
+            if (
+                physical_token.isdigit()
+                and int(physical_token) != args.wait_for_idle_physical_gpu
+            ):
+                parser.error(
+                    "--wait-for-idle-physical-gpu does not match the selected "
+                    "CUDA_VISIBLE_DEVICES mapping"
+                )
+        try:
+            _wait_for_idle_physical_gpu(
+                args.wait_for_idle_physical_gpu,
+                max_used_memory_mib=1024,
+                poll_seconds=30,
+            )
+        except (ValueError, RuntimeError) as error:
+            parser.error(str(error))
     model, tokenizer = load_model(
         args.model_path,
         device,
@@ -810,7 +951,7 @@ def main() -> None:
             calibration_metadata["aggregation"] = (
                 "mean_per_prompt_routing_probability_mass"
             )
-            expert_ranking = _collect_calibration_ranking(
+            expert_ranking, calibration_runtime = _collect_calibration_ranking(
                 wrapper,
                 tokenizer,
                 tracker,
@@ -818,6 +959,7 @@ def main() -> None:
                 config,
                 max_input_tokens=args.max_input_tokens,
             )
+            calibration_metadata["runtime"] = calibration_runtime
             result_payload = {
                 "artifact_type": "dynaexq_initial_expert_ranking",
                 "model_config": config.to_dict()["model"],

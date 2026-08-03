@@ -1,0 +1,13 @@
+{
+  "model": "/home/kec23008/Models/DeepSeek-V2-Lite",
+  "datasets": {
+    "MMLU-Pro": {
+      "path": "calibration_datasets/requests/mmlu_pro_200.jsonl",
+      "total": 2,
+      "correct": 1,
+      "skipped": 0,
+      "accuracy": 0.5,
+      "unsupported": false
+    }
+  }
+}

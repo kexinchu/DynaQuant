@@ -28,6 +28,20 @@ nohup.out
 logs/
 scripts/results/
 results/**
+!results/dual_precision_top2.json
+!results/expert_activation_batch/
+!results/expert_activation_batch/**
+!results/exploratory/
+!results/exploratory/**
+!results/fp16_mmlu_thinking.json
+!results/full_fp16_qwen30b.json
+!results/full_int4_qwen30b.json
+!results/moe_offload_experiment/
+!results/moe_offload_experiment/**
+!results/perplexity/
+!results/perplexity/**
+!results/phi35_moe_fp16.json
+!results/phi35_moe_int4.json
 !results/release/
 !results/release/**
 !results/model_manifests/
@@ -40,7 +54,6 @@ results/**
 # Local datasets, traces, and model artifacts
 ShareGPT*.json
 calibration_datasets/compiled/
-calibration_datasets/formal/
 calibration_datasets/requests/
 activations/*.json
 *.safetensors
@@ -55,6 +68,7 @@ activations/*.json
 scripts/*.pdf
 scripts/*.png
 scripts/*.ipynb
+!scripts/moe_offload_waiting_latency_plot.ipynb
 
 # LaTeX build products
 *.aux
@@ -87,38 +101,12 @@ run_ppl.sh
 analyze_expert_activation.py
 results_*.json
 
-# Components retained locally but not part of the v0.1 public API
-docs/
-dynaexq/configuration_utils.py
-dynaexq/runtime/
-dynaexq/models/deepseek_v2/
-dynaexq/integration/hooks_deepspeed.py
-dynaexq/integration/hooks_sglang.py
+# Preserve the experiment entry points and result summary used by the paper.
+!autoround_exam.py
+!run_80b_eval.sh
+!run_eval.sh
+!analyze_expert_activation.py
+!results_deepseek_v2_lite.json
 
-# Machine-specific queues, backfills, and exploratory launchers
-scripts/audit_all_experiment_data.py
-scripts/backup_*.sh
-scripts/bench_*.py
-scripts/benchmark_latency*.py
-scripts/consolidate_*.sh
-scripts/eval_*.py
-scripts/evaluate_*.py
-scripts/experiment_*.py
-scripts/inspect_*.sh
-scripts/merge_*.py
-scripts/monitor_*.sh
-scripts/patch_*.py
-scripts/perf_test_*.py
-scripts/prepare_*.sh
-scripts/quantize_int2_*.py
-scripts/run_*.py
-scripts/run_*.sh
-scripts/sort_*.py
-scripts/summarize_*.py
-scripts/test_*.py
-scripts/train_*.sh
-scripts/update_*.py
-scripts/watch_*.sh
-scripts/accuracy.md
-scripts/latency.md
-scripts/ppl.md
+# Machine-specific logs, caches, and generated plot copies remain local. The
+# source launchers and analysis scripts are versioned for reproducibility.

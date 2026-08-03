@@ -8,6 +8,8 @@ manuscript.
 - `performance/` preserves the available formal performance grid and its smoke
   runs exactly as produced by the experiment environment.
 - `audits/` contains point-in-time audit snapshots.
+- `archive/` preserves superseded raw snapshots when the final paper input
+  differs from an earlier experiment artifact.
 
 The JSON files are intentionally preserved without rewriting local paths or
 provenance fields. Presence in this directory does not by itself make an
@@ -17,3 +19,6 @@ registry, and `python scripts/audit_paper_results.py` is the validation gate.
 Large routing traces remain as JSON because the registered manifest hashes
 their exact bytes. Model checkpoints, downloaded benchmark datasets, prompts,
 and execution logs are not stored in this repository.
+
+Archived files are provenance records; they are not the values used by the
+current manuscript.

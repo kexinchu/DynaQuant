@@ -1,0 +1,629 @@
+{
+  "prefill": {
+    "per_layer": {
+      "layer_0": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_1": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_2": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_3": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_4": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_5": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_6": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_7": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_8": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_9": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_10": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_11": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_12": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_13": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_14": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_15": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_16": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_17": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_18": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_19": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_20": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_21": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_22": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_23": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_24": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_25": {
+        "avg_activation_rate": 1.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "layer_26": {
+        "avg_activation_rate": 0.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "overall": {
+      "num_layers": 27,
+      "num_batches": 4,
+      "num_experts_per_layer": 64,
+      "avg_activation_rate": 0.9629629629629629,
+      "min_activation_rate": 0.0,
+      "max_activation_rate": 1.0
+    }
+  },
+  "decode": {
+    "per_layer": {
+      "layer_0": {
+        "avg_activation_rate": 0.58984375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.625,
+          0.703125,
+          0.640625
+        ]
+      },
+      "layer_1": {
+        "avg_activation_rate": 0.5703125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.59375,
+          0.65625,
+          0.640625
+        ]
+      },
+      "layer_2": {
+        "avg_activation_rate": 0.58203125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.640625,
+          0.640625,
+          0.59375
+        ]
+      },
+      "layer_3": {
+        "avg_activation_rate": 0.5703125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.578125,
+          0.671875,
+          0.59375
+        ]
+      },
+      "layer_4": {
+        "avg_activation_rate": 0.51953125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.53125,
+          0.640625,
+          0.453125
+        ]
+      },
+      "layer_5": {
+        "avg_activation_rate": 0.56640625,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.625,
+          0.65625,
+          0.5625
+        ]
+      },
+      "layer_6": {
+        "avg_activation_rate": 0.51171875,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.375,
+          0.53125,
+          0.640625,
+          0.5
+        ]
+      },
+      "layer_7": {
+        "avg_activation_rate": 0.52734375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.5625,
+          0.578125,
+          0.546875
+        ]
+      },
+      "layer_8": {
+        "avg_activation_rate": 0.515625,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.53125,
+          0.53125,
+          0.546875
+        ]
+      },
+      "layer_9": {
+        "avg_activation_rate": 0.53125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.609375,
+          0.546875,
+          0.515625
+        ]
+      },
+      "layer_10": {
+        "avg_activation_rate": 0.45703125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.3125,
+          0.578125,
+          0.53125,
+          0.40625
+        ]
+      },
+      "layer_11": {
+        "avg_activation_rate": 0.5234375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.578125,
+          0.609375,
+          0.484375
+        ]
+      },
+      "layer_12": {
+        "avg_activation_rate": 0.5234375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.515625,
+          0.625,
+          0.5625
+        ]
+      },
+      "layer_13": {
+        "avg_activation_rate": 0.55078125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.484375,
+          0.578125,
+          0.640625,
+          0.5
+        ]
+      },
+      "layer_14": {
+        "avg_activation_rate": 0.58984375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.5,
+          0.609375,
+          0.640625,
+          0.609375
+        ]
+      },
+      "layer_15": {
+        "avg_activation_rate": 0.5078125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.578125,
+          0.59375,
+          0.46875
+        ]
+      },
+      "layer_16": {
+        "avg_activation_rate": 0.55859375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.625,
+          0.65625,
+          0.515625
+        ]
+      },
+      "layer_17": {
+        "avg_activation_rate": 0.4765625,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.34375,
+          0.578125,
+          0.53125,
+          0.453125
+        ]
+      },
+      "layer_18": {
+        "avg_activation_rate": 0.5390625,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.546875,
+          0.609375,
+          0.546875
+        ]
+      },
+      "layer_19": {
+        "avg_activation_rate": 0.55859375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.5625,
+          0.59375,
+          0.625
+        ]
+      },
+      "layer_20": {
+        "avg_activation_rate": 0.52734375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.546875,
+          0.609375,
+          0.515625
+        ]
+      },
+      "layer_21": {
+        "avg_activation_rate": 0.5234375,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.53125,
+          0.59375,
+          0.578125
+        ]
+      },
+      "layer_22": {
+        "avg_activation_rate": 0.5546875,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.40625,
+          0.578125,
+          0.625,
+          0.609375
+        ]
+      },
+      "layer_23": {
+        "avg_activation_rate": 0.53125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.375,
+          0.578125,
+          0.625,
+          0.546875
+        ]
+      },
+      "layer_24": {
+        "avg_activation_rate": 0.5078125,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.359375,
+          0.578125,
+          0.578125,
+          0.515625
+        ]
+      },
+      "layer_25": {
+        "avg_activation_rate": 0.546875,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.40625,
+          0.640625,
+          0.5625,
+          0.578125
+        ]
+      },
+      "layer_26": {
+        "avg_activation_rate": 0.0,
+        "total_experts": 64,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    },
+    "overall": {
+      "num_layers": 27,
+      "num_batches": 4,
+      "num_experts_per_layer": 64,
+      "avg_activation_rate": 0.5170717592592593,
+      "min_activation_rate": 0.0,
+      "max_activation_rate": 0.58984375
+    }
+  },
+  "metadata": {
+    "model_id": "/home/kec23008/Models/DeepSeek-V2-Lite-mixed-AutoRound",
+    "batch_size": 16,
+    "num_queries": 64,
+    "top_k": 6,
+    "num_experts_per_layer": 64,
+    "max_length": 512,
+    "max_new_tokens": 2
+  }
+}

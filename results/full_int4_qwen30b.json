@@ -1,0 +1,46 @@
+{
+  "timestamp": "2026-04-11T16:55:36",
+  "results": {
+    "int4": {
+      "config": "int4",
+      "gpu_mem_gb": "N/A (vLLM)",
+      "n_promoted": 0,
+      "timing": {
+        "load_s": 27.3,
+        "gen_s": 646.5
+      },
+      "benchmarks": {
+        "mmlu_pro": {
+          "accuracy_pct": 73.5,
+          "correct": 147,
+          "total": 200,
+          "skipped": 1
+        },
+        "gpqa": {
+          "accuracy_pct": 50.51,
+          "correct": 100,
+          "total": 198,
+          "skipped": 6
+        },
+        "aime": {
+          "accuracy_pct": 30.0,
+          "correct": 9,
+          "total": 30,
+          "skipped": 0
+        },
+        "gsm8k": {
+          "accuracy_pct": 94.5,
+          "correct": 189,
+          "total": 200,
+          "skipped": 0
+        },
+        "humaneval": {
+          "accuracy_pct": 92.07,
+          "correct": 151,
+          "total": 164,
+          "skipped": 0
+        }
+      }
+    }
+  }
+}

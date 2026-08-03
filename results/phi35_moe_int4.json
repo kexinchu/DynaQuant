@@ -1,0 +1,41 @@
+{
+  "model": "/home/kec23008/Models/Phi-3.5-MoE-instruct-mixed-AutoRound",
+  "timestamp": "2026-04-12T01:28:00",
+  "timing": {
+    "load_s": 326.8,
+    "gen_s": 2633.4
+  },
+  "gpu_mem_gb": "N/A (vLLM)",
+  "benchmarks": {
+    "mmlu_pro": {
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 200,
+      "skipped": 200
+    },
+    "gpqa": {
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 198,
+      "skipped": 198
+    },
+    "gsm8k": {
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 200,
+      "skipped": 200
+    },
+    "aime": {
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 30,
+      "skipped": 30
+    },
+    "humaneval": {
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 164,
+      "skipped": 0
+    }
+  }
+}

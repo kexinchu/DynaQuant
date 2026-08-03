@@ -1,0 +1,1091 @@
+{
+  "prefill": {
+    "per_layer": {
+      "layer_0": {
+        "avg_activation_rate": 0.974609375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.96875,
+          0.9921875,
+          0.9765625,
+          0.9609375
+        ]
+      },
+      "layer_1": {
+        "avg_activation_rate": 0.994140625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9921875,
+          1.0,
+          1.0,
+          0.984375
+        ]
+      },
+      "layer_2": {
+        "avg_activation_rate": 0.94140625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.9765625,
+          0.9453125,
+          0.90625
+        ]
+      },
+      "layer_3": {
+        "avg_activation_rate": 0.9609375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.953125,
+          0.96875,
+          0.9765625,
+          0.9453125
+        ]
+      },
+      "layer_4": {
+        "avg_activation_rate": 0.947265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9453125,
+          0.953125,
+          0.9765625,
+          0.9140625
+        ]
+      },
+      "layer_5": {
+        "avg_activation_rate": 0.955078125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9609375,
+          0.9921875,
+          0.96875,
+          0.8984375
+        ]
+      },
+      "layer_6": {
+        "avg_activation_rate": 0.93359375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9140625,
+          0.9765625,
+          0.953125,
+          0.890625
+        ]
+      },
+      "layer_7": {
+        "avg_activation_rate": 0.916015625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.8984375,
+          0.9609375,
+          0.953125,
+          0.8515625
+        ]
+      },
+      "layer_8": {
+        "avg_activation_rate": 0.9375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.96875,
+          0.953125,
+          0.890625
+        ]
+      },
+      "layer_9": {
+        "avg_activation_rate": 0.935546875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.9921875,
+          0.953125,
+          0.875
+        ]
+      },
+      "layer_10": {
+        "avg_activation_rate": 0.947265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.96875,
+          0.9765625,
+          0.9453125,
+          0.8984375
+        ]
+      },
+      "layer_11": {
+        "avg_activation_rate": 0.9375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9609375,
+          0.9765625,
+          0.9140625,
+          0.8984375
+        ]
+      },
+      "layer_12": {
+        "avg_activation_rate": 0.9609375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.96875,
+          1.0,
+          0.9453125,
+          0.9296875
+        ]
+      },
+      "layer_13": {
+        "avg_activation_rate": 0.923828125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.9609375,
+          0.9375,
+          0.859375
+        ]
+      },
+      "layer_14": {
+        "avg_activation_rate": 0.9296875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.9765625,
+          0.921875,
+          0.8984375
+        ]
+      },
+      "layer_15": {
+        "avg_activation_rate": 0.94140625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9296875,
+          0.9765625,
+          0.953125,
+          0.90625
+        ]
+      },
+      "layer_16": {
+        "avg_activation_rate": 0.892578125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.875,
+          0.9453125,
+          0.90625,
+          0.84375
+        ]
+      },
+      "layer_17": {
+        "avg_activation_rate": 0.9296875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9296875,
+          0.9921875,
+          0.9453125,
+          0.8515625
+        ]
+      },
+      "layer_18": {
+        "avg_activation_rate": 0.92578125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.90625,
+          0.984375,
+          0.953125,
+          0.859375
+        ]
+      },
+      "layer_19": {
+        "avg_activation_rate": 0.875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.8671875,
+          0.9375,
+          0.90625,
+          0.7890625
+        ]
+      },
+      "layer_20": {
+        "avg_activation_rate": 0.91796875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.8984375,
+          0.9609375,
+          0.9375,
+          0.875
+        ]
+      },
+      "layer_21": {
+        "avg_activation_rate": 0.919921875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.875,
+          0.984375,
+          0.9453125,
+          0.875
+        ]
+      },
+      "layer_22": {
+        "avg_activation_rate": 0.958984375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9453125,
+          0.9921875,
+          0.953125,
+          0.9453125
+        ]
+      },
+      "layer_23": {
+        "avg_activation_rate": 0.94140625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9609375,
+          0.984375,
+          0.9375,
+          0.8828125
+        ]
+      },
+      "layer_24": {
+        "avg_activation_rate": 0.94921875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.984375,
+          0.96875,
+          0.90625
+        ]
+      },
+      "layer_25": {
+        "avg_activation_rate": 0.92578125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.984375,
+          0.9453125,
+          0.8359375
+        ]
+      },
+      "layer_26": {
+        "avg_activation_rate": 0.951171875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.984375,
+          0.9609375,
+          0.921875
+        ]
+      },
+      "layer_27": {
+        "avg_activation_rate": 0.92578125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9140625,
+          0.9765625,
+          0.9453125,
+          0.8671875
+        ]
+      },
+      "layer_28": {
+        "avg_activation_rate": 0.923828125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9140625,
+          0.9609375,
+          0.9453125,
+          0.875
+        ]
+      },
+      "layer_29": {
+        "avg_activation_rate": 0.921875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9375,
+          0.9921875,
+          0.9140625,
+          0.84375
+        ]
+      },
+      "layer_30": {
+        "avg_activation_rate": 0.931640625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.96875,
+          0.953125,
+          0.8828125
+        ]
+      },
+      "layer_31": {
+        "avg_activation_rate": 0.904296875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.859375,
+          0.953125,
+          0.953125,
+          0.8515625
+        ]
+      },
+      "layer_32": {
+        "avg_activation_rate": 0.927734375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.90625,
+          0.9609375,
+          0.9375,
+          0.90625
+        ]
+      },
+      "layer_33": {
+        "avg_activation_rate": 0.94140625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.9765625,
+          0.9609375,
+          0.90625
+        ]
+      },
+      "layer_34": {
+        "avg_activation_rate": 0.9609375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9765625,
+          0.9765625,
+          0.9609375,
+          0.9296875
+        ]
+      },
+      "layer_35": {
+        "avg_activation_rate": 0.947265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.96875,
+          0.984375,
+          0.9375,
+          0.8984375
+        ]
+      },
+      "layer_36": {
+        "avg_activation_rate": 0.96875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.984375,
+          0.984375,
+          0.96875,
+          0.9375
+        ]
+      },
+      "layer_37": {
+        "avg_activation_rate": 0.923828125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.984375,
+          0.921875,
+          0.8671875
+        ]
+      },
+      "layer_38": {
+        "avg_activation_rate": 0.935546875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9453125,
+          0.9609375,
+          0.9453125,
+          0.890625
+        ]
+      },
+      "layer_39": {
+        "avg_activation_rate": 0.91796875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.9765625,
+          0.921875,
+          0.8515625
+        ]
+      },
+      "layer_40": {
+        "avg_activation_rate": 0.8828125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.875,
+          0.9375,
+          0.90625,
+          0.8125
+        ]
+      },
+      "layer_41": {
+        "avg_activation_rate": 0.888671875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.9140625,
+          0.921875,
+          0.8984375,
+          0.8203125
+        ]
+      },
+      "layer_42": {
+        "avg_activation_rate": 0.87890625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.8984375,
+          0.9375,
+          0.90625,
+          0.7734375
+        ]
+      },
+      "layer_43": {
+        "avg_activation_rate": 0.90234375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.921875,
+          0.9609375,
+          0.953125,
+          0.7734375
+        ]
+      },
+      "layer_44": {
+        "avg_activation_rate": 0.884765625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.8984375,
+          0.9140625,
+          0.9296875,
+          0.796875
+        ]
+      },
+      "layer_45": {
+        "avg_activation_rate": 0.873046875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.8671875,
+          0.921875,
+          0.90625,
+          0.796875
+        ]
+      },
+      "layer_46": {
+        "avg_activation_rate": 0.884765625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.90625,
+          0.90625,
+          0.9140625,
+          0.8125
+        ]
+      },
+      "layer_47": {
+        "avg_activation_rate": 0.884765625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.890625,
+          0.921875,
+          0.921875,
+          0.8046875
+        ]
+      }
+    },
+    "overall": {
+      "num_layers": 48,
+      "num_batches": 4,
+      "num_experts_per_layer": 128,
+      "avg_activation_rate": 0.9278157552083334,
+      "min_activation_rate": 0.873046875,
+      "max_activation_rate": 0.994140625
+    }
+  },
+  "decode": {
+    "per_layer": {
+      "layer_0": {
+        "avg_activation_rate": 0.5703125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.546875,
+          0.59375,
+          0.625,
+          0.515625
+        ]
+      },
+      "layer_1": {
+        "avg_activation_rate": 0.533203125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4765625,
+          0.5625,
+          0.5703125,
+          0.5234375
+        ]
+      },
+      "layer_2": {
+        "avg_activation_rate": 0.5078125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.484375,
+          0.53125,
+          0.5078125,
+          0.5078125
+        ]
+      },
+      "layer_3": {
+        "avg_activation_rate": 0.525390625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4765625,
+          0.59375,
+          0.53125,
+          0.5
+        ]
+      },
+      "layer_4": {
+        "avg_activation_rate": 0.490234375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.515625,
+          0.515625,
+          0.46875,
+          0.4609375
+        ]
+      },
+      "layer_5": {
+        "avg_activation_rate": 0.478515625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4453125,
+          0.4765625,
+          0.5078125,
+          0.484375
+        ]
+      },
+      "layer_6": {
+        "avg_activation_rate": 0.455078125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4765625,
+          0.4765625,
+          0.4453125,
+          0.421875
+        ]
+      },
+      "layer_7": {
+        "avg_activation_rate": 0.45703125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4296875,
+          0.5,
+          0.4609375,
+          0.4375
+        ]
+      },
+      "layer_8": {
+        "avg_activation_rate": 0.478515625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4296875,
+          0.5703125,
+          0.4765625,
+          0.4375
+        ]
+      },
+      "layer_9": {
+        "avg_activation_rate": 0.466796875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.5,
+          0.484375,
+          0.4609375
+        ]
+      },
+      "layer_10": {
+        "avg_activation_rate": 0.478515625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4140625,
+          0.5625,
+          0.453125,
+          0.484375
+        ]
+      },
+      "layer_11": {
+        "avg_activation_rate": 0.505859375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.484375,
+          0.5390625,
+          0.5078125,
+          0.4921875
+        ]
+      },
+      "layer_12": {
+        "avg_activation_rate": 0.453125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.5,
+          0.421875,
+          0.453125
+        ]
+      },
+      "layer_13": {
+        "avg_activation_rate": 0.47265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4453125,
+          0.5234375,
+          0.4609375,
+          0.4609375
+        ]
+      },
+      "layer_14": {
+        "avg_activation_rate": 0.478515625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4609375,
+          0.5234375,
+          0.4296875,
+          0.5
+        ]
+      },
+      "layer_15": {
+        "avg_activation_rate": 0.46875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4296875,
+          0.4921875,
+          0.4375,
+          0.515625
+        ]
+      },
+      "layer_16": {
+        "avg_activation_rate": 0.447265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.4765625,
+          0.4140625,
+          0.4765625
+        ]
+      },
+      "layer_17": {
+        "avg_activation_rate": 0.466796875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.5078125,
+          0.484375,
+          0.453125
+        ]
+      },
+      "layer_18": {
+        "avg_activation_rate": 0.447265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.3984375,
+          0.5078125,
+          0.453125,
+          0.4296875
+        ]
+      },
+      "layer_19": {
+        "avg_activation_rate": 0.408203125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.3828125,
+          0.4453125,
+          0.40625,
+          0.3984375
+        ]
+      },
+      "layer_20": {
+        "avg_activation_rate": 0.427734375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.375,
+          0.4765625,
+          0.4296875,
+          0.4296875
+        ]
+      },
+      "layer_21": {
+        "avg_activation_rate": 0.41015625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.359375,
+          0.4140625,
+          0.4375,
+          0.4296875
+        ]
+      },
+      "layer_22": {
+        "avg_activation_rate": 0.419921875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.3671875,
+          0.46875,
+          0.4296875,
+          0.4140625
+        ]
+      },
+      "layer_23": {
+        "avg_activation_rate": 0.42578125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.5078125,
+          0.390625,
+          0.4140625
+        ]
+      },
+      "layer_24": {
+        "avg_activation_rate": 0.41796875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.3671875,
+          0.46875,
+          0.3984375,
+          0.4375
+        ]
+      },
+      "layer_25": {
+        "avg_activation_rate": 0.447265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.4921875,
+          0.421875,
+          0.421875
+        ]
+      },
+      "layer_26": {
+        "avg_activation_rate": 0.453125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4609375,
+          0.4765625,
+          0.421875,
+          0.453125
+        ]
+      },
+      "layer_27": {
+        "avg_activation_rate": 0.44921875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.5234375,
+          0.4296875,
+          0.40625
+        ]
+      },
+      "layer_28": {
+        "avg_activation_rate": 0.462890625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.4765625,
+          0.484375,
+          0.4375
+        ]
+      },
+      "layer_29": {
+        "avg_activation_rate": 0.46875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4765625,
+          0.5234375,
+          0.453125,
+          0.421875
+        ]
+      },
+      "layer_30": {
+        "avg_activation_rate": 0.4140625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.3671875,
+          0.46875,
+          0.4609375,
+          0.359375
+        ]
+      },
+      "layer_31": {
+        "avg_activation_rate": 0.451171875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.421875,
+          0.4921875,
+          0.46875,
+          0.421875
+        ]
+      },
+      "layer_32": {
+        "avg_activation_rate": 0.462890625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4453125,
+          0.5,
+          0.4921875,
+          0.4140625
+        ]
+      },
+      "layer_33": {
+        "avg_activation_rate": 0.451171875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.390625,
+          0.453125,
+          0.5234375,
+          0.4375
+        ]
+      },
+      "layer_34": {
+        "avg_activation_rate": 0.474609375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.515625,
+          0.4765625,
+          0.453125
+        ]
+      },
+      "layer_35": {
+        "avg_activation_rate": 0.48046875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.484375,
+          0.515625,
+          0.4765625,
+          0.4453125
+        ]
+      },
+      "layer_36": {
+        "avg_activation_rate": 0.453125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.4921875,
+          0.4140625,
+          0.453125
+        ]
+      },
+      "layer_37": {
+        "avg_activation_rate": 0.478515625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4609375,
+          0.5,
+          0.515625,
+          0.4375
+        ]
+      },
+      "layer_38": {
+        "avg_activation_rate": 0.470703125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4609375,
+          0.46875,
+          0.4921875,
+          0.4609375
+        ]
+      },
+      "layer_39": {
+        "avg_activation_rate": 0.470703125,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.453125,
+          0.5078125,
+          0.4921875,
+          0.4296875
+        ]
+      },
+      "layer_40": {
+        "avg_activation_rate": 0.46875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.40625,
+          0.4921875,
+          0.5078125,
+          0.46875
+        ]
+      },
+      "layer_41": {
+        "avg_activation_rate": 0.484375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4921875,
+          0.4921875,
+          0.515625,
+          0.4375
+        ]
+      },
+      "layer_42": {
+        "avg_activation_rate": 0.484375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.46875,
+          0.5078125,
+          0.4765625,
+          0.484375
+        ]
+      },
+      "layer_43": {
+        "avg_activation_rate": 0.47265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.5,
+          0.484375,
+          0.46875
+        ]
+      },
+      "layer_44": {
+        "avg_activation_rate": 0.443359375,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.40625,
+          0.4765625,
+          0.484375,
+          0.40625
+        ]
+      },
+      "layer_45": {
+        "avg_activation_rate": 0.462890625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.53125,
+          0.4375,
+          0.4453125
+        ]
+      },
+      "layer_46": {
+        "avg_activation_rate": 0.466796875,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4375,
+          0.515625,
+          0.4375,
+          0.4765625
+        ]
+      },
+      "layer_47": {
+        "avg_activation_rate": 0.47265625,
+        "total_experts": 128,
+        "num_batches": 4,
+        "per_batch_rates": [
+          0.4296875,
+          0.5234375,
+          0.4765625,
+          0.4609375
+        ]
+      }
+    },
+    "overall": {
+      "num_layers": 48,
+      "num_batches": 4,
+      "num_experts_per_layer": 128,
+      "avg_activation_rate": 0.46533203125,
+      "min_activation_rate": 0.408203125,
+      "max_activation_rate": 0.5703125
+    }
+  },
+  "metadata": {
+    "model_id": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+    "batch_size": 16,
+    "num_queries": 64,
+    "top_k": 8,
+    "num_experts_per_layer": 128,
+    "max_length": 512,
+    "max_new_tokens": 10
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "model": "/home/kec23008/Models/Phi-3.5-MoE-instruct",
+  "timestamp": "2026-04-12T16:26:49",
+  "timing": {
+    "load_s": 208.8,
+    "gen_s": 359.2
+  },
+  "gpu_mem_gb": "N/A (vLLM)",
+  "benchmarks": {
+    "mmlu_pro": {
+      "accuracy_pct": 63.0,
+      "correct": 126,
+      "total": 200,
+      "skipped": 5
+    },
+    "gpqa": {
+      "accuracy_pct": 34.85,
+      "correct": 69,
+      "total": 198,
+      "skipped": 10
+    },
+    "gsm8k": {
+      "accuracy_pct": 93.0,
+      "correct": 186,
+      "total": 200,
+      "skipped": 0
+    },
+    "aime": {
+      "accuracy_pct": 3.33,
+      "correct": 1,
+      "total": 30,
+      "skipped": 0
+    },
+    "humaneval": {
+      "accuracy_pct": 0.0,
+      "correct": 0,
+      "total": 164,
+      "skipped": 0
+    }
+  }
+}
