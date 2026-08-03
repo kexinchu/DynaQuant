@@ -104,6 +104,18 @@ bash scripts/reproduce_paper.sh render-figures
 bash scripts/reproduce_paper.sh paper
 ```
 
+To publish the verified local AutoRound checkpoints to Hugging Face after
+logging in with a write-enabled token:
+
+```bash
+export DYNAEXQ_MODEL_ROOT=/path/to/Models
+bash scripts/upload_huggingface_models.sh
+```
+
+The upload uses the `Kris2017` namespace by default, creates public model
+repositories, and can be resumed safely after interruption. Set
+`HF_NAMESPACE` to override the target namespace.
+
 For example, a static-checkpoint performance run can be launched with:
 
 ```bash
