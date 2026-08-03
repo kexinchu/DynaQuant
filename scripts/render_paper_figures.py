@@ -15,13 +15,16 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from dynaexq.experiments.eval_quality import (
     SCHEMA_VERSION,
     environment_metadata,
 )
 
 
-ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = ROOT / "results" / "paper" / "manifest.json"
 DEFAULT_OUTPUT_DIR = ROOT / "ICCAD_2026_DynExq" / "figures"
 DEFAULT_PROVENANCE = ROOT / "results" / "paper" / "figure_provenance.json"
@@ -39,7 +42,6 @@ MODEL_FILES = {
 }
 MODEL_LABELS = {
     **MODEL_FILES,
-    "deepseek_v2_lite": "DeepSeek-V2-Lite",
 }
 METHOD_LABELS = {
     "static_ptq": "Static PTQ",
@@ -66,13 +68,16 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _load_claims(manifest_path: Path) -> tuple[dict[str, dict], dict[str, str]]:
+def _load_claims(
+    manifest_path: Path,
+    groups: tuple[str, ...] = FIGURE_GROUPS,
+) -> tuple[dict[str, dict], dict[str, str]]:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     if int(manifest.get("schema_version", 0)) != 2:
         raise ValueError("figure rendering requires manifest schema 2")
     claims = {}
     hashes = {}
-    for group in FIGURE_GROUPS:
+    for group in groups:
         records = manifest.get("groups", {}).get(group)
         if not isinstance(records, list) or not records:
             raise ValueError(f"manifest group is incomplete: {group}")
@@ -195,7 +200,7 @@ def _render_sensitivity(claims: dict[str, dict], output_dir: Path) -> list[Path]
 def _render_waiting(claims: dict[str, dict], output_dir: Path) -> list[Path]:
     fig, axis = plt.subplots(figsize=(4.5, 2.65))
     for model, color, marker in (
-        ("deepseek_v2_lite", "#4c78a8", "o"),
+        ("phi35", "#4c78a8", "o"),
         ("qwen30b", "#f2cf5b", "s"),
         ("qwen80b", "#b279a2", "^"),
     ):
@@ -269,16 +274,27 @@ def main() -> None:
     parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--provenance", type=Path, default=DEFAULT_PROVENANCE)
+    parser.add_argument(
+        "--group",
+        action="append",
+        choices=FIGURE_GROUPS,
+        help="Render only this figure group; repeat for multiple groups.",
+    )
     args = parser.parse_args()
 
-    claims, input_hashes = _load_claims(args.manifest)
-    outputs = [
-        *_render_performance(claims, args.output_dir),
-        *_render_sensitivity(claims, args.output_dir),
-        *_render_waiting(claims, args.output_dir),
-        *_render_hotsets(claims, args.output_dir),
-        *_render_perplexity(claims, args.output_dir),
-    ]
+    groups = tuple(args.group or FIGURE_GROUPS)
+    claims, input_hashes = _load_claims(args.manifest, groups)
+    outputs = []
+    if "performance" in groups:
+        outputs.extend(_render_performance(claims, args.output_dir))
+    if "budget_sensitivity" in groups:
+        outputs.extend(_render_sensitivity(claims, args.output_dir))
+    if "offload_waiting" in groups:
+        outputs.extend(_render_waiting(claims, args.output_dir))
+    if "routing_hotset" in groups:
+        outputs.extend(_render_hotsets(claims, args.output_dir))
+    if "perplexity_curve" in groups:
+        outputs.extend(_render_perplexity(claims, args.output_dir))
     artifact = {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": "paper_figure_bundle",

@@ -79,7 +79,7 @@ OFFLOAD_INPUT_LENGTHS = (
 OFFLOAD_MODEL_CONTRACTS = {
     "qwen30b": (48, 128, 8),
     "qwen80b": (48, 512, 10),
-    "deepseek_v2_lite": (26, 64, 6),
+    "phi35": (32, 16, 2),
 }
 REQUIRED_CLAIMS = {
     "quality_significance": {
@@ -108,12 +108,12 @@ REQUIRED_CLAIMS = {
     },
     "activation_density": {
         f"activation_density:{model}:{stage}"
-        for model in ("qwen30b", "qwen80b", "deepseek_v2_lite")
+        for model in ("qwen30b", "qwen80b", "phi35")
         for stage in ("decode", "prefill")
     },
     "offload_waiting": {
         f"offload_waiting:{model}"
-        for model in ("qwen30b", "qwen80b", "deepseek_v2_lite")
+        for model in ("qwen30b", "qwen80b", "phi35")
     },
     "routing_hotset": {
         f"routing_hotset:qwen30b:{workload}:layer15"
@@ -326,7 +326,7 @@ def manuscript_activation_density() -> dict[tuple[str, str], tuple[float, ...]]:
     model_aliases = {
         "Qwen3-30B": "qwen30b",
         "Qwen3-Next-80B": "qwen80b",
-        "DeepSeek-V2-Lite": "deepseek_v2_lite",
+        "Phi-3.5-MoE": "phi35",
     }
     rows = {}
     current_model = None
@@ -1827,7 +1827,7 @@ def validate_manifest_artifact(
             contracts = {
                 "qwen30b": (128, 8, 48),
                 "qwen80b": (512, 10, 48),
-                "deepseek_v2_lite": (64, 6, 26),
+                "phi35": (16, 2, 32),
             }
             experts_expected, topk_expected, layers_expected = contracts[
                 model

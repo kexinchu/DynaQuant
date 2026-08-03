@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+from pathlib import Path
+
 from scripts.render_paper_figures import (
     _render_hotsets,
     _render_performance,
@@ -7,6 +11,22 @@ from scripts.render_paper_figures import (
     _render_sensitivity,
     _render_waiting,
 )
+
+
+def test_renderer_script_is_directly_executable():
+    root = Path(__file__).resolve().parents[2]
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(root / "scripts" / "render_paper_figures.py"),
+            "--help",
+        ],
+        cwd="/tmp",
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
 
 
 def _claims() -> dict:
@@ -42,7 +62,7 @@ def _claims() -> dict:
                     "average_accuracy_pct": 50.0 + ratio / 10.0,
                 }
             }
-    for model in ("qwen30b", "qwen80b", "deepseek_v2_lite"):
+    for model in ("qwen30b", "qwen80b", "phi35"):
         claims[f"offload_waiting:{model}"] = {
             "benchmark": {
                 "points": [

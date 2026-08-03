@@ -125,7 +125,15 @@ def test_activation_density_parser_covers_every_table_cell():
         92.4,
         94.0,
     )
-    assert rows[("deepseek_v2_lite", "prefill")][-1] == 96.3
+    assert rows[("phi35", "decode")] == (
+        12.5,
+        22.7,
+        37.1,
+        59.3,
+        77.8,
+        88.8,
+    )
+    assert rows[("phi35", "prefill")][-1] == 100.0
 
 
 def test_complete_manifest_verifies_all_groups_and_hashes(tmp_path, monkeypatch):
