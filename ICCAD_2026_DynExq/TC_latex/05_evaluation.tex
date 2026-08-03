@@ -1,0 +1,265 @@
+\section{Evaluation}
+
+We evaluate \systemname\ on a single GPU under a fixed 48\,GB device-memory budget. The goal is not minimum per-step latency but a better \emph{quality--throughput--memory} tradeoff within that budget. The experiments ask five questions: (i)~does \systemname\ recover accuracy lost to uniform quantization? (ii)~how do latency and throughput scale as activation becomes dense? (iii)~what does each design component contribute (Sec.~\ref{sec:eval-ablation})? (iv)~does the system stay within its memory budget (Sec.~\ref{sec:eval-overhead})? (v)~how does accuracy change with the high-precision budget (Sec.~\ref{sec:eval-sensitivity})?
+
+\subsection{Experimental Setup}
+\label{sec:eval-setup}
+
+\begin{table}[t]
+  \centering
+  \caption{Configuration of evaluated MoE models.}
+  \label{tab:moe_config}
+  \vspace{-0.5em}
+  \setlength{\tabcolsep}{4pt}
+  \resizebox{\linewidth}{!}{
+  \begin{tabular}{lccc}
+    \toprule
+    & \textbf{Qwen3-30B} & \textbf{Qwen3-Next-80B} & \textbf{Phi-3.5-MoE} \\
+    \midrule
+    Total Parameters & 30.5B & 80B & 42B \\
+    Activated / Token & 3.3B & 3B & 6.6B \\
+    Reference Tier & FP16 & INT4 & FP16 \\
+    Expert Weight Fraction & 95\% & 96\% & 96\% \\
+    Layers & 48 & 48 & 32 \\
+    Routed Experts / Layer & 128 & 512 (+1 shared) & 16 \\
+    Top-$K$ & 8 & 10 & 2 \\
+    \bottomrule
+  \end{tabular}}
+\end{table}
+
+\noindent\textbf{Models.}
+We use \nolinkurl{Qwen/Qwen3-30B-A3B-Instruct-2507}~\cite{qwen3technicalreport}, \nolinkurl{Qwen/Qwen3-Next-80B-A3B-Instruct}~\cite{qwen3nextmodelcard}, and \nolinkurl{microsoft/Phi-3.5-MoE-instruct}~\cite{abdin2024phi3} (\autoref{tab:moe_config}).
+
+\noindent\textbf{Benchmarks.}
+We use WikiText-2~\cite{merity2016pointer} for perplexity and MMLU-Pro~\cite{wang2024mmlu}, GPQA~\cite{rein2024gpqa}, AIME25~\cite{zhang2025aime25}, GSM8K~\cite{cobbe2021gsm8k}, and HumanEval~\cite{chen2021evaluating} for task-level quality.
+
+\noindent\textbf{Evaluation protocol.}
+We use fixed, identifier-pinned evaluation sets comprising 200 MMLU-Pro examples, all 198 GPQA-Diamond questions, all 30 AIME25 problems, 200 GSM8K examples, and all 164 HumanEval tasks. GPQA answer choices are shuffled once with seed 42, and every method uses the resulting order. Multiple-choice accuracy uses the conditional log-likelihood of each complete answer label rather than a single token; all labels for one question are scored in one unpadded batch so an online precision switch cannot occur between candidates. Numeric answers are taken from an explicit final-answer field, or from the last generated integer when the field is absent; matching an intermediate number does not count. HumanEval reports pass@1 only after executing the official tests with greedy decoding. WikiText perplexity is computed over at most 128 exact 2,048-token windows, with overlapping context labels masked when a shorter stride is used; each artifact stores every window boundary, effective target-token count, mean loss, and NLL so the aggregate can be independently recomputed. We treat the five-task average as a descriptive effect size rather than a pooled significance test. Paired artifacts retain exact McNemar tests with Holm correction as diagnostic companions, but the manuscript makes no pooled significance claim.
+
+\noindent\textbf{Hardware and stack.}
+All experiments run on a single NVIDIA RTX~A6000 (48\,GB GDDR6 device memory). \systemname\ is integrated into a PyTorch/Transformers-based MoE inference stack~\cite{paszke2019pytorch,wolf2020transformers}. Hot routed experts use a higher-precision tier (FP16 for Qwen3-30B and Phi-3.5-MoE; INT4 for Qwen3-Next-80B); cold routed experts remain at a lower tier (INT4 or INT2, respectively). The Qwen3-Next shared expert remains fixed and is counted with non-routed weights.
+
+\noindent\textbf{Measurement and provenance.}
+Quality runs use greedy decoding with a fixed seed; each binomial accuracy or pass@1 result includes a 95\% Wilson interval in its artifact. Latency experiments use exact-length, non-padded 2,048-token inputs and generate 256 tokens per sequence, with five warmup iterations and 100 measured iterations; we report the mean, median, P95, and P99 from the raw samples. Model-level TTFT includes prefill and first-token selection, while TPOT covers subsequent cached decode steps. These measurements exclude request queueing, tokenization, network transport, and response serialization. During each timed generation, NVML samples whole-process GPU memory use on the selected GPU every 2\,ms, covering non-PyTorch CUDA allocations; raw PyTorch allocated/reserved high-water counters are retained separately. Every artifact records the checkpoint, method, quantization format, Git commit and dirty state, software versions, GPU model and UUID, seed, raw samples, memory-monitor metadata, and failed-example count. Dataset identity includes repository, configuration, split, immutable repository commit, source row count, and the loader's content fingerprint. A manuscript row is admitted only when all examples were evaluated and its values match the registered JSON artifact.
+
+\noindent\textbf{Baseline selection principle.}
+Static PTQ baselines are chosen so the full expert pool fits in device memory alongside non-expert weights and runtime allocations, the same constraint \systemname\ operates under. For Qwen3-30B and Phi-3.5-MoE the strongest uniform static point within the single-GPU footprint is INT4. For Qwen3-Next-80B we report two static references: uniform INT4 (higher accuracy, tighter fit) and uniform INT2 (more aggressive compression that leaves headroom for a mixed-precision policy). For an executable offloading comparison, we pin the official MoE-Infinity repository and enable its expert offload, activation-aware cache, and overlapping speculative-prefetch path on Qwen3-30B~\cite{xue2024moe,moeinfinityrepo}. The repository states that its current open-source runtime was redesigned and is not identical to the paper implementation; we therefore label this baseline ``MoE-Infinity (open source)'' and do not attribute its measurements to the original artifact. The pinned runtime does not support the exact Qwen3-Next-80B or Phi-3.5-MoE checkpoints, so we report no fabricated cross-model points.
+
+\subsection{Quality under a Fixed Memory Budget}
+\label{sec:eval-quality}
+
+\begin{table*}[t]
+\small
+\centering
+\caption{Task-score comparison across models and methods under comparable device-memory budgets.}
+\label{tab:accuracy}
+\vspace{-0.5em}
+\begin{tabular}{llrrrrrr}
+\toprule
+\textbf{Model} & \textbf{Method} & \textbf{MMLU-Pro} & \textbf{GPQA} & \textbf{AIME25} & \textbf{GSM8K} & \textbf{HumanEval} & \textbf{Avg.} \\
+\midrule
+Qwen3-30B     & FP16    & 76.00 & 54.04 & 33.33 & 90.50 & 84.76 & 67.73 \\
+              & INT4    & 73.50 & 50.51 & 30.00 & 89.50 & 84.15 & 65.53 \\
+              & \systemname & 75.00 & 53.03 & 33.33 & 90.00 & 84.76 & \textbf{67.22} \\
+\midrule
+Qwen3-Next-80B & INT4    & 76.00 & 72.22 & 70.00 & 87.00 & 85.37 & 78.12 \\
+              & INT2    & 71.50 & 65.66 & 60.00 & 86.00 & 84.76 & 73.58 \\
+              & \systemname & 75.50 & 71.21 & 66.67 & 87.00 & 85.37 & \textbf{77.15} \\
+\midrule
+Phi-3.5-MoE   & FP16  & 54.00 & 36.87 & 40.00 & 88.50 & 70.73 & 58.02 \\
+              & INT4  & 52.00 & 34.34 & 36.67 & 87.50 & 70.12 & 56.13 \\
+              & \systemname & 53.50 & 35.86 & 40.00 & 88.00 & 70.73 & \textbf{57.62} \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\autoref{tab:accuracy} lists per-benchmark task scores. We interpret results per model because the feasible static baselines differ.
+
+\textbf{Qwen3-30B.} Uniform INT4 drops the average from 67.73 to 65.53. \systemname\ brings it back to 67.22, recovering 77\% of the FP16 gap by concentrating higher precision on frequently routed experts while keeping most weights at INT4.
+
+\textbf{Qwen3-Next-80B.} Against uniform INT2 at 73.58, \systemname\ reaches 77.15, recovering 79\% of the gap toward INT4 at 78.12. This model shows the largest absolute gain (+3.57\,pp) because the INT2 baseline is aggressively compressed, leaving more room for a mixed-precision policy to reclaim quality. We compare against INT2 rather than INT4 because uniform INT4 for Qwen3-Next-80B already fills nearly all 48\,GB, leaving no headroom for the mixed-precision hi-pool or for growing the KV cache at larger batch sizes. \systemname\ uses INT2 as the low-precision floor and selectively upgrades the hottest experts to INT4, achieving most of the INT4 accuracy at a fraction of its memory cost.
+
+\textbf{Phi-3.5-MoE.} INT4 lowers the average from 58.02 to 56.13; \systemname\ reaches 57.62, recovering 79\% of the gap.
+
+Across all three models, recovery rates fall in the 77--79\% range. The degradation and recovery concentrate on reasoning-intensive benchmarks: MMLU-Pro, GPQA, and AIME25. GSM8K and HumanEval change little across precision tiers; this may indicate that their routed working sets are less sensitive to the precision allocations tested here, but the aggregate scores do not identify a causal mechanism.
+
+\subsection{Latency and Throughput}
+\label{sec:eval-performance}
+
+\autoref{fig:end2end} reports model-level average and P99 end-to-end latency. Fully resident static PTQ remains the lower bound because it performs neither online scheduling nor precision transitions; \systemname\ trades some raw speed for adaptation while keeping every routed expert device-resident. On Qwen3-30B, its gap from the pinned MoE-Infinity offload/cache/prefetch runtime widens as batching densifies the routed working set. Because that runtime does not support the other two checkpoints, those panels quantify only \systemname's overhead relative to static PTQ. The executable Qwen3-30B result is checkpoint-specific and does not characterize all offloading systems.
+
+\begin{figure}[t]
+    \centering
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Qwen3-30B Avg]{%
+            \includegraphics[width=0.95\linewidth]{figures/Qwen3-30B_avg_latency_end2end_vs_batch_size.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Qwen3-Next Avg]{%
+            \includegraphics[width=0.95\linewidth]{figures/Qwen3-80B_avg_latency_end2end_vs_batch_size.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Phi-3.5-MoE Avg]{%
+            \includegraphics[width=0.95\linewidth]{figures/Phi-3.5-MoE_avg_latency_end2end_vs_batch_size.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Qwen3-30B P99]{%
+            \includegraphics[width=0.95\linewidth]{figures/Qwen3-30B_p99_latency_end2end_vs_batch_size.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Qwen3-Next P99]{%
+            \includegraphics[width=0.95\linewidth]{figures/Qwen3-80B_p99_latency_end2end_vs_batch_size.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Phi-3.5-MoE P99]{%
+            \includegraphics[width=0.95\linewidth]{figures/Phi-3.5-MoE_p99_latency_end2end_vs_batch_size.pdf}
+        }
+    \end{minipage}
+    \caption{Model-level end-to-end latency (average and P99) vs.\ batch size. Qwen3-30B additionally includes the pinned MoE-Infinity open-source runtime; the other checkpoints are unsupported by that version.}
+    \label{fig:end2end}
+    \vspace{-1em}
+\end{figure}
+
+\paragraph{Throughput}
+\autoref{fig:throughput} reports generated tokens/s from the same runs. Static PTQ is the upper reference on all models; \systemname\ preserves monotonic scaling while paying for handle-aware dispatch, scheduling, and background transitions. On Qwen3-30B, MoE-Infinity scales more slowly with batch size, consistent with denser routing exposing more cache-miss movement. Each external-baseline artifact verifies offloaded tensors and measured-interval prefetch calls; invalid configurations are rejected.
+
+\begin{figure}[t]
+    \centering
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Qwen3-30B]{%
+            \includegraphics[width=0.95\linewidth]{figures/Qwen3-30B_p99_latency_throughput.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Qwen3-Next]{%
+            \includegraphics[width=0.95\linewidth]{figures/Qwen3-80B_p99_latency_throughput.pdf}
+        }
+    \end{minipage}
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \subfloat[Phi-3.5-MoE]{%
+            \includegraphics[width=0.95\linewidth]{figures/Phi-3.5-MoE_p99_latency_throughput.pdf}
+        }
+    \end{minipage}
+    \caption{Generated-token throughput vs.\ batch size. MoE-Infinity (open source) appears only for its supported Qwen3-30B checkpoint.}
+    \label{fig:throughput}
+    \vspace{-1em}
+\end{figure}
+
+\subsection{Component Ablation}
+\label{sec:eval-ablation}
+
+We disable one component at a time and measure the effect on Qwen3-30B and Qwen3-Next-80B at batch size 32 (\autoref{tab:ablation}). All configurations begin from the same independently calibrated ranking prefix and run the same pinned sequence---MMLU-Pro, GPQA-Diamond, AIME25, GSM8K, and HumanEval---followed by five performance warm-ups and 100 measured generations with 2,048 input and 256 output tokens. Accuracy is the unweighted mean over the five task scores; throughput and P99 are measured after this common shift trace. One artifact stores the raw per-example decisions, raw latency samples, active runtime switches, initial-map hash, and the three derived table values.
+\emph{Static precision} fixes the high-precision map at initialization and disables the online scheduler, similar in spirit to the offline assignment in MxMoE~\cite{duanmu2025mxmoe};
+\emph{Blocking migration} removes the dedicated CUDA migration stream and executes the complete fetch--copy--publish--reclaim transaction inline at each scheduler tick;
+\emph{w/o Hysteresis} removes the hysteresis margin so that the scheduler re-ranks experts by raw EMA scores every tick.
+
+\begin{table}[t]
+\small
+\centering
+\caption{Component ablation (bs\,=\,32).}
+\label{tab:ablation}
+\vspace{-0.5em}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\linewidth}{!}{
+\begin{tabular}{lrrrrrr}
+\toprule
+ & \multicolumn{3}{c}{\textbf{Qwen3-30B}} & \multicolumn{3}{c}{\textbf{Qwen3-Next-80B}} \\
+\cmidrule(lr){2-4}\cmidrule(lr){5-7}
+\textbf{Config} & Score(\%) & Tput(tok/s) & P99(s) & Score(\%) & Tput(tok/s) & P99(s) \\
+\midrule
+Full \systemname     & \textbf{67.22} & 901  & 63  & \textbf{77.15} & 297  & 175  \\
+Static precision     & 66.35 & \textbf{925}  & \textbf{58}  & 75.68 & \textbf{312}  & \textbf{162}  \\
+Blocking migration   & 67.12 & 790  & 83  & 77.05 & 255  & 235  \\
+w/o Hysteresis       & 67.02 & 862  & 71  & 76.93 & 279  & 198  \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{Online scheduling drives accuracy recovery}
+Static precision freezes the hot set at initialization and cannot track workload shifts. The top hot experts differ between text, math, and code tasks (Fig.~\ref{fig:expert-active}), so a one-time snapshot mispredicts on later tasks. Accuracy drops by 0.87\,pp on Qwen3-30B and 1.47\,pp on Qwen3-Next-80B, reducing recovery from 77--79\% to 37--46\%. The larger drop on Qwen3-Next-80B is consistent with its wider pool of 512 routed experts per layer, for which a fixed high-precision subset covers a smaller fraction of possible identities. Static precision gains marginal throughput (+2.8--4.0\%) and lower P99 from zero migration traffic, exposing the performance cost paid for online adaptation.
+
+\paragraph{Asynchronous migration preserves throughput and tail latency}
+Blocking migration retains accuracy, with changes of only $-$0.04 to $-$0.06\,pp, but causes 12--15\% throughput loss and 32--34\% P99 inflation. On Qwen3-30B each 9.0\,MB FP16 expert copy takes ${\sim}$0.9\,ms. A burst across 10+ layers blocks the compute pipeline for tens of milliseconds. The dedicated migration stream avoids this explicit inline serialization, although it cannot remove shared-bandwidth contention.
+
+\paragraph{Hysteresis stabilizes migration traffic}
+Without hysteresis, boundary experts flip every tick, producing 2--3$\times$ more migration churn. Accuracy changes are small, only $-$0.12 to $-$0.23\,pp, but throughput drops 4--7\% and P99 worsens by 12--13\% because the extra transfers compete for PCIe bandwidth.
+
+\subsection{Memory Utilization and Runtime Overhead}
+\label{sec:eval-overhead}
+
+\autoref{tab:overhead} reports completed formal runs for Qwen3-30B and Phi-3.5-MoE at batch size 32 and for Qwen3-Next-80B at batch size 8.
+
+\begin{table}[t]
+\centering
+\caption{Memory utilization and runtime overhead. Batch size 32 for Qwen3-30B and Phi-3.5-MoE; batch size 8 for Qwen3-Next-80B.}
+\label{tab:overhead}
+\vspace{-0.5em}
+\setlength{\tabcolsep}{4pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Metric} & \textbf{Qwen3-30B} & \textbf{Qwen3-Next-80B} & \textbf{Phi-3.5-MoE} \\
+\midrule
+GPU Memory Budget (GB)       & 48.0  & 48.0  & 48.0 \\
+Peak Process GPU Memory (GB) & 46.89 & 43.78 & 47.05 \\
+Resident Expert Pools (GB)   & 29.71 & 29.97 & 21.39 \\
+Transient Pool (GB)          & 0.04 & 0.01 & 0.63 \\
+Migration Count              & 536 & 188 & 536 \\
+Transferred (GB)             & 3.18 & 0.24 & 53.02 \\
+Scheduler Mean (ms)          & 25.25 & 46.09 & 2.50 \\
+Scheduler P99 (ms)           & 41.96 & 72.10 & 5.67 \\
+Pinned Expert Cache (GB)     & 72.9 & 61.6 & 101.29 \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\paragraph{Budget compliance}
+The runtime preallocates fixed resident pools and materializes every routed expert, so conventional ``pool utilization'' would be approximately 100\% by construction and is not an informative empirical metric. We instead report provisioned resident and transient bytes. NVML samples current-process GPU memory every 2\,ms; the table reports the maximum across all samples collected during 100 measured generations (Qwen3-30B and Phi-3.5-MoE at batch size 32; Qwen3-Next-80B at batch size 8). Unlike PyTorch allocator counters, this includes allocations owned by CUDA extensions and external runtime components. Other users may retain idle GPU memory residency: their bytes are recorded separately and excluded from our process high-water mark, while any nonzero foreign-process NVML utilization invalidates the sample. A current-process high-water mark above the declared 48\,GB device-memory envelope also invalidates the run. Raw PyTorch allocated/reserved counters are retained as diagnostic companions, and the final budget snapshot separately proves that committed plus pending \systemname-owned expert bytes never exceeded their cap.
+
+\paragraph{Migration traffic}
+Migration count sums completed promotions and demotions over five warm-ups and 100 measured generations. Transferred bytes are accumulated from the exact packed payload copied for every completed transition; no nominal per-expert size is multiplied by a request count. These counters make workload-dependent churn auditable without inferring traffic from the final precision map.
+
+\paragraph{Control-plane cost}
+For every successful scheduling tick, the wrapper records the CPU time required to synchronize the published tier map, rank candidates, and enqueue accepted requests. The table reports the mean and nearest-rank P99 from those raw samples. Under normal asynchronous operation this excludes background fetch, copy, and reclamation, which are reported separately through transition-stage timings.
+
+\paragraph{Host DRAM tradeoff}
+The pinned expert cache is the system's main auxiliary cost. We report the byte sum of both canonical packed representations, including scales, rather than process RSS. Native source tensors are released after packing, but allocator metadata and temporary host buffers can make peak process memory larger than this payload-only value. Keeping both versions makes promotion a direct copy with no online quantization, and the host-side footprint does not compete with the device-memory budget.
+
+\subsection{Precision Budget Sensitivity}
+\label{sec:eval-sensitivity}
+
+\autoref{fig:budget_sensitivity} sweeps the requested per-layer high-precision ratio $n_{\mathrm{hi}}/E$ from 0\% (all low-precision, equivalent to the static PTQ baseline) to 30\% on the five accuracy benchmarks. For a requested ratio $r$, the runtime allocates exactly $\lfloor rE\rfloor$ high-precision slots in every layer, records the realized ratio after integer rounding, and rejects rather than silently shrinking an infeasible point. Every point uses the ablation protocol's pinned task order and registered benchmark subsets. WikiText-2 is excluded because its metric is perplexity.
+
+\begin{figure}[t]
+  \centering
+  \subfloat[Qwen3-30B]{%
+    \includegraphics[width=0.48\columnwidth]{figures/budget_sensitivity_qwen30b.pdf}%
+  }
+  \hfill
+  \subfloat[Qwen3-Next-80B]{%
+    \includegraphics[width=0.48\columnwidth]{figures/budget_sensitivity_qwen80b.pdf}%
+  }
+  \caption{Average accuracy vs.\ high-precision expert budget ($n_{\mathrm{hi}}/E$). The dashed line marks the static all-low baseline at 0\%.}
+  \label{fig:budget_sensitivity}
+  \vspace{-1em}
+\end{figure}
+
+Both curves are concave. This pattern is consistent with heavy-tailed routing: a small fraction of hot experts absorbs much of the token traffic, so upgrading that subset can yield disproportionate accuracy gains.
+
+On Qwen3-30B the first 5\% of high-precision experts recovers 0.85\,pp of the 2.20\,pp FP16--INT4 gap, while the next 5\% adds only 0.51\,pp. Each upgrade adds 6.68\,MiB per expert under the packed layout, so the memory price of the first 5\% is already non-trivial. On Qwen3-Next-80B the effect is more pronounced: the first 5\% recovers 1.76\,pp of the 4.54\,pp INT4--INT2 gap, because the wider precision gap amplifies per-expert quality impact while each upgrade adds only 0.703\,MiB. Beyond 25\%, gains on both models fall below 0.1\,pp per 5\% increment. We stop the sweep at 30\% because Qwen3-30B already reaches 46.2\,GB at that point, leaving less than 2\,GB of headroom before the 48\,GB GPU memory ceiling.
+
+\systemname's default at ${\sim}$20\% sits near the knee of both curves, recovering 77--79\% of the respective accuracy gap at 42--43\,GB of the 48\,GB budget. The knee point falls at the same ratio under both FP16/INT4 and INT4/INT2 regimes, which suggests the EMA-based scheduler captures routing concentration at similar efficiency regardless of precision pair. For deployment, this curve provides a concrete tradeoff map: shifting from the default 20\% to 10\% costs ${\sim}$0.33\,pp on Qwen3-30B while recovering roughly 4\,GB of GPU memory---headroom that translates directly into larger batch sizes or longer KV caches.

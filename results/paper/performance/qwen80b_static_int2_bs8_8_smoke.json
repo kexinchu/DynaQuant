@@ -1,0 +1,187 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-08-02T10:14:20.118864+00:00",
+  "model": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal",
+  "paper_model": "qwen80b",
+  "paper_method": "static_ptq",
+  "checkpoint": {
+    "reference": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal",
+    "local": true,
+    "resolved_path": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int2-from-int4-formal",
+    "control_files": [
+      {
+        "name": "config.json",
+        "size_bytes": 36012,
+        "sha256": "58fe2e686a379e67848f65e9f02a0f36e3dea3d4d3c63eee2d9956e25fe2e2e3"
+      },
+      {
+        "name": "generation_config.json",
+        "size_bytes": 213,
+        "sha256": "d9363251ecc4d2f655fb0166c3cf8c42956343286371e2ff94c73a0bd62b224f"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "size_bytes": 20698522,
+        "sha256": "ddaad1f8f976a73381ef1b6c45121ae38b4b51a06d4d83012d4e10d46d92d98f"
+      },
+      {
+        "name": "quantization_config.json",
+        "size_bytes": 30584,
+        "sha256": "7f24725ddcca8e784d11afa2705e783383ca21c6fa140d61195efdd73a41666f"
+      }
+    ],
+    "weight_files": [
+      {
+        "name": "model-00001-of-00011.safetensors",
+        "size_bytes": 2440732944
+      },
+      {
+        "name": "model-00002-of-00011.safetensors",
+        "size_bytes": 2442156704
+      },
+      {
+        "name": "model-00003-of-00011.safetensors",
+        "size_bytes": 2442179144
+      },
+      {
+        "name": "model-00004-of-00011.safetensors",
+        "size_bytes": 2439198680
+      },
+      {
+        "name": "model-00005-of-00011.safetensors",
+        "size_bytes": 2442178880
+      },
+      {
+        "name": "model-00006-of-00011.safetensors",
+        "size_bytes": 2442178872
+      },
+      {
+        "name": "model-00007-of-00011.safetensors",
+        "size_bytes": 2442178376
+      },
+      {
+        "name": "model-00008-of-00011.safetensors",
+        "size_bytes": 2439198520
+      },
+      {
+        "name": "model-00009-of-00011.safetensors",
+        "size_bytes": 2442178872
+      },
+      {
+        "name": "model-00010-of-00011.safetensors",
+        "size_bytes": 2556545984
+      },
+      {
+        "name": "model-00011-of-00011.safetensors",
+        "size_bytes": 622329952
+      },
+      {
+        "name": "model_extra_tensors.safetensors",
+        "size_bytes": 473005576
+      }
+    ],
+    "weight_hashes_included": false
+  },
+  "method": "quantized_checkpoint",
+  "quantization": "int2",
+  "inference_backend": "triton",
+  "device_map": "cuda:0",
+  "seed": 42,
+  "evaluation_protocol": {
+    "name": "custom",
+    "seed": 42,
+    "process_hbm_high_water": false
+  },
+  "benchmark": {
+    "scope": "isolated_model",
+    "excludes": [
+      "request_queueing",
+      "tokenization",
+      "network_transport",
+      "response_serialization"
+    ],
+    "batch_size": 8,
+    "input_tokens": 2048,
+    "output_tokens_per_sequence": 8,
+    "warmup_iterations": 0,
+    "measured_iterations": 1,
+    "metrics": {
+      "model_ttft_ms": {
+        "mean": 10414.794559008442,
+        "p50": 10414.794559008442,
+        "p95": 10414.794559008442,
+        "p99": 10414.794559008442,
+        "min": 10414.794559008442,
+        "max": 10414.794559008442
+      },
+      "model_tpot_ms": {
+        "mean": 433.8552874313401,
+        "p50": 433.8552874313401,
+        "p95": 433.8552874313401,
+        "p99": 433.8552874313401,
+        "min": 433.8552874313401,
+        "max": 433.8552874313401
+      },
+      "model_e2e_ms": {
+        "mean": 13451.781571027823,
+        "p50": 13451.781571027823,
+        "p95": 13451.781571027823,
+        "p99": 13451.781571027823,
+        "min": 13451.781571027823,
+        "max": 13451.781571027823
+      },
+      "throughput_tokens_s": {
+        "mean": 4.7577341084575675,
+        "p50": 4.7577341084575675,
+        "p95": 4.7577341084575675,
+        "p99": 4.7577341084575675,
+        "min": 4.7577341084575675,
+        "max": 4.7577341084575675
+      },
+      "peak_allocated_bytes": {
+        "mean": 29707209728.0,
+        "p50": 29707209728.0,
+        "p95": 29707209728.0,
+        "p99": 29707209728.0,
+        "min": 29707209728.0,
+        "max": 29707209728.0
+      },
+      "peak_reserved_bytes": {
+        "mean": 47475326976.0,
+        "p50": 47475326976.0,
+        "p95": 47475326976.0,
+        "p99": 47475326976.0,
+        "min": 47475326976.0,
+        "max": 47475326976.0
+      }
+    },
+    "samples": [
+      {
+        "model_ttft_ms": 10414.794559008442,
+        "model_tpot_ms": 433.8552874313401,
+        "model_e2e_ms": 13451.781571027823,
+        "throughput_tokens_s": 4.7577341084575675,
+        "peak_allocated_bytes": 29707209728.0,
+        "peak_reserved_bytes": 47475326976.0
+      }
+    ]
+  },
+  "environment": {
+    "python": "3.13.12",
+    "platform": "Linux-6.18.40-x86_64-with-glibc2.35",
+    "torch": "2.10.0+cu128",
+    "transformers": "5.12.1",
+    "auto_round": "0.12.3",
+    "cuda_runtime": "12.8",
+    "cudnn": 91002,
+    "pytorch_alloc_conf": "expandable_segments:True",
+    "gpus": [
+      "NVIDIA RTX A6000"
+    ],
+    "process_max_rss_bytes": 28333580288,
+    "git": {
+      "commit": "ee5283bfacf12428b5a6fcff284ddb4eb28a9cb9",
+      "dirty": false
+    }
+  }
+}

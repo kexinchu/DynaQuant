@@ -14,10 +14,15 @@ The open-source package contains:
 - `dynaexq/models/`: Qwen3-MoE and Phi-3.5-MoE adapters;
 - `dynaexq/experiments/`: quality, latency, memory, and workload harnesses;
 - `dynaexq/baselines/`: baseline identity checks and offload baselines;
-- `scripts/`: reproducible model-manifest, benchmark, and telemetry tools.
+- `scripts/`: reproducible model-manifest, benchmark, telemetry, rendering, and
+  artifact-audit tools;
+- `ICCAD_2026_DynExq/`: manuscript source, figures, submission package, and
+  compiled paper;
+- `results/`: model manifests, registered paper artifacts, raw performance
+  records, and smoke-check provenance.
 
 The repository intentionally excludes model checkpoints, downloaded benchmark
-data, raw request traces, generated logs, and private submission material.
+data, raw user prompts, generated logs, and credentials.
 
 ## Installation
 
@@ -94,6 +99,9 @@ bash scripts/reproduce_paper.sh dynamic --help
 bash scripts/reproduce_paper.sh activation-density --help
 bash scripts/reproduce_paper.sh routing-trace --help
 bash scripts/reproduce_paper.sh offload-waiting --help
+bash scripts/reproduce_paper.sh audit
+bash scripts/reproduce_paper.sh render-figures
+bash scripts/reproduce_paper.sh paper
 ```
 
 For example, a static-checkpoint performance run can be launched with:
@@ -154,6 +162,27 @@ dataset revisions, dependency versions, seed, command, and hardware identity.
 HumanEval execution requires the explicit `--allow-code-execution` option and
 should run in a disposable sandbox. A unit-test pass is not evidence for an
 end-to-end GPU performance or accuracy claim.
+
+## Paper and result artifacts
+
+The manuscript source and its checked-in PDF are under
+`ICCAD_2026_DynExq/`. Build the paper with:
+
+```bash
+bash scripts/reproduce_paper.sh paper
+```
+
+Machine-readable artifacts are separated by role:
+
+- `results/paper/`: registered motivation artifacts and their manifest;
+- `results/paper/performance/`: preserved formal and smoke performance JSON;
+- `results/paper/audits/`: point-in-time audit reports;
+- `results/model_manifests/`: immutable model/checkpoint provenance;
+- `results/smoke_checks/`: checkpoint loading and generation checks.
+
+Run `python scripts/audit_paper_results.py` before treating a manuscript value
+as reproducible. Raw or smoke artifacts are retained for transparency but are
+not automatically promoted into the strict claim manifest.
 
 ## License and citation
 

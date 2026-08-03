@@ -1,0 +1,32 @@
+{
+  "artifact_type": "model_manifest_verification",
+  "declared_hidden_layer_count": 48,
+  "declared_local_path": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound",
+  "elapsed_seconds": 51.5262859200011,
+  "file_count": 25,
+  "index_file": "model.safetensors.index.json",
+  "indexed_tensor_bytes": 43243415040,
+  "manifest": "/home/kec23008/DynaQuant-formal/results/model_manifests/qwen3_next_80b_int4_mixed_autoround_official.json",
+  "manifest_sha256": "08022d034970ca76ec1026a25a607f12352d707138539b4d0d1d1e669d1417fa",
+  "model_type": "qwen3_next",
+  "relocated": false,
+  "required_terminal_tensors_verified": [
+    "lm_head.weight",
+    "model.embed_tokens.weight",
+    "model.norm.weight"
+  ],
+  "schema_version": "1.0",
+  "tensor_count": 227088,
+  "verification_script_sha256": "0b43a2b3c4bb59dec1aafaa71ffcfb93760783964576091395c54ba0ada209c1",
+  "verified_at": "2026-07-30T04:37:01.853331+00:00",
+  "verified_auxiliary_shard_count": 1,
+  "verified_auxiliary_tensor_bytes": 859042816,
+  "verified_bytes": 44166760774,
+  "verified_hidden_layer_count": 48,
+  "verified_indexed_tensor_bytes": 43243415040,
+  "verified_local_path": "/home/kec23008/Models/Qwen3-Next-80B-A3B-Instruct-int4-mixed-AutoRound",
+  "verified_primary_shard_count": 11,
+  "verified_safetensors_tensor_count": 227088,
+  "verified_tensor_bytes": 44102457856,
+  "weight_shard_count": 12
+}

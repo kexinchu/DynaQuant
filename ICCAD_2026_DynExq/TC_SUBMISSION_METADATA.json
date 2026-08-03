@@ -1,0 +1,36 @@
+{
+  "venue": "IEEE Transactions on Computers",
+  "article_type": "regular_paper",
+  "review_model": "single_anonymous",
+  "authors": [
+    {
+      "name": "Kexin Chu",
+      "affiliation": "University of Connecticut, Storrs, CT 06269, USA",
+      "email": "kexin.chu@uconn.edu",
+      "orcid": "0009-0000-0303-6699"
+    },
+    {
+      "name": "Dawei Xiang",
+      "affiliation": "University of Connecticut, Storrs, CT 06269, USA",
+      "email": "ieb24002@uconn.edu",
+      "orcid": "0009-0001-2935-0288"
+    },
+    {
+      "name": "Wei Zhang",
+      "affiliation": "University of Connecticut, Storrs, CT 06269, USA",
+      "email": "wei.13.zhang@uconn.edu",
+      "orcid": "0009-0004-9512-4192"
+    }
+  ],
+  "corresponding_author_email": "wei.13.zhang@uconn.edu",
+  "prior_version": {
+    "status": "rejected_unpublished",
+    "declaration": "This manuscript was previously submitted to ICCAD and rejected. It was not published, and no portion is currently under review elsewhere.",
+    "previous_submission": {
+      "venue": "IEEE/ACM International Conference on Computer-Aided Design (ICCAD)",
+      "outcome": "rejected",
+      "published": false
+    }
+  },
+  "human_or_animal_research": false
+}

@@ -1,0 +1,1135 @@
+{
+  "artifact_type": "complete_nonfigure_experiment_data_audit",
+  "claims": [
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs1_isolated_rerun.json",
+      "claim": "performance:qwen30b:static_ptq:bs1",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs1_isolated_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_dynaexq_bs1.json",
+      "claim": "performance:qwen30b:dynaexq:bs1",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "26785bd46de2f67057d318a674ac859c8b08933a2bce4b2386d4e204b2c70b63"
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs1.json",
+      "claim": "performance:qwen30b:moe_infinity:bs1",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs1.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs1_isolated_rerun.json",
+      "claim": "performance:qwen80b:static_ptq:bs1",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs1_isolated_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs1.json",
+      "claim": "performance:qwen80b:dynaexq:bs1",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "823a7dc21fd0d4bb9a74821b068bbe07fb7b9f725f3d2f78cb7d9b89ac1217ab"
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs1.json",
+      "claim": "performance:phi35:static_ptq:bs1",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs1.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs1.json",
+      "claim": "performance:phi35:dynaexq:bs1",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs1.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs2.json",
+      "claim": "performance:qwen30b:static_ptq:bs2",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "1beec52e4fa8ad38451e69f3dbec1c7348f6b9674f231dacb88c8552e70878bf"
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_dynaexq_bs2.json",
+      "claim": "performance:qwen30b:dynaexq:bs2",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "cf590e8ddab57ace36dabaf8b78899385e52945a0a9767084f1bc2e19745b58f"
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs2.json",
+      "claim": "performance:qwen30b:moe_infinity:bs2",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs2.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs2_isolated_rerun.json",
+      "claim": "performance:qwen80b:static_ptq:bs2",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs2_isolated_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs2.json",
+      "claim": "performance:qwen80b:dynaexq:bs2",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "52de70da84c9a8ab704bafefcd71ccd8ddb19a379c7e45af7c05e83f3c379e78"
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs2.json",
+      "claim": "performance:phi35:static_ptq:bs2",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs2.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs2.json",
+      "claim": "performance:phi35:dynaexq:bs2",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs2.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs4_isolated_tail_rerun.json",
+      "claim": "performance:qwen30b:static_ptq:bs4",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs4_isolated_tail_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_dynaexq_bs4.json",
+      "claim": "performance:qwen30b:dynaexq:bs4",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "faddd61e1b8190fd52fd6125b4a87c3e647a20825323638f39ffddfd15b9d23d"
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs4.json",
+      "claim": "performance:qwen30b:moe_infinity:bs4",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs4.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs4_isolated_rerun.json",
+      "claim": "performance:qwen80b:static_ptq:bs4",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs4_isolated_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs4.json",
+      "claim": "performance:qwen80b:dynaexq:bs4",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs4.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs4.json",
+      "claim": "performance:phi35:static_ptq:bs4",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs4.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs4.json",
+      "claim": "performance:phi35:dynaexq:bs4",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs4.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs8_isolated_tail_rerun.json",
+      "claim": "performance:qwen30b:static_ptq:bs8",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs8_isolated_tail_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_dynaexq_bs8.json",
+      "claim": "performance:qwen30b:dynaexq:bs8",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "0a399b64c5a7ed081728c95371a94f424687680ac345c330924498380bcf1681"
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs8.json",
+      "claim": "performance:qwen30b:moe_infinity:bs8",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs8.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs8.json",
+      "claim": "performance:qwen80b:static_ptq:bs8",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs8.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs8.json",
+      "claim": "performance:qwen80b:dynaexq:bs8",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs8.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs8.json",
+      "claim": "performance:phi35:static_ptq:bs8",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs8.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs8.json",
+      "claim": "performance:phi35:dynaexq:bs8",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs8.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs16.json",
+      "claim": "performance:qwen30b:static_ptq:bs16",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "184d40d69b85d4df65da7e4333f29159ae2e0a24632dd3fe771cb7f58b13bb24"
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_dynaexq_bs16.json",
+      "claim": "performance:qwen30b:dynaexq:bs16",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "b6fd5f41d7ed60f77de6a09a6890744ac177a1f5fdc9ca1bd71542dfac31d48e"
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs16.json",
+      "claim": "performance:qwen30b:moe_infinity:bs16",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs16.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs16.json",
+      "claim": "performance:qwen80b:static_ptq:bs16",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs16.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs16.json",
+      "claim": "performance:qwen80b:dynaexq:bs16",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs16.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs16.json",
+      "claim": "performance:phi35:static_ptq:bs16",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs16.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs16.json",
+      "claim": "performance:phi35:dynaexq:bs16",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs16.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs32_isolated_rerun.json",
+      "claim": "performance:qwen30b:static_ptq:bs32",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs32_isolated_rerun.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen30b_dynaexq_bs32.json",
+      "claim": "performance:qwen30b:dynaexq:bs32",
+      "data_problems": [],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": "c8c7927d653fb20415db931f56fb3812a8a436a6791d70ccd1a76a0b20182791"
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs32.json",
+      "claim": "performance:qwen30b:moe_infinity:bs32",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs32.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs32.json",
+      "claim": "performance:qwen80b:static_ptq:bs32",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs32.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs32.json",
+      "claim": "performance:qwen80b:dynaexq:bs32",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs32.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs32.json",
+      "claim": "performance:phi35:static_ptq:bs32",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs32.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs32.json",
+      "claim": "performance:phi35:dynaexq:bs32",
+      "data_problems": [
+        "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs32.json"
+      ],
+      "group": "performance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_static_ptq_vs_dynaexq_significance.json",
+      "claim": "quality_significance:qwen30b:static_ptq_vs_dynaexq",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_static_ptq_vs_dynaexq_significance.json"
+      ],
+      "group": "quality_significance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_activation_density.json",
+      "claim": "activation_density:qwen30b:decode",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_activation_density.json"
+      ],
+      "group": "activation_density",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_activation_density.json",
+      "claim": "activation_density:qwen30b:prefill",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_activation_density.json"
+      ],
+      "group": "activation_density",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_offload_waiting.json",
+      "claim": "offload_waiting:qwen30b",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_offload_waiting.json"
+      ],
+      "group": "offload_waiting",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_static_ptq_vs_dynaexq_significance.json",
+      "claim": "quality_significance:qwen80b:static_ptq_vs_dynaexq",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_static_ptq_vs_dynaexq_significance.json"
+      ],
+      "group": "quality_significance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_activation_density.json",
+      "claim": "activation_density:qwen80b:decode",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_activation_density.json"
+      ],
+      "group": "activation_density",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_activation_density.json",
+      "claim": "activation_density:qwen80b:prefill",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_activation_density.json"
+      ],
+      "group": "activation_density",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_offload_waiting.json",
+      "claim": "offload_waiting:qwen80b",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_offload_waiting.json"
+      ],
+      "group": "offload_waiting",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/phi35_static_ptq_vs_dynaexq_significance.json",
+      "claim": "quality_significance:phi35:static_ptq_vs_dynaexq",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_static_ptq_vs_dynaexq_significance.json"
+      ],
+      "group": "quality_significance",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/phi35_activation_density.json",
+      "claim": "activation_density:phi35:decode",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_activation_density.json"
+      ],
+      "group": "activation_density",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/phi35_activation_density.json",
+      "claim": "activation_density:phi35:prefill",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_activation_density.json"
+      ],
+      "group": "activation_density",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/phi35_offload_waiting.json",
+      "claim": "offload_waiting:phi35",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_offload_waiting.json"
+      ],
+      "group": "offload_waiting",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_full.json",
+      "claim": "ablation:qwen30b:full",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_full.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_static.json",
+      "claim": "ablation:qwen30b:static",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_static.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_blocking.json",
+      "claim": "ablation:qwen30b:blocking",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_blocking.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_no_hysteresis.json",
+      "claim": "ablation:qwen30b:no_hysteresis",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_no_hysteresis.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_runtime_overhead.json",
+      "claim": "runtime_overhead:qwen30b",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_runtime_overhead.json"
+      ],
+      "group": "runtime_overhead",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio0.json",
+      "claim": "budget_sensitivity:qwen30b:ratio0",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio0.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio5.json",
+      "claim": "budget_sensitivity:qwen30b:ratio5",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio5.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio10.json",
+      "claim": "budget_sensitivity:qwen30b:ratio10",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio10.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio15.json",
+      "claim": "budget_sensitivity:qwen30b:ratio15",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio15.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio20.json",
+      "claim": "budget_sensitivity:qwen30b:ratio20",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio20.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio25.json",
+      "claim": "budget_sensitivity:qwen30b:ratio25",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio25.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio30.json",
+      "claim": "budget_sensitivity:qwen30b:ratio30",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio30.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_perplexity_curve.json",
+      "claim": "perplexity_curve:qwen30b",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_perplexity_curve.json"
+      ],
+      "group": "perplexity_curve",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_full.json",
+      "claim": "ablation:qwen80b:full",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_full.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_static.json",
+      "claim": "ablation:qwen80b:static",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_static.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_blocking.json",
+      "claim": "ablation:qwen80b:blocking",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_blocking.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_no_hysteresis.json",
+      "claim": "ablation:qwen80b:no_hysteresis",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_no_hysteresis.json"
+      ],
+      "group": "ablation",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_runtime_overhead.json",
+      "claim": "runtime_overhead:qwen80b",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_runtime_overhead.json"
+      ],
+      "group": "runtime_overhead",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio0.json",
+      "claim": "budget_sensitivity:qwen80b:ratio0",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio0.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio5.json",
+      "claim": "budget_sensitivity:qwen80b:ratio5",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio5.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio10.json",
+      "claim": "budget_sensitivity:qwen80b:ratio10",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio10.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio15.json",
+      "claim": "budget_sensitivity:qwen80b:ratio15",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio15.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio20.json",
+      "claim": "budget_sensitivity:qwen80b:ratio20",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio20.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio25.json",
+      "claim": "budget_sensitivity:qwen80b:ratio25",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio25.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio30.json",
+      "claim": "budget_sensitivity:qwen80b:ratio30",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio30.json"
+      ],
+      "group": "budget_sensitivity",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_perplexity_curve.json",
+      "claim": "perplexity_curve:qwen80b",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_perplexity_curve.json"
+      ],
+      "group": "perplexity_curve",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json",
+      "claim": "routing_hotset:qwen30b:wikitext:layer15",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json"
+      ],
+      "group": "routing_hotset",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json",
+      "claim": "routing_hotset:qwen30b:gsm8k:layer15",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json"
+      ],
+      "group": "routing_hotset",
+      "paper_alignment_problems": [],
+      "sha256": null
+    },
+    {
+      "artifact": "/home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json",
+      "claim": "routing_hotset:qwen30b:humaneval:layer15",
+      "data_problems": [
+        "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json"
+      ],
+      "group": "routing_hotset",
+      "paper_alignment_problems": [],
+      "sha256": null
+    }
+  ],
+  "created_at": "2026-08-02T08:58:57.423050+00:00",
+  "data_issue_count": 73,
+  "data_issues": [
+    {
+      "claim": "performance:qwen30b:static_ptq:bs1",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs1_isolated_rerun.json"
+    },
+    {
+      "claim": "performance:qwen30b:moe_infinity:bs1",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs1.json"
+    },
+    {
+      "claim": "performance:qwen80b:static_ptq:bs1",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs1_isolated_rerun.json"
+    },
+    {
+      "claim": "performance:phi35:static_ptq:bs1",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs1.json"
+    },
+    {
+      "claim": "performance:phi35:dynaexq:bs1",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs1.json"
+    },
+    {
+      "claim": "performance:qwen30b:moe_infinity:bs2",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs2.json"
+    },
+    {
+      "claim": "performance:qwen80b:static_ptq:bs2",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs2_isolated_rerun.json"
+    },
+    {
+      "claim": "performance:phi35:static_ptq:bs2",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs2.json"
+    },
+    {
+      "claim": "performance:phi35:dynaexq:bs2",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs2.json"
+    },
+    {
+      "claim": "performance:qwen30b:static_ptq:bs4",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs4_isolated_tail_rerun.json"
+    },
+    {
+      "claim": "performance:qwen30b:moe_infinity:bs4",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs4.json"
+    },
+    {
+      "claim": "performance:qwen80b:static_ptq:bs4",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs4_isolated_rerun.json"
+    },
+    {
+      "claim": "performance:qwen80b:dynaexq:bs4",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs4.json"
+    },
+    {
+      "claim": "performance:phi35:static_ptq:bs4",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs4.json"
+    },
+    {
+      "claim": "performance:phi35:dynaexq:bs4",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs4.json"
+    },
+    {
+      "claim": "performance:qwen30b:static_ptq:bs8",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs8_isolated_tail_rerun.json"
+    },
+    {
+      "claim": "performance:qwen30b:moe_infinity:bs8",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs8.json"
+    },
+    {
+      "claim": "performance:qwen80b:static_ptq:bs8",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs8.json"
+    },
+    {
+      "claim": "performance:qwen80b:dynaexq:bs8",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs8.json"
+    },
+    {
+      "claim": "performance:phi35:static_ptq:bs8",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs8.json"
+    },
+    {
+      "claim": "performance:phi35:dynaexq:bs8",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs8.json"
+    },
+    {
+      "claim": "performance:qwen30b:moe_infinity:bs16",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs16.json"
+    },
+    {
+      "claim": "performance:qwen80b:static_ptq:bs16",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs16.json"
+    },
+    {
+      "claim": "performance:qwen80b:dynaexq:bs16",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs16.json"
+    },
+    {
+      "claim": "performance:phi35:static_ptq:bs16",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs16.json"
+    },
+    {
+      "claim": "performance:phi35:dynaexq:bs16",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs16.json"
+    },
+    {
+      "claim": "performance:qwen30b:static_ptq:bs32",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen30b_static_int4_bs32_isolated_rerun.json"
+    },
+    {
+      "claim": "performance:qwen30b:moe_infinity:bs32",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-moe-formal/results/paper/qwen30b_moe_infinity_bs32.json"
+    },
+    {
+      "claim": "performance:qwen80b:static_ptq:bs32",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_static_int2_bs32.json"
+    },
+    {
+      "claim": "performance:qwen80b:dynaexq:bs32",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/qwen80b_dynaexq_bs32.json"
+    },
+    {
+      "claim": "performance:phi35:static_ptq:bs32",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_static_int4_bs32.json"
+    },
+    {
+      "claim": "performance:phi35:dynaexq:bs32",
+      "problem": "MISSING ARTIFACT: /dev/shm/dynaexq-formal-ee5283b/phi35_dynaexq_bs32.json"
+    },
+    {
+      "claim": "quality_significance:qwen30b:static_ptq_vs_dynaexq",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_static_ptq_vs_dynaexq_significance.json"
+    },
+    {
+      "claim": "activation_density:qwen30b:decode",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_activation_density.json"
+    },
+    {
+      "claim": "activation_density:qwen30b:prefill",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_activation_density.json"
+    },
+    {
+      "claim": "offload_waiting:qwen30b",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_offload_waiting.json"
+    },
+    {
+      "claim": "quality_significance:qwen80b:static_ptq_vs_dynaexq",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_static_ptq_vs_dynaexq_significance.json"
+    },
+    {
+      "claim": "activation_density:qwen80b:decode",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_activation_density.json"
+    },
+    {
+      "claim": "activation_density:qwen80b:prefill",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_activation_density.json"
+    },
+    {
+      "claim": "offload_waiting:qwen80b",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_offload_waiting.json"
+    },
+    {
+      "claim": "quality_significance:phi35:static_ptq_vs_dynaexq",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_static_ptq_vs_dynaexq_significance.json"
+    },
+    {
+      "claim": "activation_density:phi35:decode",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_activation_density.json"
+    },
+    {
+      "claim": "activation_density:phi35:prefill",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_activation_density.json"
+    },
+    {
+      "claim": "offload_waiting:phi35",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/phi35_offload_waiting.json"
+    },
+    {
+      "claim": "ablation:qwen30b:full",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_full.json"
+    },
+    {
+      "claim": "ablation:qwen30b:static",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_static.json"
+    },
+    {
+      "claim": "ablation:qwen30b:blocking",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_blocking.json"
+    },
+    {
+      "claim": "ablation:qwen30b:no_hysteresis",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_ablation_no_hysteresis.json"
+    },
+    {
+      "claim": "runtime_overhead:qwen30b",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_runtime_overhead.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio0",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio0.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio5",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio5.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio10",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio10.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio15",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio15.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio20",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio20.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio25",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio25.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen30b:ratio30",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_budget_ratio30.json"
+    },
+    {
+      "claim": "perplexity_curve:qwen30b",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_perplexity_curve.json"
+    },
+    {
+      "claim": "ablation:qwen80b:full",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_full.json"
+    },
+    {
+      "claim": "ablation:qwen80b:static",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_static.json"
+    },
+    {
+      "claim": "ablation:qwen80b:blocking",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_blocking.json"
+    },
+    {
+      "claim": "ablation:qwen80b:no_hysteresis",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_ablation_no_hysteresis.json"
+    },
+    {
+      "claim": "runtime_overhead:qwen80b",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_runtime_overhead.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio0",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio0.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio5",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio5.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio10",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio10.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio15",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio15.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio20",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio20.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio25",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio25.json"
+    },
+    {
+      "claim": "budget_sensitivity:qwen80b:ratio30",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_budget_ratio30.json"
+    },
+    {
+      "claim": "perplexity_curve:qwen80b",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen80b_perplexity_curve.json"
+    },
+    {
+      "claim": "routing_hotset:qwen30b:wikitext:layer15",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json"
+    },
+    {
+      "claim": "routing_hotset:qwen30b:gsm8k:layer15",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json"
+    },
+    {
+      "claim": "routing_hotset:qwen30b:humaneval:layer15",
+      "problem": "MISSING ARTIFACT: /home/kec23008/DynaQuant-phi-formal/results/paper/qwen30b_routing_hotset.json"
+    }
+  ],
+  "expected_paper_tree": "050cbda677b664a540d984afd6663f31ea1c4770",
+  "figure_bundle_excluded": true,
+  "figure_exclusion_reason": "user prohibited manuscript and figure modification during data collection",
+  "paper_alignment_issue_count": 0,
+  "paper_alignment_issues": [],
+  "paper_tree": "050cbda677b664a540d984afd6663f31ea1c4770",
+  "paper_tree_unchanged": true,
+  "required_claim_count": 83,
+  "schema_version": 1,
+  "validated_claim_count": 10,
+  "worktrees": [
+    {
+      "commit": "a1dd7362a595560af910002a7e2de63907a6ea23",
+      "dirty": false,
+      "repository_root": "/home/kec23008/DynaQuant-phi-formal",
+      "root": "/home/kec23008/DynaQuant-phi-formal"
+    },
+    {
+      "commit": "c7a9999d7c1e277a62c165664f76a475bd7cfb8d",
+      "dirty": false,
+      "repository_root": "/home/kec23008/DynaQuant-moe-formal",
+      "root": "/home/kec23008/DynaQuant-moe-formal/results/paper"
+    }
+  ]
+}

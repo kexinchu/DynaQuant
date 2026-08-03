@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "artifact_type": "non_formal_model_smoke_check",
+  "created_at": "2026-07-29T20:27:45Z",
+  "formal_result": false,
+  "checkpoint": {
+    "path": "/dev/shm/dynaexq-models/phi35-moe-w4a16-autoround-formal",
+    "manifest": "results/model_manifests/phi35_moe_w4a16_autoround_formal.json",
+    "manifest_sha256": "ffbef69e6b583a6ebcccb0745231c8bf89f4e482bb11107a6d721c7553b87369"
+  },
+  "runtime": {
+    "backend": "triton",
+    "cuda_visible_devices": "1",
+    "physical_gpu": "NVIDIA RTX A6000",
+    "load_seconds": 11.940056324005127
+  },
+  "generation": {
+    "prompt": "The capital of Connecticut is",
+    "max_new_tokens": 8,
+    "do_sample": false,
+    "text": "The capital of Connecticut is Hartford. It is not only the"
+  },
+  "gpu_memory": {
+    "process_hbm_used_baseline_bytes": 0,
+    "process_hbm_used_peak_bytes": 23353884672,
+    "process_hbm_used_peak_delta_bytes": 23353884672,
+    "process_hbm_poll_samples": 2941,
+    "foreign_compute_resident_processes_peak": 1,
+    "foreign_hbm_used_peak_bytes": 830472192,
+    "foreign_compute_activity_samples": 0,
+    "foreign_sm_util_max_pct": 0,
+    "foreign_mem_util_max_pct": 0,
+    "process_util_poll_samples": 2941
+  },
+  "acceptance": {
+    "structure_valid": true,
+    "generation_valid": true,
+    "shared_gpu_sample_valid": true
+  },
+  "persistent_copy_revalidation": {
+    "path": "/home/kec23008/Models/Phi-3.5-MoE-instruct-W4A16-AutoRound-formal",
+    "manifest": "results/model_manifests/phi35_moe_w4a16_autoround_formal_persistent.json",
+    "manifest_sha256": "b0ad8c16a0e6a3314eac31157a5fce8dd1af799cc3ea25731e89444ebbde152a",
+    "gptqmodel_installed": false,
+    "backend": "triton",
+    "load_and_generate_seconds": 17.06723690032959,
+    "text": "The capital of Connecticut is Hartford. It is not only the",
+    "process_hbm_peak_bytes": 23353884672,
+    "foreign_compute_activity_samples": 0
+  }
+}

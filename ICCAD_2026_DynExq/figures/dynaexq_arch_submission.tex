@@ -1,0 +1,14 @@
+\documentclass[tikz,border=0pt]{standalone}
+\usepackage{graphicx}
+\definecolor{transitionfill}{HTML}{D5E8D4}
+
+\begin{document}
+\begin{tikzpicture}
+  \node[anchor=south west,inner sep=0pt] (architecture) at (0,0)
+    {\includegraphics{dynaexq_arch.pdf}};
+  % Replace the legacy queue label while preserving the original vector artwork.
+  \fill[transitionfill] (386pt,83pt) rectangle (572pt,102pt);
+  \node[font=\sffamily\fontsize{12}{14}\selectfont] at (479pt,92.5pt)
+    {(Promote/Demote queues)};
+\end{tikzpicture}
+\end{document}

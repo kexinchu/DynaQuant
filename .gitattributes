@@ -1,0 +1,4 @@
+*.pdf binary
+*.zip binary
+*.bst whitespace=-trailing-space
+*.cls whitespace=-trailing-space

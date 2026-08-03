@@ -1,0 +1,50 @@
+\pdfminorversion=7
+\documentclass[journal]{IEEEtran}
+
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage[table]{xcolor}
+\usepackage[caption=false,font=footnotesize]{subfig}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{adjustbox}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{mathtools}
+\hypersetup{hidelinks}
+
+\newcommand{\systemname}{DynaExQ}
+
+\title{\systemname: Budget-Safe Online Precision Residency for Single-GPU MoE Inference}
+
+\author{Kexin Chu, Dawei Xiang, and Wei Zhang%
+\thanks{The authors are with the University of Connecticut, Storrs, CT 06269
+USA (e-mail: kexin.chu@uconn.edu; ieb24002@uconn.edu;
+wei.13.zhang@uconn.edu). Corresponding author: Wei Zhang.}}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Large Mixture-of-Experts (MoE) models are difficult to serve on one GPU because all expert weights must remain addressable although each token activates only a small subset. Offloading reduces resident memory but can expose PCIe transfers when batched routing produces a dense expert working set. Static post-training quantization fixes precision offline and cannot adapt its allocation to routing shifts. \systemname\ instead treats expert precision residency as online resource allocation under an explicit expert-memory budget. A routing-driven policy selects high-traffic experts, while an admission-controlled transition mechanism copies prepared precision versions on a separate CUDA stream and publishes a new expert handle only after transfer completion. Partitioned fixed-block pools bound the resident and in-flight transition memory owned by the runtime; end-to-end safety additionally requires the serving stack to honor its declared KV-cache and activation reservations. Across five accuracy benchmarks on three MoE models, \systemname\ recovers 77--79\% of each model's quality gap between its uniform low- and high-precision references. Performance experiments compare fully resident execution against uniform PTQ on all models and against a pinned open-source MoE-Infinity runtime on its supported Qwen3-30B checkpoint. Component studies quantify the effects of online selection, asynchronous transitions, hysteresis, and the high-precision budget.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Mixture-of-Experts, large language model inference, GPU memory management, mixed-precision quantization, runtime systems
+\end{IEEEkeywords}
+
+\input{01_introduction}
+\input{02_background}
+\input{03_design}
+\input{04_implement}
+\input{05_evaluation}
+\input{06_relate_works}
+\input{08_discussion}
+\input{07_conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\end{document}

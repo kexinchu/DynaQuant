@@ -33,8 +33,20 @@ case "${command_name}" in
     dynamic)
         python -m dynaexq.experiments.eval_dynamic "$@"
         ;;
+    audit)
+        python scripts/audit_paper_results.py
+        ;;
+    submission-audit)
+        python scripts/audit_tc_submission.py
+        ;;
+    register)
+        python scripts/register_paper_artifact.py "$@"
+        ;;
     compare-quality)
         python scripts/compare_quality_artifacts.py "$@"
+        ;;
+    render-figures)
+        python scripts/render_paper_figures.py "$@"
         ;;
     build-ppl-curve)
         python scripts/build_perplexity_curve.py "$@"
@@ -51,6 +63,15 @@ case "${command_name}" in
     test)
         python -m pytest "$@"
         ;;
+    paper)
+        (
+            cd ICCAD_2026_DynExq
+            pdflatex -interaction=nonstopmode -halt-on-error main_sc.tex
+            bibtex main_sc
+            pdflatex -interaction=nonstopmode -halt-on-error main_sc.tex
+            pdflatex -interaction=nonstopmode -halt-on-error main_sc.tex
+        )
+        ;;
     help|-h|--help)
         echo "Usage:"
         echo "  bash scripts/reproduce_paper.sh quality <eval_quality arguments>"
@@ -58,12 +79,17 @@ case "${command_name}" in
         echo "  bash scripts/reproduce_paper.sh moe-infinity <baseline arguments>"
         echo "  bash scripts/reproduce_paper.sh shift   <run_shift arguments>"
         echo "  bash scripts/reproduce_paper.sh dynamic <eval_dynamic arguments>"
+        echo "  bash scripts/reproduce_paper.sh audit"
+        echo "  bash scripts/reproduce_paper.sh submission-audit"
+        echo "  bash scripts/reproduce_paper.sh register <registration arguments>"
         echo "  bash scripts/reproduce_paper.sh compare-quality <comparison arguments>"
+        echo "  bash scripts/reproduce_paper.sh render-figures [render arguments]"
         echo "  bash scripts/reproduce_paper.sh build-ppl-curve <curve arguments>"
         echo "  bash scripts/reproduce_paper.sh activation-density <collector arguments>"
         echo "  bash scripts/reproduce_paper.sh routing-trace <collector arguments>"
         echo "  bash scripts/reproduce_paper.sh offload-waiting <benchmark arguments>"
         echo "  bash scripts/reproduce_paper.sh test [pytest arguments]"
+        echo "  bash scripts/reproduce_paper.sh paper"
         echo
         echo "Quality/perf labels cannot activate DynaExQ or an external offload runtime."
         echo "Use 'dynamic' for validated DynaExQ quality, performance, and ablation runs."

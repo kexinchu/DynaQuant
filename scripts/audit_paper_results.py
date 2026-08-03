@@ -223,7 +223,7 @@ EXPECTED_BENCHMARK_TOTALS = {
     "humaneval": 164,
 }
 ROW_RE = re.compile(
-    r"^(?P<model>Qwen3-MoE-30B|Qwen3-Next-80B|Phi-3\.5-MoE)?\s*&\s*"
+    r"^(?P<model>Qwen3-(?:MoE-)?30B|Qwen3-Next-80B|Phi-3\.5-MoE)?\s*&\s*"
     r"(?P<method>FP16|INT4|INT2|\\systemname)\s*&\s*"
     r"(?P<values>.*?)\\\\\s*$",
     re.MULTILINE,
@@ -360,7 +360,10 @@ def manuscript_rows() -> dict[tuple[str, str], list[float]]:
     rows: dict[tuple[str, str], list[float]] = {}
     current_model: str | None = None
     for match in ROW_RE.finditer(text):
-        current_model = match.group("model") or current_model
+        parsed_model = match.group("model")
+        if parsed_model == "Qwen3-30B":
+            parsed_model = "Qwen3-MoE-30B"
+        current_model = parsed_model or current_model
         if current_model is None:
             continue
         method = match.group("method").replace("\\systemname", "DynaExQ")

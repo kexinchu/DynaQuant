@@ -1,0 +1,37 @@
+\section{Related Work}
+
+We organize prior work by the assumption each line makes about expert weights at inference time. The observation that high-utilization experts justify higher precision appears across MoE quantization and hybrid offload work. We therefore do not claim runtime importance scoring or mixed precision in isolation. The distinction of \systemname\ is its fully resident, single-GPU execution model: one complete version of every routed expert remains addressable while versioned publication, admission-before-allocation, and deterministic resident/staging pools make online precision replacement auditable under a declared device-memory envelope.
+
+\begin{table}[!h]
+\centering
+\caption{Mechanism boundary relative to representative baselines. For a partial device cache, serving an expert absent from the GPU requires a host-to-device transfer, although prefetch may hide some or all of its latency.}
+\label{tab:mechanism_boundary}
+\vspace{-0.4em}
+\scriptsize
+\setlength{\tabcolsep}{2.2pt}
+\resizebox{\columnwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+\textbf{System} & \textbf{Device expert state} & \textbf{Online control target} & \textbf{Host transfer on cache miss} \\
+\midrule
+Uniform PTQ & Complete, fixed & None (offline map) & N/A (fully resident) \\
+MoE-Infinity~\cite{xue2024moe} & Partial GPU cache & Placement/prefetch & Required \\
+HOBBIT~\cite{tang2024hobbit} & Partial GPU cache & Miss precision + placement & Required \\
+ExpertFlow~\cite{shen2025expertflow} & Partial GPU cache & Prefetch/routing & Required \\
+\systemname & Complete, versioned & Precision residency & N/A (fully resident) \\
+\bottomrule
+\end{tabular}}
+\end{table}
+
+\subsection{MoE Offloading and Memory Hierarchy Management}
+General-purpose LLM inference engines such as vLLM~\cite{kwon2023vllm}, SGLang~\cite{zheng2024sglang}, and FlexGen~\cite{sheng2023flexgen} manage KV-cache memory, request scheduling, or single-GPU offloading but do not address MoE-specific expert residency.
+A complementary line treats GPU memory as a cache: Adaptive gating~\cite{li2023adaptive}, EdgeMoE~\cite{yi2023edgemoe}, MoE-Infinity~\cite{xue2024moe}, Mixtral-offloading~\cite{eliseev2023fast}, Pre-gated MoE~\cite{hwang2024pre}, AdaMoE~\cite{zhong2024adapmoe}, ProMoE~\cite{song2024promoe}, and ExpertFlow~\cite{shen2025expertflow} differ in prediction, staging, and coordination but primarily make \emph{placement} and \emph{fetch time} the control variables (\autoref{tab:mechanism_boundary}). MoE-Infinity, for instance, builds a locality-aware offload cache but has no notion of versioned precision residency. ProMoE schedules proactive prefetching for fixed-precision weights, while ExpertFlow adapts its prediction horizon and coordinates an offload cache. These systems optimize which absent expert to fetch; \systemname\ instead keeps all routed experts resident and changes the precision of already-addressable experts.
+
+\subsection{Static PTQ and Generic Low-Bit Inference}
+Weight-only and activation-aware PTQ schemes such as GPTQ~\cite{frantar2022gptq}, AWQ~\cite{lin2024awq}, and LLM.int8()~\cite{dettmers2022gptint8} improve accuracy at aggressive bit widths but produce a \emph{static} precision configuration. Even methods that adapt bit choices at calibration time deploy a fixed precision map at inference. Theoretically grounded expert-wise allocation~\cite{chowdhury2026efficient} further improves static assignments using router change and quantization-noise proxies. These methods are complementary sources of offline sensitivity priors; they do not define a concurrent online replacement protocol.
+
+\subsection{MoE-Specific Mixed Precision}
+MxMoE~\cite{duanmu2025mxmoe} derives mixed-precision configurations from expert sensitivity and couples them with mixed-precision grouped GEMMs. MoPEQ~\cite{chitty2025mopeq} assigns bit widths using activation frequency and sensitivity measures. Earlier work on routing stability~\cite{fedus2022switch} and expert specialization~\cite{dai2024deepseekmoe} explored how expert heterogeneity affects model quality, providing motivation for non-uniform precision allocation. These methods improve the quality--memory tradeoff at model-build time. MxMoE, for example, produces mixed-precision kernels but assigns bit widths statically with no runtime residency control. The resulting precision map stays \emph{fixed} during inference and does not adapt as routing distributions shift.
+
+\subsection{Hybrid Systems}
+HOBBIT~\cite{tang2024hobbit} combines mixed-precision expert representations with offloading to reduce the load cost on cache-miss paths, showing that precision heterogeneity and memory hierarchy policies interact. DyMoE~\cite{huang2026dymoe} is the closest recent system: it dynamically classifies expert importance, applies depth-aware 8/4/0-bit policies, and prefetches missing expert versions from CPU or SSD for 12--24\,GB edge devices. \systemname\ studies a different operating point and invariant. It maintains one complete device-resident version of every routed expert on a 48\,GB GPU, uses long-horizon routing statistics rather than per-phase look-ahead, and focuses on safe replacement of resident representations through read leases, last-use events, publish-after-complete handles, and byte-level admission control. It neither skips experts nor claims to optimize offloading latency. Thus DyMoE's depth/phase-aware policy and \systemname's replacement mechanisms are potentially complementary; a direct comparison on common hardware remains future work.

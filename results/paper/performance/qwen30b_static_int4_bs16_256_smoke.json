@@ -1,0 +1,155 @@
+{
+  "schema_version": 2,
+  "created_at": "2026-08-01T09:44:41.580763+00:00",
+  "model": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+  "paper_model": "qwen30b",
+  "paper_method": "static_ptq",
+  "checkpoint": {
+    "reference": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+    "local": true,
+    "resolved_path": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507-int4-mixed-AutoRound",
+    "control_files": [
+      {
+        "name": "config.json",
+        "size_bytes": 27862,
+        "sha256": "bf21aa4e5273274e7d670e32d7a6a4cff463fafc904e6bbfd4112031a71500cb"
+      },
+      {
+        "name": "generation_config.json",
+        "size_bytes": 213,
+        "sha256": "b5225e3f6ca435641a31da447bc95b72b868450fe6982031f019a76f7308f138"
+      },
+      {
+        "name": "model.safetensors.index.json",
+        "size_bytes": 5077761,
+        "sha256": "e6099f9e6d3017aeb1962223cd941c7ff4e9245f7183e6f2e63fde4fa8ece2d9"
+      },
+      {
+        "name": "quantization_config.json",
+        "size_bytes": 20236,
+        "sha256": "d4fc56fa0c4a35794e9257c50ed29e10e79f070bdfee3362c91e608ecff608b2"
+      }
+    ],
+    "weight_files": [
+      {
+        "name": "model-00001-of-00004.safetensors",
+        "size_bytes": 5001116792
+      },
+      {
+        "name": "model-00002-of-00004.safetensors",
+        "size_bytes": 5002049024
+      },
+      {
+        "name": "model-00003-of-00004.safetensors",
+        "size_bytes": 5001805208
+      },
+      {
+        "name": "model-00004-of-00004.safetensors",
+        "size_bytes": 2827264896
+      }
+    ],
+    "weight_hashes_included": false
+  },
+  "method": "quantized_checkpoint",
+  "quantization": "int4",
+  "inference_backend": "triton",
+  "device_map": "cuda:0",
+  "seed": 42,
+  "evaluation_protocol": {
+    "name": "custom",
+    "seed": 42,
+    "process_hbm_high_water": false
+  },
+  "benchmark": {
+    "scope": "isolated_model",
+    "excludes": [
+      "request_queueing",
+      "tokenization",
+      "network_transport",
+      "response_serialization"
+    ],
+    "batch_size": 16,
+    "input_tokens": 2048,
+    "output_tokens_per_sequence": 256,
+    "warmup_iterations": 0,
+    "measured_iterations": 1,
+    "metrics": {
+      "model_ttft_ms": {
+        "mean": 11167.420226964168,
+        "p50": 11167.420226964168,
+        "p95": 11167.420226964168,
+        "p99": 11167.420226964168,
+        "min": 11167.420226964168,
+        "max": 11167.420226964168
+      },
+      "model_tpot_ms": {
+        "mean": 323.9648808547131,
+        "p50": 323.9648808547131,
+        "p95": 323.9648808547131,
+        "p99": 323.9648808547131,
+        "min": 323.9648808547131,
+        "max": 323.9648808547131
+      },
+      "model_e2e_ms": {
+        "mean": 93778.46484491602,
+        "p50": 93778.46484491602,
+        "p95": 93778.46484491602,
+        "p99": 93778.46484491602,
+        "min": 93778.46484491602,
+        "max": 93778.46484491602
+      },
+      "throughput_tokens_s": {
+        "mean": 43.67740511399569,
+        "p50": 43.67740511399569,
+        "p95": 43.67740511399569,
+        "p99": 43.67740511399569,
+        "min": 43.67740511399569,
+        "max": 43.67740511399569
+      },
+      "peak_allocated_bytes": {
+        "mean": 22809619456.0,
+        "p50": 22809619456.0,
+        "p95": 22809619456.0,
+        "p99": 22809619456.0,
+        "min": 22809619456.0,
+        "max": 22809619456.0
+      },
+      "peak_reserved_bytes": {
+        "mean": 33678163968.0,
+        "p50": 33678163968.0,
+        "p95": 33678163968.0,
+        "p99": 33678163968.0,
+        "min": 33678163968.0,
+        "max": 33678163968.0
+      }
+    },
+    "samples": [
+      {
+        "model_ttft_ms": 11167.420226964168,
+        "model_tpot_ms": 323.9648808547131,
+        "model_e2e_ms": 93778.46484491602,
+        "throughput_tokens_s": 43.67740511399569,
+        "peak_allocated_bytes": 22809619456.0,
+        "peak_reserved_bytes": 33678163968.0
+      }
+    ]
+  },
+  "environment": {
+    "python": "3.13.12",
+    "platform": "Linux-6.18.40-x86_64-with-glibc2.35",
+    "torch": "2.10.0+cu128",
+    "transformers": "5.12.1",
+    "auto_round": "0.12.3",
+    "cuda_runtime": "12.8",
+    "cudnn": 91002,
+    "pytorch_alloc_conf": "expandable_segments:True",
+    "gpus": [
+      "NVIDIA RTX A6000"
+    ],
+    "process_max_rss_bytes": 19510411264,
+    "git": {
+      "commit": "ee5283bfacf12428b5a6fcff284ddb4eb28a9cb9",
+      "dirty": false
+    }
+  }
+}

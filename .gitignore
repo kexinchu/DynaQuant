@@ -30,6 +30,12 @@ scripts/results/
 results/**
 !results/release/
 !results/release/**
+!results/model_manifests/
+!results/model_manifests/**
+!results/paper/
+!results/paper/**
+!results/smoke_checks/
+!results/smoke_checks/**
 
 # Local datasets, traces, and model artifacts
 ShareGPT*.json
@@ -50,14 +56,24 @@ scripts/*.pdf
 scripts/*.png
 scripts/*.ipynb
 
-# LaTeX build products and private submission material
-ICCAD_2026_DynExq/
+# LaTeX build products
 *.aux
 *.bbl
 *.blg
 *.fdb_latexmk
 *.fls
+*.out
 *.synctex.gz
+DynExq_paper/
+ICCAD_2026_DynExq/ACM-Reference-Format.bst
+ICCAD_2026_DynExq/acmart.cls
+ICCAD_2026_DynExq/agent_experience.md
+ICCAD_2026_DynExq/expected_experiment_data.md
+ICCAD_2026_DynExq/hpdc_review.md
+ICCAD_2026_DynExq/iccad_plan.md
+ICCAD_2026_DynExq/main_sc.txt
+ICCAD_2026_DynExq/TC_COVER_LETTER_DRAFT.md
+ICCAD_2026_DynExq/TC_READY_VERSION.md
 
 # Local research notes and machine-specific launchers
 Paper_Write.md
@@ -78,14 +94,9 @@ dynaexq/runtime/
 dynaexq/models/deepseek_v2/
 dynaexq/integration/hooks_deepspeed.py
 dynaexq/integration/hooks_sglang.py
-dynaexq/tests/test_paper_audit.py
-dynaexq/tests/test_register_paper_artifact.py
-dynaexq/tests/test_render_paper_figures.py
-dynaexq/tests/test_tc_submission_audit.py
 
 # Machine-specific queues, backfills, and exploratory launchers
 scripts/audit_all_experiment_data.py
-scripts/audit_tc_submission.py
 scripts/backup_*.sh
 scripts/bench_*.py
 scripts/benchmark_latency*.py
@@ -100,8 +111,6 @@ scripts/patch_*.py
 scripts/perf_test_*.py
 scripts/prepare_*.sh
 scripts/quantize_int2_*.py
-scripts/register_paper_artifact.py
-scripts/render_paper_figures.py
 scripts/run_*.py
 scripts/run_*.sh
 scripts/sort_*.py
