@@ -58,6 +58,9 @@ submission call on 2026-07-29:
 - [ ] After the evidence gate passes, insert only audited headline results
   into the cover letter and state artifact availability.
 - [x] No conference PDF / difference statement attachment (rejected, unpublished).
+- [x] Author biographies and photographs are in the manuscript
+  (`09_biographies.tex`, `photos/`). Each bio is within the 145-word limit.
+  Submission package: `TC_latex/` (zip: `TC_latex_submission.zip`).
 - [ ] Check PDF metadata, author metadata, acknowledgments, funding,
   conflicts, and artifact availability immediately before submission.
 - [x] Master readiness plan: `TC_READY_VERSION.md`.

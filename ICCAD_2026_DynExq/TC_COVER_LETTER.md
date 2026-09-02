@@ -16,7 +16,9 @@ single-GPU MoE deployments.
 This manuscript was previously submitted to the IEEE/ACM International
 Conference on Computer-Aided Design (ICCAD) and rejected. It was not
 published, there is no other version, and no portion is currently under
-review elsewhere. All authors have approved this submission.
+review elsewhere. All authors have approved this submission. Author
+biographies and photographs have been added to the manuscript as
+requested.
 
 The corresponding author is Wei Zhang
 (wei.13.zhang@uconn.edu; ORCID: 0009-0004-9512-4192). The other authors'

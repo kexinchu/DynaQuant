@@ -7,13 +7,6 @@ On a single accelerator, expert weights dominate the memory footprint; they comp
 \label{sec:background-offload}
 A family of systems treats GPU memory as a managed cache and fetches experts on demand~\cite{li2023adaptive,yi2023edgemoe,xue2024moe,eliseev2023fast,hwang2024pre,zhong2024adapmoe,tang2024hobbit,song2024promoe,kong2024swapmoe,shen2025expertflow}. These methods work best when each iteration activates a small, stable working set. We measure density as the number of unique selected experts per MoE layer, first over all nonpadding tokens in a 2,048-token-capped prefill and then over the immediately following one-token decode. Each table cell averages five deterministic prompt blocks and all routed layers; batch-$b$ uses the first $b$ prompts of the same 32-prompt block. In practice, activation becomes substantially denser as batch size grows: for Qwen3-30B at batch~32, \autoref{tab:expert_activation_ratio} shows 94.0\% of experts selected during prefill and 26.0\% in the next decode step. The distinction matters: accumulating selections over many decode steps would overstate the instantaneous working set. \autoref{fig:waiting-vs-prompt} includes two directly measured Qwen blocking-load series and a measured Phi-3.5-MoE cold-cache routing-trace replay. Both measurements report time exposed by serial expert movement on an RTX~A6000 rather than end-to-end behavior of an overlapping offload system.
 
-\begin{center}
-\colorbox{gray!10}{%
-\parbox{0.96\linewidth}{%
-\textbf{Observation 1.}
-MoE activation can become dense in prefill and at larger batch sizes, reducing the opportunity for offloading to hide expert transfers. Frequent cache misses and fetches can then introduce GPU waiting time.}}
-\end{center}
-
 \begin{table}[t]
   \centering
   \caption{Mean unique-expert activation ratio (\%) across routed layers and five prompt blocks.}
@@ -76,24 +69,10 @@ PTQ compresses weights to low bit widths without retraining. General-purpose sch
 
 That assumption is brittle for MoE. Expert utilization is heavy-tailed and the identity of hot experts shifts across workloads (\autoref{fig:expert-active}). We count every selected top-$k$ token--expert dispatch, rather than thresholding router probabilities, and reset the counter between the three full evaluation workloads. Under this pinned protocol, the top-10 most frequently selected experts for text, math, and code are entirely disjoint.
 
-\begin{center}
-\colorbox{gray!10}{%
-\parbox{0.96\linewidth}{%
-\textbf{Observation 2.}
-MoE expert usage is heavy-tailed and workload-dependent: a small hot set dominates cumulative invocations, and its identity shifts across tasks. Static precision maps therefore misallocate high-precision capacity under realistic workload mixes.}}
-\end{center}
-
 \subsection{Motivation and Challenges for Online Precision Control}
 \label{sec:background-motivation}
 
-The observations above suggest adapting expert precision online under a strict GPU budget. A natural concern is whether such adaptation destabilizes quality. We concatenate the pinned WikiText-2 test split and measure perplexity over at most 128 exact 2,048-token windows while increasing the fraction of low-precision experts per layer. We obtain one expert ranking from the independent calibration corpus, freeze online reassignment, and demote an exact suffix of that same ranking at every point; thus, the sweep isolates the precision quota rather than conflating it with scheduler adaptation. As \autoref{fig:ppl} shows, when demotion targets infrequently activated experts first, perplexity rises smoothly.
-
-\begin{center}
-\colorbox{gray!10}{%
-\parbox{0.96\linewidth}{%
-\textbf{Observation 3.}
-When low precision is applied primarily to cold experts, increasing the fraction of quantized experts per layer yields a smooth and controllable increase in perplexity, suggesting a predictable quality--memory tradeoff.}}
-\end{center}
+These results suggest adapting expert precision online under a strict GPU budget. A natural concern is whether such adaptation destabilizes quality. We concatenate the pinned WikiText-2 test split and measure perplexity over at most 128 exact 2,048-token windows while increasing the fraction of low-precision experts per layer. We obtain one expert ranking from the independent calibration corpus, freeze online reassignment, and demote an exact suffix of that same ranking at every point; thus, the sweep isolates the precision quota rather than conflating it with scheduler adaptation. As \autoref{fig:ppl} shows, when demotion targets infrequently activated experts first, perplexity rises smoothly.
 
 \begin{figure}[t]
     \centering

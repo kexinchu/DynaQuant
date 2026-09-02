@@ -178,8 +178,7 @@ D.~Rein, B.~L. Hou, A.~C. Stickland, J.~Petty, R.~Y. Pang, J.~Dirani,
 \bibitem{zhang2025aime25}
 \BIBentryALTinterwordspacing
 Y.~Zhang and M.-A. Team, ``American invitational mathematics examination (aime)
-  2025,'' Hugging Face dataset, 2025, revision
-  563bb8404243c5f09de6ec262f2db674fe5bce9b. [Online]. Available:
+  2025,'' Hugging Face dataset, 2025. [Online]. Available:
   \url{https://huggingface.co/datasets/math-ai/aime25}
 \BIBentrySTDinterwordspacing
 
@@ -195,8 +194,8 @@ M.~Chen, J.~Tworek, H.~Jun, Q.~Yuan, H.~P. de~Oliveira~Pinto, J.~Kaplan
 
 \bibitem{moeinfinityrepo}
 {EfficientMoE Team}, ``{MoE-Infinity} official open-source runtime,''
-  \url{https://github.com/EfficientMoE/MoE-Infinity}, 2026, commit
-  ba5651897a80d9c9b7a1500cef2c68adaa63db0f; accessed 2026-07-29.
+  \url{https://github.com/EfficientMoE/MoE-Infinity}, 2026, accessed
+  2026-07-29.
 
 \bibitem{zheng2024sglang}
 L.~Zheng, L.~Yin, Z.~Xie, J.~Huang, C.~Sun, C.~H. Yu, S.~Cao, C.~Kober, L.~Shi,
