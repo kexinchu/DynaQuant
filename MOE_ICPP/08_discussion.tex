@@ -1,0 +1,66 @@
+\section{Discussion and Limitations}
+\label{sec:discussion}
+
+\textbf{Workload regimes with limited gains.}
+\systemname\ targets the regime in which expert transfer is on (or
+near) the critical path. When effective transfer bandwidth is high
+enough that the baseline already overlaps most transfers (e.g.,
+Qwen2-MoE on H20 in \autoref{sec:evaluation}), the controller
+converges to a small~$S$ and contributes only the
+$O(L_{\text{MoE}})$ controller overhead, which we measure to be
+under $50\,\mu$s per update on a commodity CPU. We did not observe a
+configuration in which \systemname\ degraded the baseline, but we do
+not claim universal speedups: a model whose entire expert footprint
+fits in HBM under the deployment cap, or a workload whose routing is
+so concentrated that one or two experts cover it, gains little from
+adaptive prefetching.
+
+\textbf{Memory-cap sensitivity.}
+Our evaluation fixes a 20\,GB HBM cap to expose expert-residency
+contention on every device under study. The cap was chosen to
+emulate consumer GPUs and multi-tenant deployments where KV-cache,
+activations, and other tenants compete for HBM with expert weights;
+it does not represent the only operating point of interest. The
+behavior of \systemname\ at smaller caps (10\,GB) is bounded by the
+$S_{\min}$ floor of the controller, which prevents thrashing at the
+cost of losing some overlap; at larger caps the controller converges
+to higher~$S$ and gains diminish as more experts become persistently
+resident. Characterizing this curve quantitatively is left to future
+work; we expect the qualitative trend to mirror
+\autoref{fig:M1}, since the underlying overlap--pollution tradeoff
+is the same.
+
+\textbf{Multi-stream and multi-tenant deployment.}
+\systemname\ targets a single-stream serving setup with continuous
+batching. Co-locating multiple model instances on a single GPU
+introduces inter-instance contention on the transfer stream and on
+HBM, which the current controller does not explicitly model: each
+instance optimizes its own~$S$, and contention manifests in the
+shared bandwidth estimate~$C_s$. We expect the per-instance
+controller to remain stable (because (C2) bounds per-step change to
+$\pm1$), but the joint optimum may not match the union of local
+optima. Lifting the controller to a coordinated multi-stream
+setting---potentially by sharing $C_s$ and $\tilde{m}_t$ across
+instances---is a natural extension.
+
+\textbf{Predictor cold start and online retraining.}
+The forecasting layer relies on a CPU-side random forest trained
+offline from logged tuples. On a previously unseen model or
+substantially shifted workload, the forecaster falls back to the
+model's own pregate top-$k$, which we measured matches the
+fixed-horizon baseline. The system therefore degrades gracefully
+rather than catastrophically. Online retraining (incremental forest
+updates as new $(\mathbf{t},\ell,S,\mathbf{a})$ tuples arrive) is
+straightforward to add and does not interact with the controller's
+stability proof, but we have not characterized its convergence
+empirically.
+
+\textbf{Threats to generality.}
+Our experiments cover three MoE models from the DeepSeek and Qwen
+families and three accelerators spanning a $4\times$ effective-bandwidth
+range. We did not evaluate Mixtral-class models (which use a different
+expert sizing) or larger DeepSeek-V3-class models; we expect the same
+mechanism to apply, but the optimal hyperparameters
+($\lambda, \theta_h$) may shift. We also do not evaluate disaggregated
+or pipeline-parallel deployments, where prefetch coordination crosses
+device boundaries.

@@ -1,0 +1,142 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ICPP 2026 submission template (ACM acmart, sigconf, double-anonymous review).
+% Per the ICPP 2026 CFP: "Please use the ACM format ... we recommend using
+% \documentclass[sigconf,review,anonymous]{acmart} configuration for
+% submissions prepared in LaTeX. Changes to the template (e.g., margin,
+% font size) could lead to automatic rejection."
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[sigconf,review,anonymous]{acmart}
+
+% acmart already loads: amsmath, amssymb, amsfonts, graphicx, hyperref, xcolor.
+% Only load what acmart does not provide.
+\usepackage{tikz}
+\usepackage{enumitem}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+% Suppress ACM reference format / copyright box for the anonymous review PDF.
+\settopmatter{printacmref=false}
+\setcopyright{none}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\pagestyle{plain}
+
+%-------------------------------------------------------------------------------
+% Project-specific macros
+%-------------------------------------------------------------------------------
+\newcommand{\systemname}{DynaMoE}
+\newcommand{\niparagraph}[1]{\smallskip\noindent\textbf{#1}}
+
+% autoref name overrides
+\renewcommand{\sectionautorefname}{\S}
+\renewcommand{\subsectionautorefname}{\S}
+\renewcommand{\subsubsectionautorefname}{\S}
+\renewcommand{\figureautorefname}{Fig.}
+\renewcommand{\equationautorefname}{Eq.}
+
+%-------------------------------------------------------------------------------
+% Front matter
+%-------------------------------------------------------------------------------
+\title{\systemname: Runtime Prefetch Horizon Control for Memory-Constrained Mixture-of-Experts Serving}
+
+% Double-anonymous review: do not reveal author identity. The `anonymous`
+% class option strips author/affiliation info from the rendered PDF, but
+% acmart still requires the macros to be present.
+\author{Anonymous Author(s)}
+\affiliation{%
+  \institution{Submission \#XXX}
+  \country{}
+}
+\email{anonymous@icpp2026.submission}
+
+%-------------------------------------------------------------------------------
+\begin{document}
+%-------------------------------------------------------------------------------
+
+\begin{abstract}
+A central bottleneck in serving Mixture-of-Experts (MoE) models on
+memory-constrained accelerators is the temporal mismatch between
+computation progress and expert parameter availability.
+Existing cross-layer prefetching systems hide this mismatch by
+forecasting expert usage and prefetching a fixed number of MoE layers
+ahead, but this fixed horizon~$S$ either leaves transfers exposed on
+the critical path (when~$S$ is too small) or triggers cache pollution
+and eviction cascades (when~$S$ is too large), and we show that no
+single offline~$S$ dominates across hardware, batches, and intra-batch
+token diversity.
+To address this, we propose treating~$S$ as a \emph{runtime control
+variable} rather than a configuration knob, picking a different~$S_t$
+at each control period in response to current stall and eviction
+signals.
+This reframing makes the prefetch depth track the per-period optimum,
+recovering the wins of any fixed~$S$ on the configurations where it
+would be best, simultaneously, and without offline tuning.
+To realize this idea, we develop \systemname, a serving runtime whose
+controller updates~$S$ via a bounded $\pm 1$ rule with hysteresis on
+EMA-smoothed signals, at $O(1)$ per-update cost.
+A CPU-side delta-adjusted random-forest forecaster supplies
+confidence-weighted expert predictions without consuming GPU cycles.
+A residency-aware two-tier expert cache and a cache-aware token router
+bound the cost of misprediction so that every prediction error costs
+at most one DMA, never a cascade of stalls.
+We evaluate \systemname\ on three accelerators with very different
+compute-to-bandwidth ratios (NVIDIA A6000, NVIDIA H20, Ascend 910B)
+and three MoE models (DeepSeek-V2-Lite, Qwen1.5-MoE, Qwen2-MoE) under
+a 20\,GB HBM cap.
+Compared to a fixed-horizon proactive-prefetching baseline,
+\systemname\ raises expert-activation prediction accuracy by an
+average of $21.8\%$ (up to $30.4\%$) and reduces the cache-miss
+latency component by a geometric mean of $\approx 13\times$ across
+the eight supported model--device pairs (median $7\times$--$30\times$),
+while never degrading configurations in which transfers are already
+well overlapped.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10010520.10010575.10010755</concept_id>
+<concept_desc>Computer systems organization~Heterogeneous (hybrid) systems</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010257.10010321.10010333</concept_id>
+<concept_desc>Computing methodologies~Massively parallel and high-performance simulations</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10010147.10010178.10010179.10010181</concept_id>
+<concept_desc>Computing methodologies~Neural networks</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computer systems organization~Heterogeneous (hybrid) systems}
+\ccsdesc[300]{Computing methodologies~Massively parallel and high-performance simulations}
+\ccsdesc[300]{Computing methodologies~Neural networks}
+
+\keywords{Mixture-of-Experts, LLM serving, expert prefetching, GPU memory management, adaptive control, parallel inference}
+
+\maketitle
+
+\input{01_introduction}
+\input{02_background}
+\input{03_design}
+\input{04_implementation}
+\input{05_evaluation}
+\input{08_discussion}
+\input{06_relatedwork}
+\input{07_conclusion}
+
+%-------------------------------------------------------------------------------
+% Acknowledgments are omitted for double-anonymous review (per ICPP 2026 CFP).
+% \input{99_ack}
+%-------------------------------------------------------------------------------
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

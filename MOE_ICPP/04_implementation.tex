@@ -1,0 +1,34 @@
+\section{Implementation}
+\label{sec:implementation}
+
+We implement \systemname\ as a drop-in runtime layer on top of HuggingFace
+Transformers~\cite{wolf2020transformers}, with $\sim$4.5K lines of Python
+and $\sim$0.6K lines of CUDA. The same Python codebase compiles for both
+NVIDIA (PyTorch 2.3 / CUDA 12.2) and Ascend (CANN 7.0): a thin $\sim$150-LoC
+device shim hides the difference between CUDA streams and the Ascend runtime
+equivalents, so the controller and forecaster are device-independent. The
+implementation modifies neither the model architecture nor the routing/gating
+semantics, and can be swapped in front of any MoE model that follows
+HuggingFace's \texttt{*MoeSparseMoeBlock} convention.
+
+The forecaster is trained from $(\mathbf{t}, \ell, S, \mathbf{a})$ tuples
+logged in a fixed-size pinned ring buffer (default 64K entries) during
+serving. Retraining runs on the controller's CPU thread once per epoch
+(10K requests or 60 seconds, whichever comes first) and never touches the
+GPU. On a previously unseen model the buffer is empty for the first epoch
+and the forecaster falls back to the model's own pregate top-$k$, so
+\systemname\ degrades to a baseline-equivalent state at cold start rather
+than failing.
+
+\niparagraph{Latency attribution.}
+For each MoE layer the runtime emits four \texttt{torch.cuda.Event}
+timestamps---compute begin, compute end, first stall on a missing expert,
+and stall release---and aggregates them in a per-request ring buffer. The
+difference between stall release and stall begin is the \emph{exposed
+waiting} component; the time spent inside the swap-in path is the
+\emph{cache-miss} component; compute time is reported separately. The
+breakdown plotted in \autoref{sec:evaluation}, including
+Tables~\ref{tab:Dynamic_baseline}--\ref{tab:Dynamic_CCR}, is read directly
+from these counters. Seeds are fixed for ShareGPT bucketing and forecaster
+training; we will release the runtime, device shim, training pipeline, and
+benchmark harness at the camera-ready URL.

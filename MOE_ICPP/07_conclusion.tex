@@ -1,0 +1,20 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+In this paper we present \systemname, a serving runtime designed for
+memory-constrained Mixture-of-Experts inference under
+expert-residency contention.
+\systemname\ realizes the idea of treating the cross-layer prefetch
+horizon~$S$ as a \emph{runtime control variable}: a bounded $\pm 1$
+update with hysteresis on EMA-smoothed stall and eviction signals
+picks a different~$S_t$ at each control period.
+This reframing breaks the brittle dependence of fixed-horizon
+prefetching on hardware and workload, recovering the per-configuration
+optimum that no single offline~$S$ can match.
+A CPU-side delta-adjusted forecaster and a residency-aware two-tier
+expert cache with cache-aware token routing make this control loop
+safe by bounding the cost of every prediction error to a single DMA.
+Our evaluation across three accelerators and three MoE models
+demonstrates that \systemname\ reduces cache-miss latency by an
+order of magnitude on most configurations while never degrading the
+ones where the baseline is already near-optimal.
