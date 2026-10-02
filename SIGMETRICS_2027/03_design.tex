@@ -1,0 +1,208 @@
+\section{Design}
+\label{sec:design}
+
+\systemname\ has two loops and one admission gate.
+The fast loop chooses \(S\) so that the resident set tracks~\eqref{eq:sstar}.
+The slow loop chooses which experts occupy high-precision pins, and it changes the pin count only when the fast loop reports slack.
+The gate refuses any transition whose bytes are not already reserved.
+Figure~\ref{fig:arch} shows the path of one control period.
+The predictor that builds \(\hat{U}(S)\) is deliberately local: it is the model's pregate top-\(k\) when the checkpoint exposes pregate logits, and otherwise the empirical selection frequency of that layer over the last \(T_{\mathrm{fast}}\) observations.
+A learned corrector is an ablation in Section~\ref{sec:eval}, not part of the claim.
+If the predictor overestimates the miss set, \(S^{\star}\) grows until~\eqref{eq:fit} fails and the dense rule takes over.
+Over-prediction therefore spends bytes on a wider resident set.
+It does not issue an unbounded prefetch.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[
+      font=\footnotesize,
+      node distance=0.55cm,
+      blk/.style={draw, align=center, inner sep=3pt, minimum width=3.4cm},
+      arr/.style={-{Stealth}, semithick}
+    ]
+    \node[blk] (meas) {per-layer counters\\ \(C\), \(T_{\ell}\), \(\hat{w}\), miss set};
+    \node[blk, right=0.6cm of meas] (fast) {fast loop\\ feasible \(S\), \(\pm 1\) step};
+    \node[blk, right=0.6cm of fast] (slow) {slow loop\\ hotness, pin quota};
+    \node[blk, below=0.7cm of fast] (adm) {admission\\ reserve bytes, then copy};
+    \node[blk, below=0.7cm of meas] (fwd) {forward path\\ published handle only};
+    \draw[arr] (meas) -- (fast);
+    \draw[arr] (fast) -- (slow);
+    \draw[arr] (fast) -- (adm);
+    \draw[arr] (slow) -- (adm);
+    \draw[arr] (adm) -- (fwd);
+    \draw[arr] (fwd.east) -- ++(0.35,0) |- (meas.west);
+  \end{tikzpicture}
+  \Description{A block diagram with measurement counters feeding a fast loop and a slow loop, both feeding admission, which feeds the forward path. A return arrow goes from the forward path back to the counters.}
+  \caption{One control period.
+  The forward path reads a published handle and never waits on a migration.
+  Counters from completed copies update \(C\) and \(T_{\ell}\) for the next period.}
+  \label{fig:arch}
+\end{figure}
+
+\subsection{Fast Loop}
+\label{sec:fast}
+
+The fast loop runs once per control period of \(T_{\mathrm{fast}}\) MoE layers.
+It reads the exponential moving averages of exposed wait and of the miss-set size, updates \(C\) from the bytes and duration of copies that completed on the migration stream, and updates \(T_{\ell}\) from CUDA events around the layer's expert kernels.
+It then evaluates~\eqref{eq:overlap} and~\eqref{eq:fit} at the p95 miss size for every integer \(S\) in \([S_{\min},S_{\max}]\).
+The range is the number of MoE layers in the model, so the scan is a few dozen predicate checks.
+The target is~\eqref{eq:sstar} when the feasible set is non-empty, and \(S_{\min}\) when it is empty.
+
+The applied horizon moves by at most one layer:
+\begin{equation}
+  S \leftarrow S + \mathrm{clip}(S^{\star}-S,\,-1,\,1),
+  \label{eq:step}
+\end{equation}
+except inside a hysteresis band.
+If the predicted change in exposed wait from taking the step is smaller than \(\theta_{h}\) seconds, \(S\) stays put.
+Exposed wait for a candidate is \(\max(0,\, M^{\mathrm{p95}}_{\mathrm{miss}}(S)/C - S \cdot T_{\ell})\).
+The band is what keeps a noisy p95 estimate from flipping \(S\) every period.
+Because each step has size at most one, a constant target is reached in at most \(S_{\max}-S_{\min}\) periods, and a target that jumps across the range cannot make the cache absorb that jump in one period.
+This is the same bound used to keep a horizon controller from oscillating, with the target now supplied by~\eqref{eq:sstar} instead of by a weighted difference of wait and eviction counts.
+
+When the feasible set is empty the loop additionally marks the period dense.
+Prefetch admission then accepts experts from the current layer's predicted set first, and it does not extend the speculative set past \(S_{\min}\).
+When the feasible set is non-empty the loop marks the period sparse and computes the slack
+\begin{equation}
+  B_{\mathrm{slack}}
+  \;=\;
+  B - \mathrm{bytes}\!\left(R \cup \hat{U}(S)\right)
+  \label{eq:slack}
+\end{equation}
+after the horizon step has been applied.
+\(B_{\mathrm{slack}}\) is the only byte quantity the slow loop is allowed to turn into new high-precision pins.
+
+\subsection{Slow Loop}
+\label{sec:slow}
+
+The slow loop runs every \(T_{\mathrm{slow}}\) forward steps and is the only writer of high-precision identities.
+For each layer it maintains a score \(s_{\ell,e}\).
+After a step with \(N_{\ell}\) routed positions, the observation for expert \(e\) is the mean selected router mass
+\begin{equation}
+  c_{\ell,e}
+  \;=\;
+  \frac{1}{N_{\ell}}
+  \sum_{t=1}^{N_{\ell}}
+  \mathbf{1}[e \in \mathcal{R}_{\ell,t}]\; p_{\ell,t,e},
+  \label{eq:hotness}
+\end{equation}
+and \(c_{\ell,e}=0\) when \(e\) is not selected, so unused experts decay.
+The score is \(s_{\ell,e} \leftarrow \alpha s_{\ell,e} + (1-\alpha) c_{\ell,e}\).
+No task label and no online quality signal enter \(s_{\ell,e}\).
+
+In Phase~II the pin count is the constant from~\eqref{eq:phase2-nhi}.
+In Phase~III the pin count starts at zero.
+On a sparse period the loop may increment \(n_{\mathrm{hi},\ell}\) by one if \(B_{\mathrm{slack}} \ge m^{\mathrm{hi}}_{\ell}-m^{\mathrm{lo}}_{\ell}\) when a low-precision copy is resident, or \(B_{\mathrm{slack}} \ge m^{\mathrm{hi}}_{\ell}\) when it is not.
+On a dense period the loop increments nothing.
+If the fast loop reports that the current pins have made~\eqref{eq:fit} infeasible at every \(S\), the slow loop decrements \(n_{\mathrm{hi},\ell}\) by one.
+At most one increment or one decrement occurs per layer per slow period.
+That rate limit is what prevents a single prefill from demoting the decode pins and a single decode step from promoting a prefill-only expert.
+
+Identities follow the count.
+An outsider replaces the lowest-scoring incumbent only when its score exceeds the incumbent by a margin \(\delta\).
+The margin is the mechanism that absorbs the near-ties visible when many experts have similar mass.
+A replacement is one demotion and one promotion, submitted as a pair, demotion first.
+Phase~I performs neither step.
+
+The separation of timescales is an assumption we measure rather than a parameter we hide.
+\(T_{\mathrm{slow}}\) is set to a multiple of \(T_{\mathrm{fast}}\) large enough that a pin change is constant across several horizon updates.
+Section~\ref{sec:eval} reports the waiting-time variance in the periods immediately after a pin change.
+If that variance dominates the variance from \(S\) itself, the lexicographic split is the wrong coupling and the paper's controller is the wrong design.
+
+\subsection{Admission and Pools}
+\label{sec:admit}
+
+Device memory for expert weights is divided into per-layer pools of fixed-size blocks, one block size per precision.
+A high-precision block cannot be allocated from the low-precision pool.
+Fixed blocks remove variable-size external fragmentation from the expert allocator; the free path is a free list, not the general-purpose device allocator.
+A separate staging pool of \(K\) blocks, sized to the larger representation, covers the interval in which the new block is filled and the old block is still published.
+
+Every promotion, demotion, and prefetch calls \texttt{try\_reserve} before it acquires a block or enqueues a copy.
+The reservation checks three counters: the destination tier's capacity, the staging capacity, and the sum of published plus reserved expert bytes against \(B\).
+A failed reservation leaves the published set unchanged.
+The caller retries on a later period from that published set, not from the set it wished to publish.
+Because reservations are subtracted from \(B_{\mathrm{slack}}\) and from the fast loop's byte account before the copy starts, the pin loop and the prefetch loop cannot both spend the same byte.
+
+Equation~\eqref{eq:fit} is therefore an online invariant of \systemname-owned memory: resident blocks, staging blocks, and the conversion workspace reserved at startup.
+It is not an invariant of the process.
+A KV-cache growth or a framework allocation beyond its declared reserve can still exhaust the device.
+Startup compares the sum of declared reserves against available memory and refuses to enter the loop if the sum exceeds the device.
+The implementation does not interpose on a later allocator call.
+The evaluation reports both the runtime's counters and the process peak so that a reserve violation is visible as a process-peak failure rather than as a counter failure.
+
+\subsection{Publication}
+\label{sec:publish}
+
+A published handle is a precision tag, a device pointer, and the quantization metadata for one expert.
+The forward path resolves the router’s expert identifiers to handles, takes a read lease, and records a per-stream last-use event after the expert kernel is launched.
+It never writes a handle in place.
+
+A transition fills a destination block on the migration stream.
+The worker publishes the new handle only after that stream’s completion event.
+The old handle is reclaimed only after its lease count is zero and every recorded last-use event has completed.
+The two waits cover the interval in which the forward path has read the old pointer and has not yet launched the kernel that uses it.
+Demotion publishes the low-precision handle first and then reclaims the high-precision block under the same rule.
+The compute stream does not synchronize with the migration stream.
+A dispatch that arrives during the copy observes the old handle; the next dispatch observes the new one.
+
+Tokens in a layer are issued in residency order.
+Tokens whose experts are already published run first.
+Tokens whose experts are in flight wait for that copy and run as the copy completes, concurrently with the resident tokens of the same layer.
+This overlap is the reason a single miss is charged as at most one transfer on the migration stream rather than as a stall in front of every expert kernel.
+The evaluation measures the exposed remainder of that transfer.
+The design bound is one transfer of size \(m_{\ell,e}\); the bound is false if a miss triggers an eviction that reloads an expert the same step still needs, which is the failure mode~\eqref{eq:fit} is there to forbid.
+
+\subsection{Control Period}
+\label{sec:alg}
+
+Algorithm~\ref{alg:period} is one period of the two loops.
+Phase classification uses the measured pool sizes and does not change unless \(B\) is reconfigured.
+The hotness update is omitted from the listing; it is~\eqref{eq:hotness} and runs on every forward step, while lines that change \(n_{\mathrm{hi}}\) run only on slow periods.
+
+\begin{algorithm}[t]
+\caption{One \systemname\ control period.}
+\label{alg:period}
+\begin{algorithmic}[1]
+\Require usable budget $B$, bounds $[S_{\min},S_{\max}]$, hysteresis $\theta_{h}$, current horizon $S$
+\Require resident set $R$, pin counts $n_{\mathrm{hi},\ell}$, measured $C$, $T_{\ell}$, p95 miss bytes
+\If{$B \ge P_{\mathrm{hi}}$}
+  \State load the all-high assignment and \Return \Comment{Phase I}
+\EndIf
+\If{$P_{\mathrm{lo}} \le B$ and $B < P_{\mathrm{hi}}$}
+  \State $S \gets 0$ \Comment{Phase II, Prediction P1}
+  \State set $n_{\mathrm{hi}}$ from the proportional form of Eq.~\eqref{eq:phase2-nhi}
+  \State replace at most one pin per layer if the hotness margin $\delta$ holds
+  \State \Return
+\EndIf
+\State $F \gets \{ s \in [S_{\min},S_{\max}] : \text{overlap and fit hold at p95 miss bytes} \}$
+\If{$F = \emptyset$}
+  \State $S^{\star} \gets S_{\min}$; dense $\gets$ true \Comment{Prediction P3, dense}
+\Else
+  \State $S^{\star} \gets \min F$; dense $\gets$ false
+\EndIf
+\State step $S$ toward $S^{\star}$ by at most one layer, unless the predicted wait change is below $\theta_{h}$
+\If{dense}
+  \State admit prefetches from the current layer only; do not increment any $n_{\mathrm{hi},\ell}$
+  \If{pins make every horizon infeasible}
+    \State decrement one $n_{\mathrm{hi},\ell}$
+  \EndIf
+\Else
+  \State compute slack from Eq.~\eqref{eq:slack}
+  \If{slack covers one promotion}
+    \State increment one $n_{\mathrm{hi},\ell}$ and pin the highest-scoring unpinned expert
+  \EndIf
+\EndIf
+\State submit admitted copies on the migration stream; publish on completion
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{What Is Intentionally Not Adapted}
+\label{sec:non-goals}
+
+Top-\(k\), expert architecture, and the router's parameters stay at the checkpoint values.
+\systemname\ does not skip an expert to save a miss, because a skip changes the function being served.
+The low- and high-precision tensors are produced offline by the same quantization recipe for every expert; the online decision is which tensor is published, not a new set of scales.
+There is no per-request retuning of \(\alpha\), \(\delta\), \(\theta_{h}\), \(T_{\mathrm{fast}}\), or \(T_{\mathrm{slow}}\).
+Those constants are chosen on a calibration split and frozen.
+Section~\ref{sec:eval} states the split.
+A deployment that needs a different \(B\) changes \(\PhiRatio\) and therefore the phase, without a new calibration of the horizon.

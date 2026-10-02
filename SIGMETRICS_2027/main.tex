@@ -1,0 +1,86 @@
+%% SIGMETRICS 2027 / POMACS draft.
+%% Format required by the CFP: \documentclass[acmsmall, screen, review]{acmart}
+%% Up to 20 pages of technical content, single column; references unlimited.
+%% Double-anonymous. Result cells are intentionally unfilled.
+\documentclass[acmsmall,screen,review,anonymous]{acmart}
+
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit}
+
+\newcommand{\systemname}{DynaByte}
+\newcommand{\tbd}[1]{\textcolor{red}{[#1]}}
+\newcommand{\PhiRatio}{\Phi}
+
+\setcopyright{none}
+\settopmatter{printfolios=true}
+\renewcommand{\shortauthors}{Anonymous}
+
+\acmJournal{POMACS}
+\acmYear{2027}
+
+\title{The Optimal Expert Prefetch Horizon Is Set by Precision}
+
+%% After H2: replace nothing in the abstract body. Add one sentence with the
+%% measured shift in S-star (layers) and the p95 wait gap versus the two
+%% boundary policies. Do not mention unfilled cells here.
+\begin{abstract}
+The optimal prefetch horizon for expert weights is set by precision: \(\PhiRatio=B/P_{\mathrm{lo}}\), the device budget divided by a low-precision copy of every expert, decides whether those bytes buy residency or lookahead.
+Precision assignment assumes that low-precision copy always fits, while prefetching assumes expert size is fixed and a longer horizon always helps; the two assumptions exchange places at \(\PhiRatio=1\).
+When \(\PhiRatio\ge 1\) the minimizing horizon is zero and leftover bytes raise the precision of experts the router uses; when \(\PhiRatio<1\) it is the smallest lookahead that hides the predicted misses inside the overlap window and the budget, and prefill versus decode crosses that boundary inside one request.
+\systemname\ computes this horizon from measured expert sizes, tracks it by at most one layer per period, and changes precision only while the byte budget and the latency band both hold.
+A sweep of budgets, models, and devices tests the predictions against precision-only residency, horizon-only prefetch, and a composition that lets each policy spend the full budget.
+\end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+<concept>
+<concept_id>10010147.10010178</concept_id>
+<concept_desc>Computing methodologies~Artificial intelligence</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+<concept>
+<concept_id>10011007.10010940.10010941</concept_id>
+<concept_desc>Software and its engineering~Memory management</concept_desc>
+<concept_significance>500</concept_significance>
+</concept>
+<concept>
+<concept_id>10010520.10010521</concept_id>
+<concept_desc>Computer systems organization~Architectures</concept_desc>
+<concept_significance>300</concept_significance>
+</concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[300]{Computing methodologies~Artificial intelligence}
+\ccsdesc[500]{Software and its engineering~Memory management}
+\ccsdesc[300]{Computer systems organization~Architectures}
+
+\keywords{mixture of experts, memory management, prefetching, quantization, performance modeling}
+
+\begin{document}
+
+\maketitle
+
+\noindent\textit{Draft status.}
+This manuscript follows the SIGMETRICS~2027 \texttt{acmsmall} rules (at most 20 single-column pages of technical content, unlimited references, double-anonymous review).
+Tables that depend on the joint re-measurement are marked in red and left blank.
+Preliminary routing statistics in Section~\ref{sec:prelim} are measurements already in hand; they are not end-to-end results for \systemname.
+
+\input{01_introduction}
+\input{02_background}
+\input{03_design}
+\input{04_implementation}
+\input{05_evaluation}
+\input{06_discussion}
+\input{07_related}
+\input{08_conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{references}
+
+\end{document}

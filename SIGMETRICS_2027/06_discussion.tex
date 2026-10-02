@@ -1,0 +1,83 @@
+\section{Discussion}
+\label{sec:discussion}
+
+\subsection{What Would Falsify the Account}
+\label{sec:falsify}
+
+The account is a latency model plus a proxy that spends slack.
+They fail separately.
+If E2 finds that the minimizing horizon is insensitive to prefetch size, then~\eqref{eq:overlap} is missing a term that dominates \(m\), and precision does not belong in the horizon calculation.
+The likely missing term is a kernel-launch or dequantization cost that scales with the number of experts rather than with bytes.
+In that world the right design is the precision-only policy whenever the floor fits, and a horizon policy whose \(S\) is chosen from \(T_{\ell}\) alone whenever it does not.
+\systemname’s coupling would be an unnecessary constraint.
+
+If E2 finds that idle \(C\) and in-overlap \(C\) produce horizon errors of several layers, the scalar overlap identity is the wrong plant model even if a closed-loop controller can still hunt for a good \(S\).
+The paper would then be a control paper about tracking a noisy wait signal, which is a weaker and different claim than P2.
+We would rather report that negative than retune \(\theta_{h}\) until the controller looks accurate.
+
+If E5 finds that hotness-ranked pins do not separate from static mixed precision inside the latency band, the slow loop’s identity updates are not earning their migration traffic.
+The quota rule in~\eqref{eq:phase2-nhi} and the slack rule in~\eqref{eq:slack} could still be right.
+The system we would recommend is then a static ranking inside a controller-chosen quota, and the task-disjoint top-10 result in Section~\ref{sec:prelim} would be a statement about calibration shift that our online score failed to track.
+That outcome is reportable from the same tables.
+
+\subsection{Limitations}
+\label{sec:limits}
+
+The implementation is one GPU.
+An expert-parallel deployment splits \(E_{\ell}\) across devices, and \(\PhiRatio\) becomes a per-device quantity that also depends on the router’s balance.
+Nothing in the model forbids that reading, and nothing in the prototype measures it.
+
+Host memory holds both packed tiers for the life of the process.
+The device budget is the object of the invariant; the host duplicate is a cost paid at load time.
+A deployment that cannot store both tiers must quantize on the promotion path, which adds a term to transition latency that Algorithm~\ref{alg:period} does not hide.
+
+The lexicographic rule prefers a feasible horizon over a pin.
+Under a very tight \(B\) the slack is zero for the entire request and \systemname\ reduces to the horizon-only policy.
+That reduction is the correct output of P4, and it means the system has no quality advantage over horizon-only in the tightest Phase~III budgets.
+We state the quality claim only inside the band defined in E5.
+
+Shared experts that the checkpoint always executes are charged to the non-expert reserve, not to \(B\).
+Qwen3-Next has one such expert per layer.
+Treating it as a routed expert would inflate \(P_{\mathrm{lo}}\) and shift \(\PhiRatio\).
+
+The p95 ring is a short history.
+A workload shift shorter than the ring, or a slow loop that has not yet decayed the previous task’s scores, mis-states both \(S^{\star}\) and the pin identities.
+E3’s text-to-code boundary, using the three workloads whose top-10 sets were disjoint, is the measurement of that lag.
+We do not claim a bound on lag in periods; we report it.
+
+Cache-aware issue order assumes that tokens in a layer may execute in any order relative to each other.
+That is true for the standard grouped-GEMM dispatch and false if a future kernel fused the experts in identifier order.
+The ablation that disables reordering measures the exposed-wait gap on today’s kernels.
+
+\subsection{Threats to Validity}
+\label{sec:threats}
+
+The preliminary numbers in Section~\ref{sec:prelim} and the results of E0 are different samples until E0 is run.
+We will replace Table~\ref{tab:density} with the E0 table if the two disagree, rather than explaining the disagreement in a caption.
+
+ShareGPT buckets under-represent very long contexts.
+A 128k-token prefill changes both the unique-expert ratio and the KV reserve, and the KV reserve eats into the device before \(B\) does.
+Our budgets assume the declared KV reserve is honored.
+They do not describe a serving stack that over-admits context length.
+
+Quality subsets are a few hundred items.
+Wilson intervals on those subsets are wide for small effects.
+H5 is a claim about separation of intervals, so a small true effect on this item set will correctly fail to reject the null.
+We will not respond to that failure by switching to a larger, post-hoc item set.
+
+Ascend and NVIDIA stacks do not share a kernel implementation.
+A \(C\) comparison across them confounds bandwidth with software.
+H2’s device clause is therefore stated as a change in the measured in-overlap \(C\), and we report that \(C\), rather than as a pure hardware effect.
+
+\subsection{Reproducibility and Ethics}
+\label{sec:ethics}
+
+The latency corpus is a public conversational dataset.
+Quality benchmarks are public exam-style and code datasets.
+The study does not recruit participants, does not collect new user data, and does not transmit prompts to a third-party API.
+Artifacts will contain prompt identifiers and scores, not a redistribution of any dataset whose license forbids it.
+
+The release accompanying an accepted paper is the controller, the pool runtime, the trace utilities that compute the unique-expert ratio and \(\PhiRatio\), and one configuration file per reported cell.
+Random seeds, checkpoint revisions, and the calibration-test split identifier are part of each artifact.
+We will not release a binary that omits the reservation counters.
+A result that cannot be checked against \(B\) is not a result under this protocol.
