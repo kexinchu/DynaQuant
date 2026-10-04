@@ -66,6 +66,13 @@ def _handle_forward(
     for expert_index_tensor in expert_hit:
         expert_index = int(expert_index_tensor[0])
         key = ExpertKey(module._dynaexq_layer_idx, expert_index)
+        resolver = getattr(module, "_dynaexq_residency_controller", None)
+        if resolver is not None:
+            resolver.ensure_selected(
+                module._dynaexq_layer_idx,
+                {expert_index},
+                issued_step=None,
+            )
         handle = module._dynaexq_registry.acquire_handle(key)
         if handle is None:
             raise RuntimeError(

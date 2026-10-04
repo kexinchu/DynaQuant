@@ -13,9 +13,12 @@ from __future__ import annotations
 import logging
 import math
 import time
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import torch
+
+if TYPE_CHECKING:
+    from ..policy.runtime import RuntimeExchangePlanner, RuntimeResidencyController
 
 from ..core import (
     ExpertKey,
@@ -49,6 +52,8 @@ class MoEWrapper:
         scheduler: PrecisionScheduler,
         registry: ExpertRegistry,
         transition_engine: Optional[TransitionEngine] = None,
+        exchange_planner: Optional["RuntimeExchangePlanner"] = None,
+        residency_controller: Optional["RuntimeResidencyController"] = None,
         num_layers: Optional[int] = None,
         experts_per_layer: Optional[int] = None,
         topk: Optional[int] = None,
@@ -78,6 +83,8 @@ class MoEWrapper:
         self.scheduler = scheduler
         self.registry = registry
         self.transition_engine = transition_engine
+        self.exchange_planner = exchange_planner
+        self.residency_controller = residency_controller
         
         self._step = 0
         self._current_tiers: dict[ExpertKey, Tier] = {}  # Track current tiers
@@ -354,6 +361,7 @@ class MoEWrapper:
                     experts_config._experts_implementation = "eager"
                 experts._dynaexq_registry = self.registry
                 experts._dynaexq_layer_idx = layer_idx
+                experts._dynaexq_residency_controller = self.residency_controller
                 attached.add(layer_idx)
                 continue
             if experts is not None and attach_qwen3_next_experts(
@@ -362,6 +370,7 @@ class MoEWrapper:
                 layer_idx,
             ):
                 attached.add(layer_idx)
+                experts._dynaexq_residency_controller = self.residency_controller
         return len(attached)
 
     def validate_integration(self) -> None:
@@ -383,6 +392,12 @@ class MoEWrapper:
         topk_indices: torch.Tensor,
         topk_weights: torch.Tensor,
     ) -> None:
+        if self.residency_controller is not None:
+            self.residency_controller.on_route(
+                layer,
+                topk_indices,
+                issued_step=self._step,
+            )
         self._record_routing_counts(layer, topk_indices)
         signal = self.router_observer.extract_signal(
             layer=layer,
@@ -421,6 +436,12 @@ class MoEWrapper:
                 logits_2d, k=topk, dim=-1, sorted=False
             )  # both: (num_tokens, topk), still on GPU
             topk_weights = torch.softmax(logits_2d, dim=-1).gather(1, topk_idx)
+            if self.residency_controller is not None:
+                self.residency_controller.on_route(
+                    layer,
+                    topk_idx,
+                    issued_step=self._step,
+                )
             self._record_routing_counts(layer, topk_idx)
 
             # Pass the small GPU tensors to extract_signal.
@@ -483,22 +504,35 @@ class MoEWrapper:
             self._sync_tier_assignments()
             
             # Plan transitions
-            requests = self.scheduler.plan(
-                step=self._step,
-                tracker=self.hotness_tracker,
-                current_tiers=self._current_tiers,
-            )
+            plan_kwargs = {
+                "step": self._step,
+                "tracker": self.hotness_tracker,
+                "current_tiers": self._current_tiers,
+            }
+            if isinstance(self.scheduler, PrecisionScheduler):
+                plan_kwargs["eligible_experts"] = {
+                    layer: {
+                        key.expert
+                        for key in self._current_tiers
+                        if key.layer == layer
+                    }
+                    for layer in range(self.scheduler.num_layers)
+                }
+            requests = self.scheduler.plan(**plan_kwargs)
             
             if requests:
                 logger.info(f"Step {self._step}: Planning {len(requests)} transitions")
             
             # Execute transitions if engine available
             if self.transition_engine is not None:
-                for req in requests:
-                    if self.transition_engine.enqueue(req):
-                        logger.debug(f"Enqueued transition: {req.key} {req.src}->{req.dst}")
-                    else:
-                        logger.warning(f"Failed to enqueue transition: {req.key}")
+                if self.exchange_planner is not None:
+                    self._submit_precision_exchanges(requests)
+                else:
+                    for req in requests:
+                        if self.transition_engine.enqueue(req):
+                            logger.debug(f"Enqueued transition: {req.key} {req.src}->{req.dst}")
+                        else:
+                            logger.warning(f"Failed to enqueue transition: {req.key}")
             
             # Update current tiers
             # Do not optimistically update tiers for rejected or in-flight
@@ -507,6 +541,48 @@ class MoEWrapper:
         except Exception as e:
             logger.error(f"Error updating scheduler at step {self._step}: {e}")
             raise
+
+    def _submit_precision_exchanges(self, requests) -> None:
+        """Preserve scheduler swap pairs at the executor transaction boundary."""
+        assert self.exchange_planner is not None
+        by_layer: dict[int, list] = {}
+        for request in requests:
+            by_layer.setdefault(request.key.layer, []).append(request)
+        for layer_requests in by_layer.values():
+            demotions = [item for item in layer_requests if item.dst == Tier.LO]
+            promotions = [item for item in layer_requests if item.dst == Tier.HI]
+            paired = min(len(demotions), len(promotions))
+            units = [
+                [demotions[index], promotions[index]]
+                for index in range(paired)
+            ]
+            units.extend([item] for item in demotions[paired:])
+            units.extend([item] for item in promotions[paired:])
+            for unit in units:
+                if (
+                    self.residency_controller is not None
+                    and not self.residency_controller.precision_unit_feasible(
+                        unit
+                    )
+                ):
+                    logger.debug(
+                        "Rejected precision unit by quality-risk account: %s",
+                        [item.key for item in unit],
+                    )
+                    continue
+                extra_donors = (
+                    self.residency_controller.precision_extra_donors(unit)
+                    if self.residency_controller is not None
+                    else []
+                )
+                if not self.exchange_planner.submit_precision_unit(
+                    unit,
+                    additional_donors=extra_donors,
+                ):
+                    logger.warning(
+                        "Rejected precision exchange for %s",
+                        [item.key for item in unit],
+                    )
     
     def _sync_tier_assignments(self) -> None:
         """Sync current tier assignments from registry."""
@@ -565,6 +641,16 @@ class MoEWrapper:
                 ordered[p99_index] if p99_index is not None else 0.0
             ),
             "scheduler_max_ms": max(scheduler_samples, default=0.0),
+            "exchange_planner": (
+                self.exchange_planner.snapshot()
+                if self.exchange_planner is not None
+                else None
+            ),
+            "residency_controller": (
+                self.residency_controller.snapshot()
+                if self.residency_controller is not None
+                else None
+            ),
         }
     
     def remove_hooks(self) -> None:

@@ -40,6 +40,29 @@ def test_cumulative_calibration_scores_are_order_invariant():
     )
 
 
+def test_calibration_prior_seeds_ema_and_then_decays() -> None:
+    tracker = HotnessTracker(num_layers=1, experts_per_layer=3, alpha=0.5)
+    tracker.seed_scores([[0.6, 0.3, 0.1]])
+    assert tracker.get_layer_scores(0).tolist() == pytest.approx(
+        [0.6, 0.3, 0.1]
+    )
+    assert tracker.get_cumulative_layer_scores(0).tolist() == [0.0, 0.0, 0.0]
+    tracker.update(0, {1: 1.0})
+    assert tracker.get_layer_scores(0).tolist() == pytest.approx(
+        [0.3, 0.65, 0.05]
+    )
+
+
+def test_calibration_prior_rejects_wrong_shape_or_negative_values() -> None:
+    tracker = HotnessTracker(num_layers=2, experts_per_layer=2)
+    with pytest.raises(ValueError, match="layer count"):
+        tracker.seed_scores([[0.5, 0.5]])
+    with pytest.raises(ValueError, match="width"):
+        tracker.seed_scores([[0.5], [0.5, 0.5]])
+    with pytest.raises(ValueError, match="non-negative"):
+        tracker.seed_scores([[0.5, -0.5], [0.5, 0.5]])
+
+
 def test_reset_clears_online_and_calibration_state():
     tracker = HotnessTracker(num_layers=1, experts_per_layer=2, alpha=0.5)
     tracker.update(0, {0: 1.0})

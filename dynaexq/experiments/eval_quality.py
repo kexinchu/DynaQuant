@@ -544,9 +544,10 @@ def evaluate(
 
 def _git_metadata() -> dict[str, Any]:
     try:
+        root = Path(__file__).resolve().parents[2]
         commit = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            cwd=Path(__file__).resolve().parents[2],
+            cwd=root,
             capture_output=True,
             text=True,
             check=True,
@@ -554,13 +555,47 @@ def _git_metadata() -> dict[str, Any]:
         dirty = bool(
             subprocess.run(
                 ["git", "status", "--porcelain"],
-                cwd=Path(__file__).resolve().parents[2],
+                cwd=root,
                 capture_output=True,
                 text=True,
                 check=True,
             ).stdout.strip()
         )
-        return {"commit": commit, "dirty": dirty}
+        candidates = subprocess.run(
+            [
+                "git",
+                "ls-files",
+                "--cached",
+                "--others",
+                "--exclude-standard",
+            ],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.splitlines()
+        source_digest = hashlib.sha256()
+        for relative in sorted(candidates):
+            path = Path(relative)
+            if not (
+                relative == "pyproject.toml"
+                or relative.startswith("dynaexq/")
+            ):
+                continue
+            if path.suffix not in {".py", ".yaml", ".yml", ".toml", ".sh"}:
+                continue
+            absolute = root / path
+            if not absolute.is_file():
+                continue
+            source_digest.update(relative.encode("utf-8"))
+            source_digest.update(b"\0")
+            source_digest.update(absolute.read_bytes())
+            source_digest.update(b"\0")
+        return {
+            "commit": commit,
+            "dirty": dirty,
+            "source_tree_sha256": source_digest.hexdigest(),
+        }
     except (OSError, subprocess.CalledProcessError):
         return {"commit": None, "dirty": None}
 
@@ -626,17 +661,53 @@ def checkpoint_metadata(
             "weight_hashes_included": False,
         }
 
+    cache_path = (
+        Path(__file__).resolve().parents[2]
+        / "results"
+        / "evaluation"
+        / "checkpoint_hash_cache.json"
+    )
+    try:
+        hash_cache = json.loads(cache_path.read_text(encoding="utf-8"))
+        if not isinstance(hash_cache, dict):
+            hash_cache = {}
+    except (OSError, json.JSONDecodeError):
+        hash_cache = {}
+
+    def cached_sha256(file_path: Path) -> str:
+        stat = file_path.stat()
+        key = "|".join(
+            (
+                str(file_path.resolve()),
+                str(stat.st_size),
+                str(stat.st_mtime_ns),
+            )
+        )
+        cached = hash_cache.get(key)
+        if isinstance(cached, str) and len(cached) == 64:
+            return cached
+        digest = hashlib.sha256()
+        with file_path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
+                digest.update(chunk)
+        value = digest.hexdigest()
+        hash_cache[key] = value
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = cache_path.with_suffix(".tmp")
+        temporary.write_text(
+            json.dumps(hash_cache, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temporary.replace(cache_path)
+        return value
+
     def describe(file_path: Path, include_hash: bool) -> dict[str, Any]:
         item: dict[str, Any] = {
             "name": file_path.name,
             "size_bytes": file_path.stat().st_size,
         }
         if include_hash:
-            digest = hashlib.sha256()
-            with file_path.open("rb") as stream:
-                for chunk in iter(lambda: stream.read(8 * 1024 * 1024), b""):
-                    digest.update(chunk)
-            item["sha256"] = digest.hexdigest()
+            item["sha256"] = cached_sha256(file_path)
         return item
 
     if path.is_file():

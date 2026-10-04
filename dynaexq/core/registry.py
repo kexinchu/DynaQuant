@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
 import torch
 
@@ -22,7 +22,9 @@ if TYPE_CHECKING:
     # dependencies on quant.py / memory_pool.py so it can still be imported
     # by tests that mock both.
     from .budget_tracker import Reservation
+    from .expert_memory import MemoryClaim
     from .memory_pool import PoolBlock
+    from .shared_arena import ArenaExtent
     from .quant import PackedTensor
 
 
@@ -97,7 +99,7 @@ class ExpertHandle:
     """
 
     tier: Tier
-    block: Optional["PoolBlock"] = None
+    block: Optional[Union["PoolBlock", "ArenaExtent"]] = None
     # Single-weight experts pass a ``PackedTensor``; multi-linear experts
     # (Phi-MoE w1/w2/w3, Qwen3 gate_up_proj/down_proj) pass a
     # ``dict[str, PackedTensor]``.  Use ``get_packed(slot)`` to read.
@@ -110,6 +112,9 @@ class ExpertHandle:
     # reclaim to release the bytes back to the budget. ``None`` is allowed
     # for handles created outside the runtime (tests, no-budget mode).
     reservation: Optional["Reservation"] = None
+    # Shared-arena ownership. New runtime paths use this claim instead of a
+    # tier-specific BudgetTracker reservation.
+    memory_claim: Optional["MemoryClaim"] = None
     # Phase 4.3 event fence: the most recent compute-stream event
     # recorded after a forward kernel finished reading from
     # ``block.tensor``. TransitionEngine Stage 4 waits on this event
@@ -129,6 +134,19 @@ class ExpertHandle:
     # published immediately, but this handle's block cannot be reclaimed
     # while a forward lease is active.
     active_readers: int = field(default=0, init=False, repr=False)
+    # Distinguish a published handle that has never reached dispatch from a
+    # handle whose dispatch failed to attach a completion event.  The former
+    # has no compute work to fence when it is reclaimed; the latter still
+    # requires the conservative fallback.
+    ever_acquired: bool = field(default=False, init=False, repr=False)
+    # A prefetched handle remains charged to lookahead until its first real
+    # dispatch. The callback reclassifies the existing arena claim without a
+    # copy or pointer change. It is claimed exactly once by acquire_handle.
+    first_use_callback: Optional[Callable[["ExpertHandle"], None]] = field(
+        default=None,
+        repr=False,
+    )
+    first_use_consumed: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.quant_meta is not None:
@@ -201,7 +219,7 @@ class ExpertRegistry:
     Thread-safe registry mapping ExpertKey -> ExpertHandle.
 
     Transitions publish handles atomically after completion. Model execution
-    uses ``acquire_handle``/``release_handle`` leases so an old pool block
+    uses ``acquire_handle``/``release_handle`` references so old storage
     cannot be reclaimed between pointer resolution and kernel launch.
 
     P2 optimisation — lock-free reads + versioned refresh skipping
@@ -246,11 +264,25 @@ class ExpertRegistry:
 
     def acquire_handle(self, key: ExpertKey) -> Optional[ExpertHandle]:
         """Acquire a read lease on the currently published handle."""
+        callback = None
         with self._global_lock:
             handle = self._handles.get(key)
             if handle is not None:
                 handle.active_readers += 1
-            return handle
+                handle.ever_acquired = True
+                if (
+                    handle.first_use_callback is not None
+                    and not handle.first_use_consumed
+                ):
+                    handle.first_use_consumed = True
+                    callback = handle.first_use_callback
+        if handle is not None and callback is not None:
+            try:
+                callback(handle)
+            except Exception:
+                self.release_handle(handle)
+                raise
+        return handle
 
     def release_handle(
         self,
@@ -318,6 +350,51 @@ class ExpertRegistry:
             self._handles[key] = replacement
             self._version += 1
             return True
+
+    def publish_exchange(
+        self,
+        replacements: dict[ExpertKey, ExpertHandle],
+        donors: dict[ExpertKey, ExpertHandle],
+    ) -> dict[ExpertKey, ExpertHandle]:
+        """Atomically publish destinations and detach donor handles.
+
+        Donors are optimistic-concurrency guards as well as reclaim targets.
+        Every donor must still be the current handle when the transaction
+        commits. A key may be both donor and destination for a tier change; in
+        that case it is replaced, not removed. No registry state changes when
+        validation fails.
+
+        Returns the old handles detached by the commit, keyed by expert.
+        Their storage remains valid until the caller fences readers and
+        releases the associated arena claims.
+        """
+        if not replacements:
+            raise ValueError("an exchange must publish at least one destination")
+        with self._global_lock:
+            stale = [
+                key
+                for key, expected in donors.items()
+                if self._handles.get(key) is not expected
+            ]
+            if stale:
+                raise RuntimeError(f"exchange donor changed before publish: {stale}")
+
+            detached: dict[ExpertKey, ExpertHandle] = {}
+            for key in set(replacements) | set(donors):
+                current = self._handles.get(key)
+                if current is not None:
+                    detached[key] = current
+
+            for key in donors:
+                if key not in replacements:
+                    del self._handles[key]
+            for key, replacement in replacements.items():
+                old = self._handles.get(key)
+                if old is not None:
+                    replacement.version = old.version + 1
+                self._handles[key] = replacement
+            self._version += 1
+            return detached
 
     def get_old_handle(self, key: ExpertKey) -> Optional[ExpertHandle]:
         """Get the handle that will be replaced (for cleanup)."""

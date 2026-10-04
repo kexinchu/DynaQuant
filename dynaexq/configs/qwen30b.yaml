@@ -14,6 +14,9 @@ scheduler:
   update_period_steps: 200
   rate_limit: null
   delta_score_margin: 0.01
+  min_tenure_steps: 100
+  lookahead_depth: 0
+  lookahead_per_layer: 1
 
 memory:
   device_mem_bytes: 48000000000  # 48GB
@@ -23,6 +26,8 @@ memory:
   reserve_kernel_workspace_bytes: 0  # auto: 2x max INT4 expert per inflight
   safety_margin_bytes: 1000000000  # 1GB
   max_inflight: 4
+  resident_ratio: 1.0
+  initial_high_precision_ratio: null
 
 experiments:
   concurrency: 64

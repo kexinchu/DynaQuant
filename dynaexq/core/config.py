@@ -48,6 +48,12 @@ class SchedulerConfig:
     # Default 0.0 = no hysteresis (plain top-N projection, backward
     # compatible with pre-Phase-5 behavior).
     delta_score_margin: float = 0.0
+    min_tenure_steps: int = 0
+    lookahead_depth: int = 0
+    lookahead_per_layer: int = 1
+    valuation_mode: str = "counterfactual"
+    donor_mode: str = "explicit"
+    enabled: bool = True
 
 
 @dataclass
@@ -60,6 +66,8 @@ class MemoryConfig:
     reserve_kernel_workspace_bytes: int = 0
     safety_margin_bytes: int = 0
     max_inflight: int = 4  # Max concurrent transitions
+    resident_ratio: float = 1.0
+    initial_high_precision_ratio: Optional[float] = None
 
 
 @dataclass
@@ -121,6 +129,12 @@ class DynaExqConfig:
                 "update_period_steps": self.scheduler.update_period_steps,
                 "rate_limit": self.scheduler.rate_limit,
                 "delta_score_margin": self.scheduler.delta_score_margin,
+                "min_tenure_steps": self.scheduler.min_tenure_steps,
+                "lookahead_depth": self.scheduler.lookahead_depth,
+                "lookahead_per_layer": self.scheduler.lookahead_per_layer,
+                "valuation_mode": self.scheduler.valuation_mode,
+                "donor_mode": self.scheduler.donor_mode,
+                "enabled": self.scheduler.enabled,
             },
             "memory": {
                 "device_mem_bytes": self.memory.device_mem_bytes,
@@ -132,6 +146,10 @@ class DynaExqConfig:
                 ),
                 "safety_margin_bytes": self.memory.safety_margin_bytes,
                 "max_inflight": self.memory.max_inflight,
+                "resident_ratio": self.memory.resident_ratio,
+                "initial_high_precision_ratio": (
+                    self.memory.initial_high_precision_ratio
+                ),
             },
             "experiments": {
                 "concurrency": self.experiments.concurrency,

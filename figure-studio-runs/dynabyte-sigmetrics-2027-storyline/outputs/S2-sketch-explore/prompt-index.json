@@ -1,0 +1,29 @@
+{
+  "schema_version": 2,
+  "stage": "S2-SKETCH-EXPLORE",
+  "prepared_by_stage": "S1-FIGURE-STRATEGY",
+  "scope": "conceptual motivation teaser only",
+  "first_round_default_style_id": "formal_publication_schematic",
+  "empirical_content_policy": "SCRIPT_ONLY_NOT_S2",
+  "candidate_ids": ["C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08"],
+  "candidates": [
+    {"candidate_id":"C01","prompt_path":"outputs/S2-sketch-explore/candidates/C01/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C01/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C02","prompt_path":"outputs/S2-sketch-explore/candidates/C02/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C02/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C03","prompt_path":"outputs/S2-sketch-explore/candidates/C03/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C03/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C04","prompt_path":"outputs/S2-sketch-explore/candidates/C04/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C04/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C05","prompt_path":"outputs/S2-sketch-explore/candidates/C05/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C05/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C06","prompt_path":"outputs/S2-sketch-explore/candidates/C06/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C06/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C07","prompt_path":"outputs/S2-sketch-explore/candidates/C07/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C07/image-v01.png","status":"pending_image_generation"},
+    {"candidate_id":"C08","prompt_path":"outputs/S2-sketch-explore/candidates/C08/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C08/image-v01.png","status":"pending_image_generation"}
+  ],
+  "candidate_map": {
+    "C01":{"candidate_id":"C01","prompt_path":"outputs/S2-sketch-explore/candidates/C01/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C01/image-v01.png"},
+    "C02":{"candidate_id":"C02","prompt_path":"outputs/S2-sketch-explore/candidates/C02/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C02/image-v01.png"},
+    "C03":{"candidate_id":"C03","prompt_path":"outputs/S2-sketch-explore/candidates/C03/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C03/image-v01.png"},
+    "C04":{"candidate_id":"C04","prompt_path":"outputs/S2-sketch-explore/candidates/C04/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C04/image-v01.png"},
+    "C05":{"candidate_id":"C05","prompt_path":"outputs/S2-sketch-explore/candidates/C05/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C05/image-v01.png"},
+    "C06":{"candidate_id":"C06","prompt_path":"outputs/S2-sketch-explore/candidates/C06/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C06/image-v01.png"},
+    "C07":{"candidate_id":"C07","prompt_path":"outputs/S2-sketch-explore/candidates/C07/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C07/image-v01.png"},
+    "C08":{"candidate_id":"C08","prompt_path":"outputs/S2-sketch-explore/candidates/C08/prompt-v01.md","target_image_path":"outputs/S2-sketch-explore/candidates/C08/image-v01.png"}
+  }
+}

@@ -7,13 +7,16 @@ Implements top-n projection with δ-margin hysteresis (plan §III-B / §6).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 
 from .config import Tier
 from .hotness_tracker import HotnessTracker
 from .registry import ExpertKey
+
+if TYPE_CHECKING:
+    from dynaexq.policy.risk import QualityRiskAccount
 
 
 @dataclass
@@ -69,6 +72,7 @@ class PrecisionScheduler:
         update_period_steps: int = 200,
         rate_limit: Optional[int] = None,
         delta_score_margin: float = 0.0,
+        min_tenure_steps: int = 0,
     ):
         """
         Args:
@@ -100,16 +104,47 @@ class PrecisionScheduler:
             raise ValueError(
                 f"update_period_steps must be positive, got {update_period_steps}"
             )
+        if min_tenure_steps < 0:
+            raise ValueError(
+                f"min_tenure_steps must be non-negative, got {min_tenure_steps}"
+            )
         if rate_limit is not None and rate_limit <= 0:
             raise ValueError(f"rate_limit must be positive or None, got {rate_limit}")
 
         self.update_period_steps = update_period_steps
         self.rate_limit = rate_limit
         self.delta_score_margin = delta_score_margin
+        self.min_tenure_steps = min_tenure_steps
 
         # Current tier assignments (for comparison)
         self._current_tiers: dict[ExpertKey, Tier] = {}
+        self._tier_since_step: dict[ExpertKey, int] = {}
         self._last_update_step = -1
+        self._sensitivities = [
+            np.ones(count, dtype=np.float64)
+            for count in self.experts_per_layer
+        ]
+        self._quality_risk: QualityRiskAccount | None = None
+
+    def set_sensitivities(self, values: list[list[float]]) -> None:
+        """Set the calibrated nonnegative fidelity harm per expert."""
+        if len(values) != self.num_layers:
+            raise ValueError("sensitivity layer count mismatch")
+        converted = []
+        for layer, layer_values in enumerate(values):
+            if len(layer_values) != self.experts_per_layer[layer]:
+                raise ValueError(
+                    f"sensitivity width mismatch in layer {layer}"
+                )
+            array = np.asarray(layer_values, dtype=np.float64)
+            if not np.isfinite(array).all() or (array < 0.0).any():
+                raise ValueError("sensitivities must be finite and non-negative")
+            converted.append(array.copy())
+        self._sensitivities = converted
+
+    def set_quality_risk(self, account: QualityRiskAccount | None) -> None:
+        """Use a global risk limit to derive the HI population at runtime."""
+        self._quality_risk = account
 
     def should_update(self, step: int) -> bool:
         """Check if scheduler should update at this step."""
@@ -120,6 +155,7 @@ class PrecisionScheduler:
         step: int,
         tracker: HotnessTracker,
         current_tiers: Optional[dict[ExpertKey, Tier]] = None,
+        eligible_experts: Optional[dict[int, set[int]]] = None,
     ) -> list[TransitionReq]:
         """
         Plan transitions for current step.
@@ -136,25 +172,72 @@ class PrecisionScheduler:
             return []
 
         if current_tiers is not None:
+            for key, tier in current_tiers.items():
+                if self._current_tiers.get(key) != tier:
+                    self._tier_since_step[key] = step
             self._current_tiers = current_tiers.copy()
 
         requests: list[TransitionReq] = []
         delta = self.delta_score_margin
 
+        if self._quality_risk is not None:
+            requests = self._plan_risk_constrained(
+                step,
+                tracker,
+                eligible_experts,
+            )
+            requests = self._order_and_limit_requests(requests)
+            for req in requests:
+                self._current_tiers[req.key] = req.dst
+                self._tier_since_step[req.key] = step
+            self._last_update_step = step
+            return requests
+
         for layer in range(self.num_layers):
-            scores = tracker.get_layer_scores(layer)
+            scores = (
+                tracker.get_layer_scores(layer)
+                * self._sensitivities[layer]
+            )
             n_hi_l = self.n_hi[layer]
             n_experts_l = self.experts_per_layer[layer]
 
             if len(scores) == 0 or n_hi_l <= 0:
                 continue
 
+            eligible = (
+                set(range(n_experts_l))
+                if eligible_experts is None
+                else set(eligible_experts.get(layer, set()))
+            )
+            if len(eligible) < n_hi_l:
+                raise RuntimeError(
+                    f"layer {layer} has {len(eligible)} precision-eligible "
+                    f"residents for a HI quota of {n_hi_l}"
+                )
+            protected = {
+                expert
+                for expert in eligible
+                if self._current_tiers.get(
+                    ExpertKey(layer, expert), Tier.LO
+                ) == Tier.HI
+                and step
+                - self._tier_since_step.get(ExpertKey(layer, expert), step)
+                < self.min_tenure_steps
+            }
             target_residents = self._project_layer(
-                layer, scores, n_hi_l, n_experts_l, delta
+                layer,
+                scores,
+                n_hi_l,
+                n_experts_l,
+                delta,
+                eligible,
+                protected,
             )
 
             # Diff against current assignments → emit transition requests
             for expert_id in range(n_experts_l):
+                if expert_id not in eligible:
+                    continue
                 key = ExpertKey(layer=layer, expert=expert_id)
                 want_hi = expert_id in target_residents
                 have_hi = self._current_tiers.get(key, Tier.LO) == Tier.HI
@@ -198,8 +281,112 @@ class PrecisionScheduler:
 
         for req in requests:
             self._current_tiers[req.key] = req.dst
+            self._tier_since_step[req.key] = step
 
         self._last_update_step = step
+        return requests
+
+    def _plan_risk_constrained(
+        self,
+        step: int,
+        tracker: HotnessTracker,
+        eligible_experts: Optional[dict[int, set[int]]],
+    ) -> list[TransitionReq]:
+        """Derive a byte-varying HI set from the calibrated risk limit.
+
+        Qwen experts have a uniform representation footprint, so the minimum
+        highest-contribution prefix is also the minimum fidelity-byte repair.
+        Tenure-protected experts remain HI until their minimum residence time
+        expires. Membership swaps still require the configured score margin.
+        """
+        assert self._quality_risk is not None
+        eligible = {
+            ExpertKey(layer, expert)
+            for layer in range(self.num_layers)
+            for expert in (
+                range(self.experts_per_layer[layer])
+                if eligible_experts is None
+                else eligible_experts.get(layer, set())
+            )
+        }
+        weights = {
+            ExpertKey(layer, expert): float(score)
+            for layer in range(self.num_layers)
+            for expert, score in enumerate(tracker.get_layer_scores(layer))
+        }
+        current = {
+            key
+            for key in eligible
+            if self._current_tiers.get(key, Tier.LO) == Tier.HI
+        }
+        protected = {
+            key
+            for key in current
+            if step - self._tier_since_step.get(key, step)
+            < self.min_tenure_steps
+        }
+        ideal = set(protected)
+        ideal.update(
+            self._quality_risk.repair_order(weights, ideal, eligible)
+        )
+
+        target = set(current)
+        if not self._quality_risk.feasible(weights, target):
+            target.update(
+                self._quality_risk.repair_order(weights, target, eligible)
+            )
+
+        def contribution(key: ExpertKey) -> float:
+            return self._quality_risk.contribution(
+                key, weights.get(key, 0.0)
+            )
+
+        # Release surplus fidelity bytes only when the resulting state stays
+        # within the risk limit. Tenure-protected experts are never selected.
+        for key in sorted(target - protected, key=lambda item: (contribution(item), item.layer, item.expert)):
+            if len(target) <= len(ideal):
+                break
+            candidate = target - {key}
+            if self._quality_risk.feasible(weights, candidate):
+                target = candidate
+
+        # With equal cardinality, use hysteretic swaps to approach the minimum
+        # risk set without oscillating around a moving routing boundary.
+        outsiders = sorted(
+            ideal - target,
+            key=lambda item: (-contribution(item), item.layer, item.expert),
+        )
+        residents = sorted(
+            target - ideal - protected,
+            key=lambda item: (contribution(item), item.layer, item.expert),
+        )
+        for outsider, resident in zip(outsiders, residents):
+            if contribution(outsider) - contribution(resident) <= self.delta_score_margin:
+                continue
+            candidate = (target - {resident}) | {outsider}
+            if self._quality_risk.feasible(weights, candidate):
+                target = candidate
+
+        requests = []
+        for key in sorted(eligible, key=lambda item: (item.layer, item.expert)):
+            have_hi = key in current
+            want_hi = key in target
+            if have_hi == want_hi:
+                continue
+            requests.append(
+                TransitionReq(
+                    key=key,
+                    src=Tier.HI if have_hi else Tier.LO,
+                    dst=Tier.HI if want_hi else Tier.LO,
+                    reason=(
+                        "repair_quality_risk"
+                        if want_hi
+                        else "release_fidelity_bytes"
+                    ),
+                    issued_step=step,
+                    score_gap=contribution(key),
+                )
+            )
         return requests
 
     def _order_and_limit_requests(
@@ -257,6 +444,8 @@ class PrecisionScheduler:
         n_hi_l: int,
         n_experts_l: int,
         delta: float,
+        eligible: set[int] | None = None,
+        protected_residents: set[int] | None = None,
     ) -> set[int]:
         """
         Compute the **target** HI resident set for a single layer under
@@ -267,34 +456,48 @@ class PrecisionScheduler:
         produce promote/demote requests.
         """
         n_scored = len(scores)
+        eligible = (
+            set(range(min(n_experts_l, n_scored)))
+            if eligible is None
+            else {expert for expert in eligible if 0 <= expert < n_scored}
+        )
 
         # Degenerate case: quota covers all (or more than) the experts.
-        if n_hi_l >= n_scored:
-            return set(range(n_scored))
+        if n_hi_l >= len(eligible):
+            return set(eligible)
 
         # Identify current residents within this layer that are still
         # in the score-bearing range (some experts may have stale ids).
         current_residents = {
             e
-            for e in range(n_experts_l)
+            for e in eligible
             if e < n_scored
             and self._current_tiers.get(ExpertKey(layer, e), Tier.LO) == Tier.HI
         }
+        protected_residents = (
+            set() if protected_residents is None else protected_residents
+        ) & current_residents
 
         # Cold-start path: fewer residents than quota → fill with the
         # top scorers, no δ check (we never need hysteresis to *create*
         # the first set; we only need it to *swap* an existing one).
         if len(current_residents) < n_hi_l:
-            top = np.argsort(-scores, kind="stable")[:n_hi_l]
-            return set(int(i) for i in top.tolist())
+            top = sorted(
+                eligible - protected_residents,
+                key=lambda expert: (-float(scores[expert]), expert),
+            )[: n_hi_l - len(protected_residents)]
+            return protected_residents | set(top)
 
         # Quota is full → δ-margin swap path.
         # Sort residents ascending (lowest score first) so we evict the
         # weakest first; sort outsiders descending (highest first) so we
         # promote the strongest first.
-        residents_sorted = sorted(current_residents, key=lambda e: float(scores[e]))
+        residents_sorted = sorted(
+            current_residents - protected_residents,
+            key=lambda e: float(scores[e]),
+        )
         outsiders_sorted = sorted(
-            (e for e in range(n_scored) if e not in current_residents),
+            (e for e in eligible if e not in current_residents),
             key=lambda e: -float(scores[e]),
         )
 

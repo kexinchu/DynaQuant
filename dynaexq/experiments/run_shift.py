@@ -19,20 +19,22 @@ import torch
 
 from ..core import (
     BudgetInitializer,
-    BudgetTracker,
     DynaExqConfig,
+    ExpertMemoryManager,
     ExpertKey,
     ExpertRegistry,
     HotnessTracker,
     ModelWeightStore,
     PrecisionScheduler,
     RouterObserver,
+    SharedArenaAllocator,
     Tier,
     TransitionReq,
     TransitionEngine,
 )
 from ..core.quant import budget_safe_dispatch_available
 from ..integration.moe_wrapper import MoEWrapper
+from ..policy import RuntimeExchangePlanner, RuntimeResidencyController
 from .metrics import MetricsCollector
 from .metrics import LatencyMetrics
 from .workloads import PhaseConfig, WorkloadStream
@@ -157,6 +159,7 @@ def initialize_dynaexq(
     transition_synchronous: bool = False,
     high_precision_ratio: float | None = None,
     initial_expert_ranking: dict[int, list[int]] | None = None,
+    initial_fidelity_ranking: dict[int, list[int]] | None = None,
 ) -> tuple[
     RouterObserver,
     HotnessTracker,
@@ -230,10 +233,10 @@ def initialize_dynaexq(
         return weight_store.get_byte_size(ExpertKey(layer, 0), tier)
 
     # CUDA's INT4 conversion creates a temporary kernel-native tensor before
-    # copying it into the pool-backed block. Reserve a deliberately
+    # copying it into arena-backed storage. Reserve a deliberately
     # conservative two-full-expert workspace per admitted transition. This
     # upper-bounds the simultaneously live nibble-swapped input, native
-    # output, and scale/zero construction tensors before pool rebinding.
+    # output, and scale/zero construction tensors before arena rebinding.
     int4_tiers = [
         tier
         for tier, fmt in (
@@ -275,9 +278,15 @@ def initialize_dynaexq(
         max_inflight=config.memory.max_inflight,
     )
     
+    effective_high_precision_ratio = (
+        high_precision_ratio
+        if high_precision_ratio is not None
+        else config.memory.initial_high_precision_ratio
+    )
     budget_result = budget_init.compute(
         strategy="proportional",
-        high_precision_ratio=high_precision_ratio,
+        high_precision_ratio=effective_high_precision_ratio,
+        resident_ratio=config.memory.resident_ratio,
     )
     print(f"Budget initialized: n_hi[0]={budget_result.n_hi[0]}, "
           f"total_expert_bytes={budget_result.total_expert_bytes / 1024**3:.2f}GB")
@@ -298,6 +307,22 @@ def initialize_dynaexq(
                     f"initial expert ranking for layer {layer} is not a "
                     "permutation of all expert ids"
                 )
+    if initial_fidelity_ranking is not None:
+        expected_layers = set(range(config.model.layers))
+        if set(initial_fidelity_ranking) != expected_layers:
+            raise ValueError(
+                "initial fidelity ranking must contain every model layer"
+            )
+        expected_experts = set(range(config.model.experts_per_layer))
+        for layer, ranking in initial_fidelity_ranking.items():
+            if (
+                len(ranking) != config.model.experts_per_layer
+                or set(ranking) != expected_experts
+            ):
+                raise ValueError(
+                    f"initial fidelity ranking for layer {layer} is not a "
+                    "permutation of all expert ids"
+                )
     
     # PrecisionScheduler
     scheduler = PrecisionScheduler(
@@ -307,96 +332,81 @@ def initialize_dynaexq(
         update_period_steps=config.scheduler.update_period_steps,
         rate_limit=config.scheduler.rate_limit,
         delta_score_margin=config.scheduler.delta_score_margin,
+        min_tenure_steps=config.scheduler.min_tenure_steps,
     )
     
     # ExpertRegistry
     registry = ExpertRegistry()
     
-    # Pools use one exact expert-sized block per resident slot.
-    from ..core.memory_pool import PoolAllocator
-    hi_block_sizes = [
-        memory_footprint_fn(layer, Tier.HI)
-        for layer in range(config.model.layers)
-    ]
-    lo_block_sizes = [
-        memory_footprint_fn(layer, Tier.LO)
-        for layer in range(config.model.layers)
-    ]
-    hi_pool_sizes = [
-        budget_result.n_hi[layer] * hi_block_sizes[layer]
-        for layer in range(config.model.layers)
-    ]
-    lo_pool_sizes = [
-        (config.model.experts_per_layer - budget_result.n_hi[layer])
-        * lo_block_sizes[layer]
-        for layer in range(config.model.layers)
-    ]
-    pool_allocation_bytes = (
-        sum(hi_pool_sizes)
-        + sum(lo_pool_sizes)
-        + budget_result.transient_bytes
-    )
-    cuda_free_before_pools = None
+    # DynaByte uses one expert arena. Layer and representation tier affect the
+    # requested byte count but never select a private capacity partition.
+    arena_capacity_bytes = budget_result.available_memory
+    cuda_free_before_arena = None
     cuda_total_bytes = None
     if device.type == "cuda":
-        cuda_free_before_pools, cuda_total_bytes = torch.cuda.mem_get_info(device)
+        cuda_free_before_arena, cuda_total_bytes = torch.cuda.mem_get_info(device)
         required_free = (
-            pool_allocation_bytes
+            arena_capacity_bytes
             + config.memory.reserve_kv_bytes
             + config.memory.reserve_act_bytes
             + effective_kernel_workspace_bytes
             + config.memory.safety_margin_bytes
         )
-        if cuda_free_before_pools < required_free:
+        if cuda_free_before_arena < required_free:
             raise RuntimeError(
-                "insufficient single-GPU free memory for preallocated expert "
-                "pools plus declared runtime reserves: "
-                f"free={cuda_free_before_pools}, required={required_free}"
+                "insufficient single-GPU free memory for the expert arena "
+                "plus declared runtime reserves: "
+                f"free={cuda_free_before_arena}, required={required_free}"
             )
-    pool_allocator = PoolAllocator(
-        num_layers=config.model.layers,
-        hi_pool_sizes=hi_pool_sizes,
-        lo_pool_sizes=lo_pool_sizes,
+    arena_allocator = SharedArenaAllocator(
+        capacity_bytes=arena_capacity_bytes,
         device=device,
-        hi_block_sizes=hi_block_sizes,
-        lo_block_sizes=lo_block_sizes,
-        staging_pool_size_bytes=budget_result.transient_bytes,
-        staging_block_size_bytes=max((*hi_block_sizes, *lo_block_sizes)),
+        alignment=256,
     )
-
-    budget_tracker = BudgetTracker(
-        hi_cap=sum(hi_pool_sizes) + budget_result.transient_bytes,
-        lo_cap=sum(lo_pool_sizes) + budget_result.transient_bytes,
-        staging_cap=budget_result.transient_bytes,
-        total_cap=budget_result.total_reserved_bytes,
-    )
+    memory_manager = ExpertMemoryManager(arena_allocator)
     
     # TransitionEngine
     transition_engine = TransitionEngine(
         registry=registry,
-        pool_allocator=pool_allocator,
+        pool_allocator=None,
         weight_store=weight_store,
         max_workers=4,
         max_inflight=config.memory.max_inflight,
-        budget_tracker=budget_tracker,
+        memory_manager=memory_manager,
         synchronous=transition_synchronous,
     )
 
-    # Deterministic, fully materialized bootstrap. A paper run supplies a
-    # calibration-derived full ranking and takes the quota-sized prefix. The
+    # Deterministic resident bootstrap. A paper run supplies a
+    # calibration-derived full ranking and takes the resident prefix. The
     # first-n fallback remains for unit tests and exploratory runs but is
     # explicitly identified as uncalibrated in runtime metadata.
     bootstrap_hi_experts: dict[str, list[int]] = {}
+    bootstrap_resident_experts: dict[str, list[int]] = {}
     for layer in range(config.model.layers):
-        hi_experts = set(
-            (
-                initial_expert_ranking[layer]
-                if initial_expert_ranking is not None
-                else list(range(config.model.experts_per_layer))
-            )[: budget_result.n_hi[layer]]
+        ranking = (
+            initial_expert_ranking[layer]
+            if initial_expert_ranking is not None
+            else list(range(config.model.experts_per_layer))
         )
+        fidelity_ranking = (
+            initial_fidelity_ranking[layer]
+            if initial_fidelity_ranking is not None
+            else ranking
+        )
+        hi_order = fidelity_ranking[: budget_result.n_hi[layer]]
+        hi_experts = set(hi_order)
+        resident_experts = list(hi_order)
+        resident_experts.extend(
+            expert
+            for expert in ranking
+            if expert not in hi_experts
+        )
+        resident_experts = resident_experts[
+            : budget_result.n_resident[layer]
+        ]
         bootstrap_hi_experts[str(layer)] = sorted(hi_experts)
-        for expert in range(config.model.experts_per_layer):
+        bootstrap_resident_experts[str(layer)] = sorted(resident_experts)
+        for expert in resident_experts:
             tier = Tier.HI if expert in hi_experts else Tier.LO
             key = ExpertKey(layer, expert)
             req = TransitionReq(
@@ -428,7 +438,8 @@ def initialize_dynaexq(
             config.memory.reserve_dense_bytes,
             actual_dense_bytes,
         ),
-        "pool_allocation_bytes": pool_allocation_bytes,
+        "arena_capacity_bytes": arena_capacity_bytes,
+        "arena_alignment_bytes": arena_allocator.alignment,
         "resident_expert_bytes": budget_result.total_expert_bytes,
         "transient_expert_bytes": budget_result.transient_bytes,
         "automatic_kernel_workspace_bytes": automatic_kernel_workspace_bytes,
@@ -436,22 +447,30 @@ def initialize_dynaexq(
             config.memory.reserve_kernel_workspace_bytes
         ),
         "effective_kernel_workspace_bytes": effective_kernel_workspace_bytes,
-        "cuda_free_before_pools": cuda_free_before_pools,
+        "cuda_free_before_arena": cuda_free_before_arena,
         "cuda_total_bytes": cuda_total_bytes,
         "bootstrap": bootstrap_stats,
+        "arena_after_bootstrap": memory_manager.snapshot(),
         "bootstrap_policy": (
             "calibrated_ranking_prefix"
             if initial_expert_ranking is not None
             else "uncalibrated_expert_id_prefix"
         ),
         "bootstrap_hi_experts": bootstrap_hi_experts,
+        "bootstrap_resident_experts": bootstrap_resident_experts,
         "transition_execution_mode": (
             "synchronous"
             if transition_synchronous
             else "asynchronous"
         ),
-        "requested_high_precision_ratio": high_precision_ratio,
+        "requested_high_precision_ratio": effective_high_precision_ratio,
         "n_hi": budget_result.n_hi,
+        "n_resident": budget_result.n_resident,
+        "requested_resident_ratio": config.memory.resident_ratio,
+        "realized_resident_ratio": (
+            sum(budget_result.n_resident)
+            / (config.model.layers * config.model.experts_per_layer)
+        ),
         "realized_high_precision_ratio": (
             sum(budget_result.n_hi)
             / (
@@ -519,6 +538,23 @@ def run_shift_experiment(
     ) = initialize_dynaexq(config, model, device)
     
     # Create MoE wrapper
+    exchange_planner = RuntimeExchangePlanner(registry, transition_engine)
+    residency_controller = (
+        RuntimeResidencyController(
+            exchange_planner,
+            tracker,
+            num_layers=config.model.layers,
+            lookahead_depth=config.scheduler.lookahead_depth,
+            lookahead_per_layer=config.scheduler.lookahead_per_layer,
+            valuation_mode=config.scheduler.valuation_mode,
+            donor_mode=config.scheduler.donor_mode,
+        )
+        if (
+            config.memory.resident_ratio < 1.0
+            or config.scheduler.lookahead_depth > 0
+        )
+        else None
+    )
     wrapper = MoEWrapper(
         model=model,
         router_observer=observer,
@@ -526,6 +562,8 @@ def run_shift_experiment(
         scheduler=scheduler,
         registry=registry,
         transition_engine=transition_engine,
+        exchange_planner=exchange_planner,
+        residency_controller=residency_controller,
         num_layers=config.model.layers,
         experts_per_layer=config.model.experts_per_layer,
         topk=config.model.topk,
@@ -661,7 +699,7 @@ def run_shift_experiment(
         print(f"  Phase complete: {phase_metrics['duration_s']:.2f}s")
     
     # Drain late phase-boundary work before freezing the artifact, so final
-    # failures and pool/budget counters cannot change after serialization.
+    # failures and arena counters cannot change after serialization.
     transition_engine.shutdown()
     final_transition_stats = transition_engine.get_stats()
 

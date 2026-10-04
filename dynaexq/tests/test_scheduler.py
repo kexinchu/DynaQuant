@@ -25,6 +25,7 @@ from dynaexq.core.config import Tier
 from dynaexq.core.hotness_tracker import HotnessTracker
 from dynaexq.core.registry import ExpertKey
 from dynaexq.core.scheduler import PrecisionScheduler, TransitionReq
+from dynaexq.policy.risk import QualityRiskAccount
 
 
 # ---------------------------------------------------------------------------
@@ -54,6 +55,7 @@ def _make_scheduler(
     n_hi: list[int],
     delta: float = 0.0,
     rate_limit=None,
+    min_tenure_steps: int = 0,
 ) -> tuple[PrecisionScheduler, HotnessTracker]:
     n_layers = len(scores_per_layer)
     experts_per_layer = [len(s) for s in scores_per_layer]
@@ -64,6 +66,7 @@ def _make_scheduler(
         update_period_steps=1,
         rate_limit=rate_limit,
         delta_score_margin=delta,
+        min_tenure_steps=min_tenure_steps,
     )
     tracker = _tracker_with_scores(scores_per_layer)
     return sched, tracker
@@ -108,6 +111,27 @@ def test_invalid_period_and_rate_limit_raise():
             n_hi=[2],
             rate_limit=0,
         )
+    with pytest.raises(ValueError, match="min_tenure_steps"):
+        PrecisionScheduler(
+            num_layers=1,
+            experts_per_layer=4,
+            n_hi=[2],
+            min_tenure_steps=-1,
+        )
+
+
+def test_minimum_tenure_delays_but_does_not_permanently_block_swap():
+    sched, tracker = _make_scheduler(
+        scores_per_layer=[[0.10, 0.90]],
+        n_hi=[1],
+        min_tenure_steps=5,
+    )
+    current = {ExpertKey(0, 0): Tier.HI, ExpertKey(0, 1): Tier.LO}
+
+    assert sched.plan(step=1, tracker=tracker, current_tiers=current) == []
+    requests = sched.plan(step=6, tracker=tracker, current_tiers=current)
+
+    assert _residents_after(requests, current) == {1}
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +190,38 @@ def test_delta_zero_matches_plain_top_n():
     reqs = sched.plan(step=1, tracker=tracker, current_tiers={})
     residents = _residents_after(reqs, {})
     assert residents == {2, 0}
+
+
+def test_calibrated_sensitivity_changes_fidelity_priority():
+    sched, tracker = _make_scheduler(
+        scores_per_layer=[[0.8, 0.4]],
+        n_hi=[1],
+    )
+    sched.set_sensitivities([[0.1, 1.0]])
+
+    reqs = sched.plan(step=1, tracker=tracker, current_tiers={})
+
+    assert _residents_after(reqs, {}) == {1}
+
+
+def test_quality_risk_limit_derives_variable_hi_count() -> None:
+    sched, tracker = _make_scheduler(
+        scores_per_layer=[[0.6, 0.3, 0.1]],
+        n_hi=[1],
+    )
+    keys = [ExpertKey(0, expert) for expert in range(3)]
+    sched.set_quality_risk(
+        QualityRiskAccount({key: 1.0 for key in keys}, limit=0.15)
+    )
+
+    first = sched.plan(step=1, tracker=tracker, current_tiers={})
+    first_state = {request.key: request.dst for request in first}
+    assert _residents_after(first, {}) == {0, 1}
+
+    tracker._scores[0, :3] = np.array([0.8, 0.1, 0.05])
+    second = sched.plan(step=2, tracker=tracker, current_tiers=first_state)
+
+    assert _residents_after(second, first_state) == {0}
 
 
 # ---------------------------------------------------------------------------

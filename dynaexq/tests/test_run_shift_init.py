@@ -140,3 +140,31 @@ def test_initialize_uses_calibrated_ranking_prefix_instead_of_expert_ids():
         assert tiers == {0: Tier.LO, 1: Tier.HI}
     finally:
         engine.shutdown()
+
+
+def test_initialize_bootstraps_only_the_calibrated_resident_prefix():
+    model = _Model()
+    config = DynaExqConfig(
+        model=ModelConfig(name="tiny", layers=1, experts_per_layer=2, topk=1),
+        precision=PrecisionConfig(hi="fp16", lo="int4"),
+        scheduler=SchedulerConfig(update_period_steps=2),
+        memory=MemoryConfig(
+            device_mem_bytes=100_000,
+            max_inflight=1,
+            resident_ratio=0.5,
+        ),
+    )
+    (*_, registry, engine, _budget, metadata) = initialize_dynaexq(
+        config,
+        model,
+        torch.device("cpu"),
+        high_precision_ratio=0.0,
+        initial_expert_ranking={0: [1, 0]},
+    )
+    try:
+        assert registry.tier_snapshot() == {registry_key: Tier.LO for registry_key in registry.tier_snapshot()}
+        assert {key.expert for key in registry.tier_snapshot()} == {1}
+        assert metadata["n_resident"] == [1]
+        assert metadata["bootstrap_resident_experts"] == {"0": [1]}
+    finally:
+        engine.shutdown()

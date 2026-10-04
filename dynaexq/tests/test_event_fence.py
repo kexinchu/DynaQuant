@@ -124,6 +124,19 @@ def _wait(engine, timeout=5.0):
 def test_handle_default_last_use_event_is_none():
     h = ExpertHandle(tier=Tier.LO)
     assert h.last_use_event is None
+    assert h.ever_acquired is False
+
+
+def test_acquire_marks_handle_as_seen_by_dispatch():
+    reg = ExpertRegistry()
+    key = ExpertKey(0, 0)
+    handle = ExpertHandle(tier=Tier.LO)
+    reg.register(key, handle)
+
+    acquired = reg.acquire_handle(key)
+    assert acquired is handle
+    assert handle.ever_acquired is True
+    reg.release_handle(handle)
 
 
 def test_mark_used_attaches_event_to_registered_handle():
@@ -220,6 +233,7 @@ def test_fence_before_reclaim_falls_back_when_no_event():
         calls = []
         engine._fallback_global_sync = lambda: calls.append("global")  # type: ignore[method-assign]
         handle = ExpertHandle(tier=Tier.LO, last_use_event=None)
+        handle.ever_acquired = True
 
         engine._fence_before_reclaim(handle)
 
@@ -307,8 +321,8 @@ def test_demote_waits_on_fence_from_previous_forward():
         engine.shutdown()
 
 
-def test_demote_without_mark_used_falls_back_to_global_sync():
-    """Mirror case: no mark_used call → global fallback fires for demote."""
+def test_demote_without_dispatch_skips_global_sync():
+    """A representation never acquired by dispatch has no work to fence."""
     engine, alloc, registry = _make_engine()
     try:
         global_calls = []
@@ -328,10 +342,7 @@ def test_demote_without_mark_used_falls_back_to_global_sync():
         )
         _wait(engine)
 
-        # Exactly one fallback call — the demote's Stage 4. Promote's
-        # Stage 4 has no old handle (first promote), so it should not
-        # fence.
-        assert global_calls == ["global"]
+        assert global_calls == []
         assert alloc.occupancy(0, Tier.HI) == 0
     finally:
         engine.shutdown()

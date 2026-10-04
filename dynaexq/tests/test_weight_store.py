@@ -279,6 +279,31 @@ def test_preload_then_release_native_sources_is_self_contained():
         assert packed.qweight.device.type == "cpu"
 
 
+def test_equal_precision_tiers_share_one_host_representation():
+    store = _make_store(hi="fp16", lo="fp16")
+    summary = store.preload_all(2, 4)
+    hi = store.load_weights(ExpertKey(0, 0), Tier.HI)
+    lo = store.load_weights(ExpertKey(0, 0), Tier.LO)
+    assert hi is lo
+    assert summary["entries"] == 16
+    assert summary["host_packed_bytes"] == 2 * 4 * 16 * 128 * 2
+    assert store.representation_nmse(ExpertKey(0, 0)) == 0.0
+
+
+def test_representation_nmse_uses_exact_packed_tiers():
+    store = ModelWeightStore(
+        model=None,
+        hi_format="fp16",
+        lo_format="int4",
+    )
+    key = ExpertKey(0, 0)
+    weight = torch.linspace(-1.0, 1.0, 16 * 128, dtype=torch.float16)
+    store.register_expert(key, weight.view(16, 128))
+    value = store.representation_nmse(key)
+    assert value > 0.0
+    assert value < 0.1
+
+
 def test_release_requires_complete_dual_tier_cache():
     store = _make_store()
     store.load_weights(ExpertKey(0, 0), Tier.LO)
@@ -343,6 +368,23 @@ def test_fused_chunk_pack_matches_individual_reference_bits():
                     rtol=0,
                     atol=0,
                 )
+
+
+def test_equal_precision_fused_tiers_share_one_host_representation():
+    store = ModelWeightStore(
+        model=_FakeFusedModel(4),
+        hi_format="fp16",
+        lo_format="fp16",
+        fused_pack_chunk_experts=2,
+    )
+    summary = store.preload_and_release_all(1, 4)
+    assert summary["entries"] == 8
+    hi = store.load_weights(ExpertKey(0, 0), Tier.HI)
+    lo = store.load_weights(ExpertKey(0, 0), Tier.LO)
+    assert hi is lo
+    assert summary["host_packed_bytes"] == sum(
+        item.nbytes for item in hi.values()
+    ) * 4
 
 
 def test_int4_kernel_cache_is_included_in_resident_byte_size():

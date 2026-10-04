@@ -44,6 +44,7 @@ from .quant import (
     PackedTensor,
     QuantFormat,
     compute_packed_nbytes,
+    dequant_to_fp16,
     pack,
 )
 from .registry import ExpertKey
@@ -153,6 +154,12 @@ class ModelWeightStore:
         cached = self._packed_cache.get(cache_key)
         if cached is not None:
             return cached
+        if self.hi_fmt == self.lo_fmt:
+            other_tier = Tier.LO if tier == Tier.HI else Tier.HI
+            shared = self._packed_cache.get((key, other_tier))
+            if shared is not None:
+                self._packed_cache[cache_key] = shared
+                return shared
 
         quantized_slots = self._fetch_autogptq_modules(key)
         if quantized_slots is not None:
@@ -217,12 +224,16 @@ class ModelWeightStore:
             raise ValueError("experts_per_layer length must match num_layers")
         total_bytes = 0
         entries = 0
+        packed_objects: set[int] = set()
         for layer, count in enumerate(counts):
             for expert in range(count):
                 key = ExpertKey(layer, expert)
                 for tier in tiers:
                     packed = self.load_weights(key, tier)
-                    total_bytes += self._packed_nbytes(packed)
+                    identity = id(packed)
+                    if identity not in packed_objects:
+                        total_bytes += self._packed_nbytes(packed)
+                        packed_objects.add(identity)
                     entries += 1
         return {"entries": entries, "host_packed_bytes": total_bytes}
 
@@ -275,11 +286,15 @@ class ModelWeightStore:
                 total_bytes += packed_bytes
                 entries += packed_entries
             else:
+                packed_objects: set[int] = set()
                 for expert in range(count):
                     key = ExpertKey(layer, expert)
                     for tier in tiers:
                         packed = self.load_weights(key, tier)
-                        total_bytes += self._packed_nbytes(packed)
+                        identity = id(packed)
+                        if identity not in packed_objects:
+                            total_bytes += self._packed_nbytes(packed)
+                            packed_objects.add(identity)
                         entries += 1
             released_this_layer = self._release_container(
                 layer,
@@ -343,6 +358,22 @@ class ModelWeightStore:
         entries = 0
         for tier in tiers:
             target_fmt = self._tier_fmt(tier)
+            if self.hi_fmt == self.lo_fmt:
+                other_tier = Tier.LO if tier == Tier.HI else Tier.HI
+                shared = [
+                    self._packed_cache.get(
+                        (ExpertKey(layer, expert), other_tier)
+                    )
+                    for expert in range(count)
+                ]
+                if all(item is not None for item in shared):
+                    for expert, packed_slots in enumerate(shared):
+                        assert packed_slots is not None
+                        self._packed_cache[
+                            (ExpertKey(layer, expert), tier)
+                        ] = packed_slots
+                    entries += count
+                    continue
             group_size = (
                 None
                 if target_fmt == QuantFormat.FP16
@@ -636,6 +667,41 @@ class ModelWeightStore:
                 # (scale, zero) pairs; canonical transfer bytes are overwritten.
                 total += scales_bytes
         return total
+
+    def representation_nmse(self, key: ExpertKey) -> float:
+        """Return the LO reconstruction error against the HI representation.
+
+        The result is a calibration proxy, not a task-loss measurement.  It
+        is computed from the exact host-side packed representations used by
+        runtime transitions and therefore captures the configured backend,
+        group size, scales, and every projection in a fused expert.
+        """
+        high = self.load_weights(key, Tier.HI)
+        low = self.load_weights(key, Tier.LO)
+        high_slots = high if isinstance(high, dict) else {"weight": high}
+        low_slots = low if isinstance(low, dict) else {"weight": low}
+        if set(high_slots) != set(low_slots):
+            raise RuntimeError(
+                f"HI/LO projection sets differ for expert {key}"
+            )
+        squared_error = 0.0
+        squared_reference = 0.0
+        for name in sorted(high_slots):
+            high_weight = dequant_to_fp16(high_slots[name]).float()
+            low_weight = dequant_to_fp16(low_slots[name]).float()
+            if high_weight.shape != low_weight.shape:
+                raise RuntimeError(
+                    f"HI/LO shapes differ for expert {key} slot {name}"
+                )
+            squared_error += float(
+                torch.sum((high_weight - low_weight) ** 2).item()
+            )
+            squared_reference += float(
+                torch.sum(high_weight**2).item()
+            )
+        if squared_reference == 0.0:
+            return 0.0 if squared_error == 0.0 else float("inf")
+        return squared_error / squared_reference
 
     def load_weights_multi(
         self, key: ExpertKey, tier: Tier, slot_names: list[str]

@@ -1,83 +1,111 @@
 \section{Discussion}
 \label{sec:discussion}
 
-\subsection{What Would Falsify the Account}
+\subsection{Applicability and Boundary Regimes}
 \label{sec:falsify}
 
-The account is a latency model plus a proxy that spends slack.
-They fail separately.
-If E2 finds that the minimizing horizon is insensitive to prefetch size, then~\eqref{eq:overlap} is missing a term that dominates \(m\), and precision does not belong in the horizon calculation.
-The likely missing term is a kernel-launch or dequantization cost that scales with the number of experts rather than with bytes.
-In that world the right design is the precision-only policy whenever the floor fits, and a horizon policy whose \(S\) is chosen from \(T_{\ell}\) alone whenever it does not.
-\systemname’s coupling would be an unnecessary constraint.
+Joint allocation matters only when the expert-memory budget leaves a meaningful choice among fidelity, residency, and lookahead.
+When \(\PhiRatio\geq\rho\), every expert can remain resident at high precision and the conflict disappears.
+When \(1\leq\PhiRatio<\rho\), the aggregate low-tier footprint fits, but every fidelity increment consumes bytes that could otherwise retain or stage an expert.
+When \(\PhiRatio<1\), some experts must remain absent even at low precision, and a sufficiently tight budget may admit no state that satisfies the quality-degradation limit.
+\systemname\ targets feasible operating points at which at least two memory uses retain competing value.
 
-If E2 finds that idle \(C\) and in-overlap \(C\) produce horizon errors of several layers, the scalar overlap identity is the wrong plant model even if a closed-loop controller can still hunt for a good \(S\).
-The paper would then be a control paper about tracking a noisy wait signal, which is a weaker and different claim than P2.
-We would rather report that negative than retune \(\theta_{h}\) until the controller looks accurate.
+Host-to-device bandwidth supplies the other boundary.
+When the measured rate hides the transfers that residency does not already avoid, lookahead retains little additional value.
+When the rate is tight, a fidelity upgrade that enlarges a transfer occupies the migration queue for longer and becomes more expensive.
+\(\PhiRatio\) still describes only whether the low-precision or high-precision experts can all remain resident.
 
-If E5 finds that hotness-ranked pins do not separate from static mixed precision inside the latency band, the slow loop’s identity updates are not earning their migration traffic.
-The quota rule in~\eqref{eq:phase2-nhi} and the slack rule in~\eqref{eq:slack} could still be right.
-The system we would recommend is then a static ranking inside a controller-chosen quota, and the task-disjoint top-10 result in Section~\ref{sec:prelim} would be a statement about calibration shift that our online score failed to track.
-That outcome is reportable from the same tables.
+The footprint ratios do not determine the best allocation by themselves.
+Stable quality sensitivity favors persistent fidelity leases, strong reuse raises the value of residency, and predictable future use with sufficient compute overlap raises the value of lookahead.
+The lease model consequently reduces to simpler policies at the boundaries.
+It stops migration when the high-tier footprint fits.
+A loose quality-degradation limit and strong reuse favor low-tier residency, whereas weak reuse favors deadline-aware lookahead.
+Stable sensitivity and routing demand favor a static mixed-precision assignment.
 
-\subsection{Limitations}
-\label{sec:limits}
+The boundary regimes also delimit the contribution.
+If a fixed memory partition matches donor-backed exchange as the workload changes, dynamic marginal values add complexity without improving allocation.
+If routing-weighted sensitivity does not improve on a frozen calibration ranking, fidelity candidates need not be refreshed online.
+If per-expert deadline replay does not improve on a scalar-\(S\) policy, its finer urgency model is unnecessary for the tested workloads.
+\systemname\ is intended to avoid committing to one boundary policy when the relative values change, not to outperform that policy where it is already sufficient.
 
-The implementation is one GPU.
-An expert-parallel deployment splits \(E_{\ell}\) across devices, and \(\PhiRatio\) becomes a per-device quantity that also depends on the router’s balance.
-Nothing in the model forbids that reading, and nothing in the prototype measures it.
+\subsection{Guarantees and Estimation Limits}
+\label{sec:quality-boundary}
 
-Host memory holds both packed tiers for the life of the process.
-The device budget is the object of the invariant; the host duplicate is a cost paid at load time.
-A deployment that cannot store both tiers must quantize on the promotion path, which adds a term to transition latency that Algorithm~\ref{alg:period} does not hide.
+The design separates properties enforced by the executor from quantities estimated by the controller.
+The quality account combines offline sensitivity \(q_i\), which estimates the consequence of using expert \(i\)'s low representation, with routing weight \(w_i\), which estimates how often the current workload exercises that consequence.
+Their product is useful for admission, but it need not be additive across experts or stable across tasks.
+Interactions among quantized experts can invalidate a sum of individual sensitivities, and workload shift can invalidate the calibration values.
+The runtime therefore treats \(\widehat R(X)\leq\widehat\epsilon\) as a feasibility proxy and never converts risk into milliseconds.
+The actual constraint \(\Delta Q\leq\epsilon\) is evaluated on complete configurations, with \(\widehat\epsilon\) fixed before the evaluation workload is observed.
 
-The lexicographic rule prefers a feasible horizon over a pin.
-Under a very tight \(B\) the slack is zero for the entire request and \systemname\ reduces to the horizon-only policy.
-That reduction is the correct output of P4, and it means the system has no quality advantage over horizon-only in the tightest Phase~III budgets.
-We state the quality claim only inside the band defined in E5.
+\begin{table}[H]
+  \caption{Enforced properties and model-dependent decisions.}
+  \label{tab:guarantees}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.28\columnwidth}>{\raggedright\arraybackslash}X@{}}
+    \toprule
+    Property & Status \\
+    \midrule
+    Expert-memory budget & Enforced after the executor binds compatible arena extents for the complete transition schedule. \\
+    Publication safety & Enforced by immutable versioned handles, publish-after-copy, and delayed reclamation. \\
+    Routing semantics & Enforced: top-\(k\) choices are unchanged and an absent expert is loaded on demand. \\
+    Quality-degradation limit & Approximated by a calibrated risk account; not a per-request guarantee. \\
+    Latency value & Estimated by deadline replay; not a direct optimizer of P95 TPOT. \\
+    Online allocation & A bounded online policy; no global-optimality claim. \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
-Shared experts that the checkpoint always executes are charged to the non-expert reserve, not to \(B\).
-Qwen3-Next has one such expert per layer.
-Treating it as a routed expert would inflate \(P_{\mathrm{lo}}\) and shift \(\PhiRatio\).
+Latency estimates have different failure modes.
+A false-positive lookahead consumes transfer bandwidth and a temporary lease; a false negative becomes a demand load.
+Transfer-time error shifts the predicted ready time, while stale reuse or routing estimates can protect the wrong resident or fidelity lease.
+Observed stall, pollution, late bytes, and reloads adapt the candidate envelope and later exchange values, but feedback cannot remove the initial error.
+Protection also has a finite boundary: a speculative exchange must price a reload predicted inside the current envelope, whereas reuse beyond that envelope may still be missed.
 
-The p95 ring is a short history.
-A workload shift shorter than the ring, or a slow loop that has not yet decayed the previous task’s scores, mis-states both \(S^{\star}\) and the pin identities.
-E3’s text-to-code boundary, using the three workloads whose top-10 sets were disjoint, is the measurement of that lag.
-We do not claim a bound on lag in periods; we report it.
+Memory safety and routing semantics do not depend on prediction accuracy; latency efficiency and quality-risk admission do.
+If reservation or extent binding fails, the executor discards the provisional state and leaves the published state unchanged.
+A precision transition serves from the old representation until its versioned replacement is complete, and a missed lookahead waits on the demand path without changing the selected experts.
 
-Cache-aware issue order assumes that tokens in a layer may execute in any order relative to each other.
-That is true for the standard grouped-GEMM dispatch and false if a future kernel fused the experts in identifier order.
-The ablation that disables reordering measures the exposed-wait gap on today’s kernels.
+\subsection{System Scope and Deployment Assumptions}
+\label{sec:non-goals}
 
-\subsection{Threats to Validity}
+\systemname\ does not modify top-\(k\), router parameters, or expert architecture, and it never skips a routed expert to avoid a transfer.
+Each checkpoint supplies one low- and one high-precision representation produced offline with a fixed quantization recipe; the runtime selects between them rather than synthesizing bit widths online.
+Sensitivity values and controller constants are selected on a calibration split rather than fitted to evaluation requests.
+Shared experts that execute unconditionally are charged to the non-expert reserve because they are not candidates for eviction or lookahead.
+
+The hard ledger covers the shared expert arena after non-expert parameters, KV cache, activations, and workspaces receive declared reserves.
+A request that exceeds those reserves can exhaust process memory even while the expert ledger remains within \(B\).
+The extent allocator may also refuse an exchange when no free extent is large enough, despite sufficient aggregate slack.
+Reporting both ledger occupancy and process-level peak memory distinguishes these failures from a violation of the expert-memory invariant.
+
+The current runtime manages one accelerator and uses host memory as its backing store.
+Host memory retains both packed representations for the process lifetime; a deployment that cannot do so would need to quantize on demand or read a representation from storage, adding a transition not modeled here.
+Resident-first execution also assumes that expert groups within a layer can be issued independently.
+A kernel with a fixed expert order reduces demand-miss overlap and requires a different latency estimate.
+
+Expert-parallel execution and an SSD tier are outside the present design.
+They introduce per-device capacity, network or storage queues, and load imbalance rather than merely changing one bandwidth constant.
+Extending byte exchange to those settings requires adding those queues and constraints to the replay and ledger.
+
+\subsection{Validity, Reproducibility, and Ethics}
 \label{sec:threats}
-
-The preliminary numbers in Section~\ref{sec:prelim} and the results of E0 are different samples until E0 is run.
-We will replace Table~\ref{tab:density} with the E0 table if the two disagree, rather than explaining the disagreement in a caption.
-
-ShareGPT buckets under-represent very long contexts.
-A 128k-token prefill changes both the unique-expert ratio and the KV reserve, and the KV reserve eats into the device before \(B\) does.
-Our budgets assume the declared KV reserve is honored.
-They do not describe a serving stack that over-admits context length.
-
-Quality subsets are a few hundred items.
-Wilson intervals on those subsets are wide for small effects.
-H5 is a claim about separation of intervals, so a small true effect on this item set will correctly fail to reject the null.
-We will not respond to that failure by switching to a larger, post-hoc item set.
-
-Ascend and NVIDIA stacks do not share a kernel implementation.
-A \(C\) comparison across them confounds bandwidth with software.
-H2’s device clause is therefore stated as a change in the measured in-overlap \(C\), and we report that \(C\), rather than as a pure hardware effect.
-
-\subsection{Reproducibility and Ethics}
 \label{sec:ethics}
 
-The latency corpus is a public conversational dataset.
-Quality benchmarks are public exam-style and code datasets.
-The study does not recruit participants, does not collect new user data, and does not transmit prompts to a third-party API.
-Artifacts will contain prompt identifiers and scores, not a redistribution of any dataset whose license forbids it.
+The motivating measurements and trace replay in Sections~\ref{sec:obs-quality}--\ref{sec:obs-joint} use configurations that differ from the joint runtime.
+They establish quality sensitivity, routing variation, and transfer pressure, not an end-to-end performance result for \systemname.
+Claims based on their absolute values must be repeated under the final allocator, exchange policy, and memory accounting.
 
-The release accompanying an accepted paper is the controller, the pool runtime, the trace utilities that compute the unique-expert ratio and \(\PhiRatio\), and one configuration file per reported cell.
-Random seeds, checkpoint revisions, and the calibration-test split identifier are part of each artifact.
-We will not release a binary that omits the reservation counters.
-A result that cannot be checked against \(B\) is not a result under this protocol.
+Conversational traces do not cover every serving workload.
+Long contexts, multimodal requests, and rapidly changing request mixtures can alter routing breadth, the KV reserve, and available overlap.
+Quality benchmarks sample different capabilities and may be too small to resolve modest changes, so results should retain per-task uncertainty rather than collapse all tasks into one score.
+Cross-device comparisons also include differences in kernels, runtime stacks, transfer paths, and quantization support.
+The policy consumes measured in-overlap bandwidth and kernel time; a device name alone is not treated as a causal variable.
+
+The artifact will include the controller, shared-arena allocator, lease and exchange traces, checkpoint revisions, quantization recipes, calibration splits, random seeds, and one configuration file per reported point.
+Each run records published and reserved bytes, bound arena extents, refused reservations, selected expert states, and process-level peak memory.
+A result is reproducible under Eq.~\eqref{eq:objective} only when these records suffice to verify \(B\), \(\epsilon\), and the executed state transitions.
+
+The study uses public latency traces and quality benchmarks, recruits no participants, collects no new user data, and sends no prompts to a third-party service.
+Released artifacts will identify source prompts without redistributing material whose license forbids it.

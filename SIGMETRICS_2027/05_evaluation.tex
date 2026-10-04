@@ -1,201 +1,333 @@
 \section{Evaluation}
 \label{sec:eval}
 
-The evaluation is a measurement of the model in Section~\ref{sec:model} and of the tracker in Section~\ref{sec:design}.
-No end-to-end number from the two preceding studies is carried forward.
-Those studies used different budgets (a 48\,GB residency target and a 20\,GB cap), different model sets, and different primary metrics.
-Filling a table with either set would answer a different question than P1--P4.
-This section therefore specifies the protocol, the hypotheses, and the tables.
-Cells that require the new runs are marked unfilled.
+We evaluate five questions.  RQ1 asks whether \systemname\ improves tail
+latency at the same expert-memory budget and quality-degradation limit.  RQ2
+tests whether joint online allocation is necessary.  RQ3 attributes the result
+to counterfactual valuation, explicit donors, and the shared expert arena.
+RQ4 measures model accuracy and runtime cost.  RQ5 identifies operating
+regions in which a simpler policy is sufficient.
 
-\subsection{Hypotheses}
-\label{sec:hyp}
+\providecommand{\evalplaceholder}[1]{%
+  \fbox{\parbox[c][39mm][c]{0.96\linewidth}{\centering
+  \textcolor{red}{[Figure placeholder]}\\[3pt]#1}}}
 
-Each hypothesis names the prediction it tests and the comparison that rejects it.
-\begin{description}
-  \item[H1 (P1).] On every model--device pair with \(\PhiRatio \ge 1\), the exposed expert-transfer latency at \(S=0\) is no higher than at any \(S>0\) under the same pin quota. Rejection: some positive \(S\) reduces p95 exposed wait by a margin larger than the run-to-run standard deviation.
-  \item[H2 (P2).] On every pair with \(\PhiRatio < 1\) and a non-empty feasible set, the measured latency-minimizing horizon is non-increasing in \(C\) and non-decreasing in prefetch size \(m\). Rejection: the minimizing \(S\) is unchanged, within one layer, when the prefetched representation switches between the two tiers or when the same binary is moved between the A6000 and H20.
-  \item[H3 (P3).] At a fixed budget with \(\PhiRatio < 1\), the feasible set is empty on the prefill of the batch-32 workload in Table~\ref{tab:density} and non-empty on the following decode step, for at least one model. Rejection: the feasible-set predicate has the same truth value on those two steps for every model in the sweep.
-  \item[H4 (P4).] The largest \(n_{\mathrm{hi}}\) that preserves a non-empty feasible set equals the slack bound from~\eqref{eq:slack}, to within one expert per layer. In the dense sub-phase that bound is zero. Rejection: adding a pin beyond the bound leaves p95 wait unchanged, or withholding a pin inside the bound reduces wait.
-  \item[H5 (proxy).] With the latency band held, hotness-ranked pins improve task score over a uniform low-precision assignment that uses the same \(B\). Rejection: the task-score confidence intervals overlap on every model, or the pin policy meets the score gain only by leaving the latency band.
-  \item[H6 (coupling).] The naive composition, which computes a pin quota and a horizon independently against the full budget \(B\), either exceeds \(B\) or has higher p95 exposed wait than \systemname\ at the same budget. Rejection: the composition stays inside \(B\) and matches \systemname\ within run-to-run noise on every phase.
-\end{description}
-H2 is the existence condition for a joint paper.
-If the minimizing horizon does not move when \(m\) changes, precision and prefetch are sequential optimizations and a single budget controller is unnecessary.
-The sweep reports that result even if it rejects H2.
+\subsection{Experimental Setup}
+\label{sec:eval-setup}
 
-\subsection{Systems Under Test}
-\label{sec:systems}
+\paragraph{Platform and models.}
+The primary platform is one NVIDIA RTX A6000 with 48\,GB of device memory.
+Table~\ref{tab:eval-models} reports the exact checkpoint revision, packed
+representation pair, measured expert footprints, and tested values of the
+expert-memory budget \(B\).  A checkpoint enters the study only after both
+representations pass the kernel-correctness tests.  Non-expert parameters, KV
+cache, activations, conversion workspace, and a safety margin are reserved
+before the shared expert arena is created.  Across these runs, \(B\) is
+the expert-memory axis.  Host-to-device bandwidth is the measured copy rate
+on that platform, and the controlled copy-rate limit swept in
+Section~\ref{sec:eval-robustness}.  These two axes are the two budgets posed
+in Section~\ref{sec:intro}.
 
-All systems share the dispatcher, the pools, the NVML sampler, and the quantization recipe.
-They differ only in the policy that chooses the published tier and the horizon.
-\begin{description}
-  \item[Uniform.] Every expert is resident at the highest uniform tier whose pool fits in \(B\). No online changes.
-  \item[Static mixed.] The Phase~II quota is computed from \(B\), identities are the top of a calibration ranking, and both the quota and the identities are frozen. This is the offline mixed-precision assignment~\cite{duanmu2025mxmoe,chitty2025mopeq}.
-  \item[Precision-only.] Phase~II rules at every budget: full low-precision floor when it fits, hotness pins, \(S=0\). When the floor does not fit, the policy is infeasible and the run is recorded as infeasible rather than quietly quantized further.
-  \item[Horizon-only.] Phase~III rules with \(n_{\mathrm{hi}}=0\) and a single tier, the largest tier whose working set the horizon controller keeps inside \(B\). This is the adaptive-horizon policy with fixed expert size~\cite{song2024promoe,shen2025expertflow}.
-  \item[Miss-path mixed.] Horizon-only, except a miss is fetched at low precision and promoted only after a second hit. This isolates the ``cheapen the miss'' policy~\cite{tang2024hobbit} from a pin that is protected across periods.
-  \item[Naive composition.] Precision-only and horizon-only run together. Each computes its set against \(B\). Admission is still on, so the second reservation fails instead of overflowing; we count failed reservations and the resulting misses.
-  \item[\systemname.] Algorithm~\ref{alg:period}.
-  \item[Oracle horizon.] For each workload, an offline sweep of \(S\) and \(n_{\mathrm{hi}}\) selects the pair with the lowest p95 exposed wait subject to bytes \(\le B\). The oracle is a ceiling for the latency model, not a deployable policy. It is computed on the calibration prompts and also, separately, on the test prompts. The gap between those two oracles is the price of non-stationarity.
-\end{description}
-We do not report a comparison against a system we could not execute on the same checkpoint.
-Where a published runtime does not load one of the checkpoints, that cell is absent, not approximated.
-
-\subsection{Testbed, Models, and Workloads}
-\label{sec:testbed}
-
-Devices are an NVIDIA RTX~A6000 (48\,GB), an NVIDIA~H20, and an Ascend~910B, the three machines on which the preliminary horizon sweep was taken.
-The A6000 is the only device on which the full quality suite is required.
-H20 and 910B are required for H2, because they change \(C\).
-If the 910B software stack cannot execute the INT4 kernels for a checkpoint, that pair is dropped and the drop is reported; it is not replaced with a different quantization.
-
-Models are Qwen3-30B-A3B, Qwen3-Next-80B-A3B, and Phi-3.5-MoE, plus DeepSeek-V2-Lite, Qwen1.5-MoE, and Qwen2-MoE so that the 20\,GB region of the sweep contains models whose routing we have already traced~\cite{qwen3technicalreport,qwen3nextmodelcard,abdin2024phi3,bi2024deepseek,yang2024qwen2}.
-Table~\ref{tab:models} records the structural parameters.
-The budget sweep is \(B \in \{12, 16, 20, 24, 32, 40, 48\}\)\,GB on the A6000, clipped to the device capacity on the others, and further clipped to \(P_{\mathrm{hi}}\) because budgets above Phase~I are idle.
-For each pair we report \(\PhiRatio\) from the measured \(P_{\mathrm{lo}}\), not from the nominal parameter count.
-
+% DATA: results/evaluation/manifest.json
+% FIELDS: checkpoint_revision,layers,experts,low_format,high_format,low_bytes,high_bytes,budget_bytes
 \begin{table}[t]
   \centering
-  \caption{Model structure. Activated parameters are the vendor figures. \(\PhiRatio\) is filled from measured \(P_{\mathrm{lo}}\) at each \(B\), not from this table.}
-  \label{tab:models}
+  \caption{Models and measured representation footprints.  Every value is
+  read from a run artifact rather than inferred from nominal parameter count.}
+  \label{tab:eval-models}
   \small
   \begin{tabular}{@{}lrrrrr@{}}
     \toprule
-    Model & Params & Active & Layers & Experts & Top-\(k\) \\
+    Model & Layers & Experts & Low tier & High tier & \(B\) \\
     \midrule
-    Qwen3-30B-A3B & 30.5B & 3.3B & 48 & 128 & 8 \\
-    Qwen3-Next-80B-A3B & 80B & 3B & 48 & 512 & 10 \\
-    Phi-3.5-MoE & 42B & 6.6B & 32 & 16 & 2 \\
-    DeepSeek-V2-Lite & \tbd{fill} & \tbd{fill} & \tbd{fill} & \tbd{fill} & \tbd{fill} \\
-    Qwen1.5-MoE & \tbd{fill} & \tbd{fill} & \tbd{fill} & \tbd{fill} & \tbd{fill} \\
-    Qwen2-MoE & \tbd{fill} & \tbd{fill} & \tbd{fill} & \tbd{fill} & \tbd{fill} \\
+    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-Latency requests are drawn from ShareGPT~\cite{ShareGPT_Vicuna_unfiltered}, bucketed by prompt length, with at most 50 requests per bucket and length variation held within 5\% inside a bucket.
-This is a public conversational corpus; the runs send no data to an external service.
-Each latency configuration uses five warmup iterations and 100 measured iterations, repeated for five seeds.
-We report the mean, the median, and the 95th and 99th percentiles of exposed wait, of miss-path time, of time to first token, and of time per output token.
-Percentiles are computed on the pooled raw samples of a seed and then summarized across seeds by the median and the range.
-Exposed wait is the time a layer is stalled on a missing expert after subtracting the overlap with that layer’s resident expert compute.
-Miss-path time is the migration-stream duration and is allowed to be larger than exposed wait.
+\paragraph{Workloads and quality.}
+Latency requests use length-stratified ShareGPT
+traces~\cite{ShareGPT_Vicuna_unfiltered}, including prefill-heavy,
+decode-heavy, and balanced-length slices.  We measure the isolated model path;
+request queueing, tokenization, transport, and serialization are outside the
+timed region.  Quality is measured with WikiText-2
+perplexity~\cite{merity2016pointer} and \tbd{validated downstream tasks}.
+Calibration prompts determine sensitivity values, predictor width, controller
+constants, and baseline settings.  Test prompts are disjoint, and no constant
+is refit on them.  We report each quality task separately against the all-high
+reference.  The reference uses FP16 for every executed expert in the same
+runtime and streams absent experts through the same residency path.  Thus
+``all-high'' fixes fidelity, not placement, and does not assume that every
+FP16 expert fits in HBM simultaneously.
 
-Quality uses WikiText-2 perplexity~\cite{merity2016pointer} and the task scores of MMLU-Pro, GPQA, GSM8K, and HumanEval~\cite{wang2024mmlu,rein2024gpqa,cobbe2021gsm8k,chen2021evaluating}.
-The item sets are the pinned subsets already used in our routing traces: 200 MMLU-Pro items, the GPQA-Diamond set, 200 GSM8K items, and the full HumanEval set.
-Perplexity uses at most 128 non-overlapping windows of 2{,}048 tokens.
-Multiple-choice items are scored by the conditional log-likelihood of the full answer label.
-HumanEval is pass@1 under greedy decoding after executing the official tests.
-Accuracy intervals are Wilson intervals at 95\%.
-We do not pool tasks into a single significance test.
-A model is a separate experiment.
-
-Calibration and test are disjoint.
-Hotness initialization, the frozen controller constants, and the oracle-horizon selection use a calibration slice of ShareGPT and a calibration slice of WikiText.
-Test prompts, including the three task workloads used for the hot-set disjointness check, are held out.
-Constants are not refit per device.
-\(C\) and \(T_{\ell}\) are measured online and are not calibrated constants.
-
-\subsection{Experiments}
-\label{sec:experiments}
-
-\paragraph{E0: repeat the phenomena on one stack.}
-Before any policy comparison we remeasure Table~\ref{tab:density}, the Layer-15 top-10 overlap across WikiText, GSM8K, and HumanEval, and the latency-versus-\(S\) curve at \(B=20\)\,GB.
-E0 uses the uniform low tier and a fixed horizon, with \systemname’s loops off.
-If the unique-expert ratio does not move by at least 30 percentage points from prefill to decode on Qwen3-30B at batch 32, or if the latency curve is not U-shaped on at least two models, the preliminary motivation does not survive the unified runtime and the later experiments are not informative.
-E0 is reported in full, including a negative outcome.
-
-\paragraph{E1: the phase diagram.}
-For each model on the A6000 we plot p95 exposed wait and WikiText perplexity against \(B\), with one curve per system in Section~\ref{sec:systems}.
-The horizontal axis is annotated with the measured \(\PhiRatio=1\) and \(\PhiRatio=P_{\mathrm{hi}}/P_{\mathrm{lo}}\) points.
-H1 requires the precision-only curve and the \systemname\ curve to meet for \(\PhiRatio\ge 1\), and the horizon-only curve to lie above them by the migration it still performs.
-H6 is read from the same figure: the naive composition either has no point, because admission refused the dual reservation, or lies above \systemname.
-Table~\ref{tab:phase} is the numerical companion, filled per regime rather than by a single speedup.
+\paragraph{Baselines.}
+Table~\ref{tab:eval-baselines} groups policies by capability.  Uniform-low,
+Static-mixed, Residency-only, and Lookahead-only isolate one memory use.
+\textsc{Seq-FR} assigns fidelity
+before residency and lookahead; \textsc{Seq-RF} reverses the order.
+\textsc{Static-Joint} searches all three byte shares on calibration data and
+freezes the best feasible point.  Fixed-partition tunes three private quotas.
+A deployable baseline receives the same calibration traces and search budget
+as \systemname.
+A comparison is reportable only when all deployable policies receive the same
+\(B\), representations, kernels, request stream, and transition interface.
+Matched implementations of HOBBIT and DyMoE are marked HOBBIT-M and DyMoE-M
+and are included only after their behavior is validated on the same
+checkpoint~\cite{tang2024hobbit,huang2026dymoe}.  Test-side grid search and
+offline exchange optimization are reported only as upper bounds.
 
 \begin{table}[t]
   \centering
-  \caption{Phase diagram on the A6000, p95 exposed wait (ms) and perplexity.
-  One row group per model.
-  Unfilled cells are the joint re-measurement.}
-  \label{tab:phase}
+  \caption{Capabilities of the compared policies.  ``Online'' means that the
+  allocation may change on test requests; oracle policies are not deployable.}
+  \label{tab:eval-baselines}
   \small
-  \begin{tabular}{@{}llrrrr@{}}
+  \begin{tabular}{@{}lcccc@{}}
     \toprule
-    Model & Regime & Uniform & Prec.-only & Horiz.-only & \systemname \\
+    Policy & Fidelity & Residency & Lookahead & Online \\
     \midrule
-    \tbd{model} & \(\PhiRatio \ge \rho\) & \tbd{ms / ppl} & \tbd{ms / ppl} & \tbd{ms / ppl} & \tbd{ms / ppl} \\
-    \tbd{model} & \(1 \le \PhiRatio < \rho\) & \tbd{ms / ppl} & \tbd{ms / ppl} & \tbd{ms / ppl} & \tbd{ms / ppl} \\
-    \tbd{model} & \(\PhiRatio < 1\), sparse & \tbd{ms / ppl} & \tbd{infeasible or ms} & \tbd{ms / ppl} & \tbd{ms / ppl} \\
-    \tbd{model} & \(\PhiRatio < 1\), dense & \tbd{ms / ppl} & \tbd{infeasible or ms} & \tbd{ms / ppl} & \tbd{ms / ppl} \\
+    Uniform-low & fixed & all feasible & none & no \\
+    Static-mixed & calibrated & fixed & none & no \\
+    Residency-only & fixed & adaptive & none & yes \\
+    Lookahead-only & fixed & fixed & adaptive & yes \\
+    \textsc{Seq-FR}/\textsc{Seq-RF} & yes & yes & yes & yes \\
+    \textsc{Static-Joint} & yes & yes & yes & no \\
+    Fixed-partition & yes & yes & yes & yes \\
+    HOBBIT-M & miss path & adaptive & adaptive & yes \\
+    DyMoE-M & adaptive & adaptive & adaptive & yes \\
+    \systemname & yes & yes & yes & yes \\
+    Offline oracle & yes & yes & yes & oracle \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{E2: does \(S^{\star}\) move with \(m\) and with \(C\)?}
-On each Phase~III configuration we sweep \(S\) with prefetch size fixed at \(m^{\mathrm{lo}}\) and again at \(m^{\mathrm{hi}}\), pins disabled, and we record the minimizing \(S\).
-We repeat the low-precision sweep on H20 and on the 910B.
-H2 is a statement about the argmin, not about the height of the curve.
-The model error is \(|S^{\star}_{\mathrm{pred}}-S^{\star}_{\mathrm{meas}}|\), with \(S^{\star}_{\mathrm{pred}}\) computed from~\eqref{eq:sstar} twice: once with idle \(C\), once with in-overlap \(C\).
-We report the mean absolute error in layers.
-A useful model is one whose in-overlap error is at most one layer on a majority of configurations.
-An idle-\(C\) error that is large while the in-overlap error is small is evidence for the contention caveat in Section~\ref{sec:model-limits}, not evidence against the overlap identity.
+\paragraph{Metrics and statistics.}
+The primary endpoint is p95 time per output token (TPOT) subject to
+\(\Delta Q\leq\epsilon\).  We also report p99 TPOT, p95 time to first token
+(TTFT), SLO attainment, exposed wait, migration bytes, and eviction-induced
+reload bytes.  Every configuration uses five warm-up iterations and 100
+measured requests for each of five paired seeds.  Policies receive identical
+request orders.  Tail-latency differences use a paired bootstrap clustered by
+seed and request trace.  We report 95\% confidence intervals, the per-seed
+values, and the median and range across seeds.  Accuracy uses Wilson intervals;
+paired binary outcomes use McNemar's test, and nonbinary task metrics use a
+paired item bootstrap.  Perplexity intervals are bootstrapped over token
+windows.  The primary comparison is \systemname\ against the strongest
+deployable baseline.  Secondary comparisons use Holm correction.  Overlapping
+intervals are reported as inconclusive, and scores from different quality
+tasks are never pooled.
 
-\paragraph{E3: inside one request.}
-For the batch-32 ShareGPT buckets we log, per request, the feasible-set predicate on the last prefill layer and on each of the first 32 decode steps, together with the applied \(S\) and \(n_{\mathrm{hi}}\).
-H3 is a predicate on that log.
-We also report the number of periods the applied \(S\) takes to come within one layer of a new \(S^{\star}\) after the prefill-to-decode boundary, and the migration bytes moved during those periods.
-The hysteresis and the \(\pm 1\) step are acceptable only if that migration stays below the migration of an ablation that sets \(S\) to \(S^{\star}\) in one period.
+\paragraph{Memory accounting and admission.}
+Each run records published plus reserved arena bytes and process memory sampled
+through NVML every 2\,ms.  A run is invalid if arena occupancy exceeds \(B\),
+if the quality-degradation limit is violated, or if its exchange log cannot
+reconstruct the reported allocation.  Process memory is reported separately
+because it contains non-expert state.  External fragmentation is
 
-\paragraph{E4: slack and pins.}
-At three budgets in Phase~III (sparse) we compare \(n_{\mathrm{hi}} \in \{0, n^{\star}, n^{\star}{+}1\}\), where \(n^{\star}\) is the slack bound.
-H4 predicts that \(n^{\star}{+}1\) either fails admission or increases p95 wait, and that \(n^{\star}\) does not.
-The dense rows of the same table use the batch-32 prefill.
-H4 predicts \(n^{\star}=0\) there.
+\begin{equation}
+  F_{\mathrm{ext}} = 1 -
+  \frac{\text{largest free extent}}{\text{total free arena bytes}}.
+  \label{eq:external-fragmentation}
+\end{equation}
 
-\paragraph{E5: quality at a fixed latency band.}
-On the A6000 we take the largest \(B\) in Phase~II and the largest \(B\) in Phase~III at which \systemname’s p95 time-to-first-token stays within 10\% of the uniform-low baseline’s.
-If no Phase~III budget meets that band, the Phase~III quality comparison is reported as ``band infeasible'' and H5 is not claimed there.
-Inside the band we report task scores for uniform, static mixed, precision-only, and \systemname.
-Table~\ref{tab:quality} has one block per model.
-The static-mixed column is the comparison that tests whether online identity changes matter once the quota is held fixed.
-Intervals that overlap are reported as overlaps.
+We distinguish failures caused by insufficient aggregate bytes from failures
+caused by the absence of a compatible extent.  The artifact also records the
+checkpoint revision, packing recipe, controller constants, allocator
+alignment, random seed, and concurrent device processes.
 
-\begin{table}[t]
+\subsection{End-to-End Quality--Latency Tradeoff}
+\label{sec:eval-end-to-end}
+
+\paragraph{RQ1: Does joint allocation improve tail latency?}
+For every model and \(B\), each deployable policy sweeps only controls visible
+on the calibration split and uses that platform's measured host-to-device
+rate.  Section~\ref{sec:eval-robustness} varies the rate separately.  Figure~\ref{fig:eval-frontier} plots the resulting
+nondominated quality--latency points.  Table~\ref{tab:eval-main} reports the
+point selected at the same \(\epsilon\).  The table includes both sequential
+orders and \textsc{Static-Joint}; a controller that lets two components each
+spend the full \(B\) appears only as a reservation-failure diagnostic.
+
+% DATA: results/evaluation/end_to_end.jsonl
+% SCRIPT: scripts/plot_evaluation_frontier.py
+% FIELDS: model,budget_bytes,policy,quality_delta,p95_tpot_ms,seed
+\begin{figure*}[t]
   \centering
-  \caption{Task score at the latency band of Section~\ref{sec:experiments}, A6000.
-  Wilson 95\% intervals travel with each accuracy cell in the artifact.}
-  \label{tab:quality}
+  \IfFileExists{figures/eval_quality_latency.pdf}
+    {\includegraphics[width=\textwidth]{figures/eval_quality_latency.pdf}}
+    {\evalplaceholder{Quality--latency frontiers by model and expert-memory budget.}}
+  \caption{Quality--latency frontiers under a common expert-memory budget.
+  Points outside \(\Delta Q\leq\epsilon\) remain visible but are infeasible.
+  Bands show paired-bootstrap 95\% confidence intervals.}
+  \Description{Placeholder for quality--latency frontier plots separated by
+  model and expert-memory budget.}
+  \label{fig:eval-frontier}
+\end{figure*}
+
+\begin{table*}[t]
+  \centering
+  \caption{End-to-end results at the fixed quality-degradation limit.  Values
+  are median across seeds with 95\% paired-bootstrap intervals.}
+  \label{tab:eval-main}
   \small
-  \begin{tabular}{@{}llrrrr@{}}
+  \begin{tabular}{@{}llrrrrrr@{}}
     \toprule
-    Model & Task & Uniform & Static mixed & Prec.-only & \systemname \\
+    Model/\(B\) & Policy & \(\Delta Q\) & p95 TPOT & p99 TPOT & p95 TTFT & SLO & Peak arena \\
     \midrule
-    \tbd{model} & MMLU-Pro & \tbd{score} & \tbd{score} & \tbd{score} & \tbd{score} \\
-    \tbd{model} & GPQA & \tbd{score} & \tbd{score} & \tbd{score} & \tbd{score} \\
-    \tbd{model} & GSM8K & \tbd{score} & \tbd{score} & \tbd{score} & \tbd{score} \\
-    \tbd{model} & HumanEval & \tbd{score} & \tbd{score} & \tbd{score} & \tbd{score} \\
-    \tbd{model} & WikiText ppl & \tbd{ppl} & \tbd{ppl} & \tbd{ppl} & \tbd{ppl} \\
+    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    \bottomrule
+  \end{tabular}
+\end{table*}
+
+\tbd{State the answer to RQ1 after Figure~\ref{fig:eval-frontier} and
+Table~\ref{tab:eval-main} are populated.  Report the strongest feasible
+baseline, absolute values, confidence intervals, and any inconclusive cases.}
+
+\subsection{Why Joint Online Allocation?}
+\label{sec:eval-necessity}
+
+\paragraph{RQ2: Are joint and online decisions both necessary?}
+Figure~\ref{fig:eval-necessity} first sweeps fidelity and lookahead byte shares
+at a fixed host-to-device bandwidth; residency receives the remaining bytes.  It then aligns a workload-switch
+trace at the change point and shows how the three byte allocations move.  The
+comparison with \textsc{Seq-FR} and \textsc{Seq-RF} tests joint optimization.
+The comparison with calibration-side \textsc{Static-Joint} tests online
+adaptation.  A test-side grid oracle separates adaptation loss from search
+error.
+
+% DATA: results/evaluation/coupling_grid.jsonl, adaptation.jsonl
+% SCRIPT: scripts/plot_evaluation_necessity.py
+% FIELDS: workload,fid_bytes,res_bytes,look_bytes,quality_delta,p95_tpot_ms,time
+\begin{figure*}[t]
+  \centering
+  \IfFileExists{figures/eval_joint_necessity.pdf}
+    {\includegraphics[width=\textwidth]{figures/eval_joint_necessity.pdf}}
+    {\evalplaceholder{Left: feasible fidelity--lookahead heatmap.  Right: allocation and latency around a workload change.}}
+  \caption{Necessity of joint online allocation.  The heatmap sweeps fidelity
+  and lookahead byte shares at a fixed host-to-device bandwidth and marks
+  quality-infeasible and memory-infeasible cells.  It is not a sweep of both
+  budgets.  The time series reports the convergence interval and migration
+  bytes accumulated after a workload change.}
+  \Description{Placeholder for a byte-allocation heatmap and a workload-shift
+  time series.}
+  \label{fig:eval-necessity}
+\end{figure*}
+
+\tbd{State the answer to RQ2.  If the feasible optimum is not interior, a
+sequential baseline matches \systemname, or Static-Joint matches it within the
+confidence interval, narrow the joint or online claim accordingly.}
+
+\subsection{Mechanism Attribution}
+\label{sec:eval-mechanism}
+
+\paragraph{RQ3: Which mechanisms account for the result?}
+We replace one mechanism at a time while holding the workload, \(B\), and data
+path fixed.  Independent-value scores requests without counterfactual replay.
+Slack-only admission removes explicit donors.  Fixed-partition replaces byte
+exchange with three tuned private quotas.  Single-timescale merges the fast
+and slow updates, while No-tenure removes fidelity tenure and replacement
+hysteresis.  A fixed-arena-partition variant isolates the allocator from the
+allocation policy.
+
+% DATA: results/evaluation/ablations.jsonl, exchanges.jsonl
+% SCRIPT: scripts/plot_evaluation_mechanisms.py
+% FIELDS: ablation,p95_tpot_ms,migration_bytes,request_use,donor_use,predicted_gain_s,realized_gain_s
+\begin{figure}[H]
+  \centering
+  \IfFileExists{figures/eval_mechanisms.pdf}
+    {\includegraphics[width=\columnwidth]{figures/eval_mechanisms.pdf}}
+    {\evalplaceholder{Left: mechanism ablations.  Right: accepted exchange types and realized benefit.}}
+  \caption{Mechanism attribution.  The ablation panel reports tail latency
+  and migration bytes.  The exchange panel reports requested and released
+  byte uses, predicted benefit, realized benefit, and reload cost.}
+  \Description{Placeholder for mechanism-ablation results and the distribution
+  of accepted exchange types.}
+  \label{fig:eval-mechanisms}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \caption{Anatomy of accepted exchanges.  A type that never occurs is not
+  credited with the end-to-end result.}
+  \label{tab:eval-exchanges}
+  \small
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    Request \(\leftarrow\) donor & Count & Bytes & Realized gain & Reload cost \\
+    \midrule
+    Residency \(\leftarrow\) fidelity & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    Lookahead \(\leftarrow\) fidelity & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    Lookahead \(\leftarrow\) residency & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    Other accepted types & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
     \bottomrule
   \end{tabular}
 \end{table}
 
-\paragraph{E6: invariant, overhead, and ablations.}
-For every reported run we record the maximum of the runtime byte counter and the NVML process peak.
-A counter above \(B\) is a failed implementation.
-A process peak above the device, while the counter stays inside \(B\), is a reserve violation and is reported separately.
-Controller CPU time per fast period and per slow period is reported as a distribution.
-The design target is that the fast period stays well below \(T_{\ell}\); the evaluation states the measured fraction of \(T_{\ell}\) rather than a microsecond budget chosen in advance.
+\tbd{State the answer to RQ3.  Quantify the effects of counterfactual replay,
+explicit donors, shared allocation, and churn control separately.}
 
-Ablations remove one mechanism at a time on the A6000, on one Phase~II model and one Phase~III model: no hysteresis on pins, no \(\pm 1\) limit, idle \(C\) instead of in-overlap \(C\), mean miss size instead of p95, no cache-aware issue order, and a single pool instead of per-tier pools.
-A further ablation replaces the pregate-or-frequency predictor with a CPU random forest trained on calibration tuples of token identity, layer, and horizon.
-That ablation is informative only when E2 shows a residual wait that the overlap model attributes to miss-set error rather than to \(C\) or \(m\).
-If the residual is small, the forest is not part of the system we recommend.
+\subsection{Model Accuracy and Runtime Cost}
+\label{sec:eval-models}
 
-\subsection{What We Will Not Claim from This Protocol}
-\label{sec:nonclaims}
+\paragraph{RQ4: Are the surrogates and implementation accurate enough?}
+Figure~\ref{fig:eval-validation} compares predicted exposed wait
+\(\widehat L\) with measured exposed wait.  It evaluates in-overlap bandwidth
+against an idle-copy estimate.  The quality panel compares \(\widehat R\) with
+measured quality degradation and reports both unsafe acceptances and
+conservative rejections.  Predictor results include recall at envelope depth
+and a reliability diagram for \(\omega_j\).  The runtime panels report fast-
+and slow-control time, allocator fragmentation, and published plus reserved
+bytes.  The scale sweep varies candidate requests \(K\) and predicted uses
+\(W\) and reports the cost of the implemented replay.
 
-A single speedup against uniform quantization is not a result under this protocol.
-Uniform quantization is the Phase~I optimum and a feasible Phase~II baseline; it is infeasible in part of Phase~III, and a speedup there would compare against a system that does not fit.
-A task-score gain with an unstated latency regression is not evidence for H5.
-A horizon policy that wins at one batch size and one device is the behavior P2 predicts for a fixed \(S\), and it is not a competing system result unless the policy is the horizon-only controller, which already adapts \(S\).
+% DATA: results/evaluation/model_validation.jsonl, runtime_cost.jsonl, arena.jsonl
+% SCRIPT: scripts/plot_evaluation_validation.py
+% FIELDS: predicted_wait_s,measured_wait_s,predicted_risk,quality_delta,K,W,controller_us,fragmentation,published_bytes,reserved_bytes
+\begin{figure}[H]
+  \centering
+  \IfFileExists{figures/eval_validation.pdf}
+    {\includegraphics[width=\columnwidth]{figures/eval_validation.pdf}}
+    {\evalplaceholder{Model error, predictor calibration, controller scaling, and arena occupancy.}}
+  \caption{Model accuracy and runtime cost.  Error is separated by workload
+  regime.  The arena panel includes \(B\), reservation failures by cause, and
+  median, p95, and maximum \(F_{\mathrm{ext}}\).}
+  \Description{Placeholder for prediction error, controller scaling, and arena
+  occupancy plots.}
+  \label{fig:eval-validation}
+\end{figure}
+
+\tbd{State the answer to RQ4.  Report model errors in original units,
+misclassification counts for the quality-risk account, controller time as a
+fraction of layer compute, and the number of memory-invariant violations.}
+
+\subsection{Robustness and Boundary Regimes}
+\label{sec:eval-robustness}
+
+\paragraph{RQ5: When is a simpler policy sufficient?}
+We sweep \(B\), controlled copy-rate limits, representation size, batch size,
+predictor noise, and \(\epsilon\).  The operating-region plot marks where the
+selected policy reduces to uniform residency, static mixed fidelity, demand
+loading, or deadline-guided lookahead.  It also reports regions in which
+\systemname\ and the best static baseline are statistically indistinguishable.
+
+% DATA: results/evaluation/robustness.jsonl
+% SCRIPT: scripts/plot_evaluation_robustness.py
+% FIELDS: budget_bytes,copy_rate,representation_bytes,batch_size,predictor_noise,epsilon,best_policy,p95_tpot_ms
+\begin{figure}[H]
+  \centering
+  \IfFileExists{figures/eval_robustness.pdf}
+    {\includegraphics[width=\columnwidth]{figures/eval_robustness.pdf}}
+    {\evalplaceholder{Operating regions across budget, bandwidth, representation size, and prediction error.}}
+  \caption{Robustness and boundary regimes.  Hatched regions denote
+  infeasible quality or memory configurations; neutral regions denote no
+  statistically resolved difference from the best static policy.}
+  \Description{Placeholder for operating regions across memory budget, copy
+  bandwidth, representation size, and prediction error.}
+  \label{fig:eval-robustness}
+\end{figure}
+
+\tbd{State the answer to RQ5, including no-benefit regions and negative
+results.  Do not attribute a boundary-policy result to joint allocation.}

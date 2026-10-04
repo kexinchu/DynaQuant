@@ -141,6 +141,43 @@ def test_registry_get_handle_missing_returns_none():
     assert reg.get_handle(ExpertKey(0, 0)) is None
 
 
+def test_publish_exchange_replaces_and_evicts_under_one_commit():
+    reg = ExpertRegistry()
+    replaced_key = ExpertKey(0, 0)
+    evicted_key = ExpertKey(0, 1)
+    old = ExpertHandle(tier=Tier.LO)
+    donor = ExpertHandle(tier=Tier.LO)
+    replacement = ExpertHandle(tier=Tier.HI)
+    reg.register(replaced_key, old)
+    reg.register(evicted_key, donor)
+
+    detached = reg.publish_exchange(
+        {replaced_key: replacement},
+        {replaced_key: old, evicted_key: donor},
+    )
+
+    assert detached == {replaced_key: old, evicted_key: donor}
+    assert reg.get_handle(replaced_key) is replacement
+    assert replacement.version == old.version + 1
+    assert reg.get_handle(evicted_key) is None
+
+
+def test_publish_exchange_stale_donor_has_no_side_effects():
+    reg = ExpertRegistry()
+    destination = ExpertKey(0, 0)
+    donor_key = ExpertKey(0, 1)
+    current = ExpertHandle(tier=Tier.LO)
+    stale = ExpertHandle(tier=Tier.LO)
+    replacement = ExpertHandle(tier=Tier.HI)
+    reg.register(donor_key, current)
+
+    with pytest.raises(RuntimeError, match="donor changed"):
+        reg.publish_exchange({destination: replacement}, {donor_key: stale})
+
+    assert reg.get_handle(destination) is None
+    assert reg.get_handle(donor_key) is current
+
+
 def test_registry_lease_prevents_reclaim_until_reader_releases():
     reg = ExpertRegistry()
     key = ExpertKey(0, 0)

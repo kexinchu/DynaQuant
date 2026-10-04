@@ -1,0 +1,80 @@
+{
+  "created_at": "2026-10-03T02:40:46Z",
+  "run_dir": "/home/kec23008/DynaQuant/figure-studio-runs/dynabyte-sigmetrics-2027-storyline",
+  "stages": [
+    {
+      "stage": "S1-FIGURE-STRATEGY",
+      "latest_before": {
+        "zip_path": "checkpoints/S1-FIGURE-STRATEGY/stage-final-0002-generic-cumulative-repair.zip",
+        "metadata_present": {
+          "checkpoint-integrity-audit.json": true,
+          "checkpoint-manifest.json": true,
+          "checkpoint-cumulative-integrity.json": true
+        },
+        "required_count": 35,
+        "member_count": 11,
+        "missing_count": 27,
+        "missing_first_20": [
+          "outputs/S2-sketch-explore/candidates/C01/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C01/prompt-v01.md",
+          "outputs/S2-sketch-explore/candidates/C01/status.json",
+          "outputs/S2-sketch-explore/candidates/C02/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C02/prompt-v01.md",
+          "outputs/S2-sketch-explore/candidates/C02/status.json",
+          "outputs/S2-sketch-explore/candidates/C03/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C03/prompt-v01.md",
+          "outputs/S2-sketch-explore/candidates/C03/status.json",
+          "outputs/S2-sketch-explore/candidates/C04/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C04/prompt-v01.md",
+          "outputs/S2-sketch-explore/candidates/C04/status.json",
+          "outputs/S2-sketch-explore/candidates/C05/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C05/prompt-v01.md",
+          "outputs/S2-sketch-explore/candidates/C05/status.json",
+          "outputs/S2-sketch-explore/candidates/C06/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C06/prompt-v01.md",
+          "outputs/S2-sketch-explore/candidates/C06/status.json",
+          "outputs/S2-sketch-explore/candidates/C07/prompt-audit-v01.json",
+          "outputs/S2-sketch-explore/candidates/C07/prompt-v01.md"
+        ],
+        "status": "FAIL"
+      },
+      "repair_created": "checkpoints/S1-FIGURE-STRATEGY/stage-final-0003-generic-cumulative-repair.zip",
+      "repair_integrity": {
+        "schema_version": 2,
+        "stage": "S1-FIGURE-STRATEGY",
+        "created_at": "2026-10-03T02:40:46Z",
+        "checkpoint_scope": "cumulative_from_workflow_start_to_current_stage_or_substage",
+        "included_roots": [
+          "state",
+          "inputs",
+          "outputs/S0-paper-foundation",
+          "outputs/S1-figure-strategy",
+          "outputs/S2-sketch-explore"
+        ],
+        "required_existing_asset_count": 35,
+        "required_existing_image_count": 0,
+        "pending_future_image_count": 8,
+        "missing_asset_count": 0,
+        "missing_image_count": 0,
+        "checkpoint_integrity_status": "complete_restore_ready",
+        "post_write_validation_status": "PASS",
+        "missing_after_write_count": 0,
+        "missing_metadata_after_write": [],
+        "zip_sha256": "7b881798905a9d0cf84d2a67dc9842e7b8559b25f05853f0d100705d054d4c8c"
+      },
+      "repair_validation": {
+        "zip_path": "checkpoints/S1-FIGURE-STRATEGY/stage-final-0003-generic-cumulative-repair.zip",
+        "metadata_present": {
+          "checkpoint-integrity-audit.json": true,
+          "checkpoint-manifest.json": true,
+          "checkpoint-cumulative-integrity.json": true
+        },
+        "required_count": 35,
+        "member_count": 38,
+        "missing_count": 0,
+        "missing_first_20": [],
+        "status": "PASS"
+      }
+    }
+  ]
+}

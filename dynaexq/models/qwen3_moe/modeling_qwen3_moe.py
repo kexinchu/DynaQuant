@@ -266,6 +266,13 @@ class Qwen3MoeExperts(nn.Module):
             expert_idx = expert_idx[0]
             if expert_idx == self.num_experts:
                 continue
+            resolver = getattr(self, "_dynaexq_residency_controller", None)
+            if resolver is not None:
+                resolver.ensure_selected(
+                    self._dynaexq_layer_idx,
+                    {int(expert_idx)},
+                    issued_step=None,
+                )
             top_k_pos, token_idx = torch.where(expert_mask[expert_idx])
             current_state = hidden_states[token_idx]
 

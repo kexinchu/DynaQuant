@@ -1,49 +1,63 @@
 \section{Implementation}
 \label{sec:impl}
 
-\systemname\ is a Python runtime on PyTorch and HuggingFace Transformers~\cite{paszke2019pytorch,wolf2020transformers}.
-Expert modules are replaced by a dispatcher that resolves identifiers to published handles.
-Copies run on a dedicated CUDA stream.
-A CPU thread polls completion events, publishes handles, and returns reclaimed blocks to the free list.
-The fast and slow loops run on that thread.
-They do not launch GPU kernels other than the copies and the expert computations the forward path already performs.
-Control-period work is a scan of at most \(L\) horizon predicates plus an \(O(E_{\ell})\) score update per active layer, with \(L\) the number of MoE layers.
+We implement \systemname\ in Python using PyTorch and HuggingFace
+Transformers~\cite{paszke2019pytorch,wolf2020transformers}.  The CPU decision
+plane evaluates byte exchanges, while the device-memory path owns
+representation storage, publication, and reclamation.
 
-Both packed tiers are materialized in pinned host memory before the timed region.
-Materialization proceeds one layer at a time and releases the source weights of that layer once both tiers exist, so the host does not hold the unpacked checkpoint and both packed tiers together.
-A measured transition is a copy of an existing buffer.
-The run aborts if any expert fails to pack, register, or fit in its pool.
-There is no fallback onto unpacked weights.
+\paragraph{Controller.}
+A predicted use records its expert, representation tier, issue layer, and use
+layer.  The implemented predictor ranks experts from recent layer-local
+activation counts and limits its output to a configured width.  Replay uses
+measured layer time and copy bandwidth to simulate one migration queue and
+compute readiness and exposed wait from CPU-side placement metadata.  At each
+routed layer, one admission path forms lookahead candidates and updates the
+adaptive candidate envelope from observed stall and pollution.  A slower
+interval on that same path refreshes fidelity requests.  Fidelity tenure and replacement
+hysteresis are stored with their byte leases.
 
-The high-precision tier is FP16 and the low-precision tier is INT4 for models whose low-precision pool fits in the larger budgets we sweep.
-For Qwen3-Next-80B the low tier is INT2 and the high tier is INT4, because an INT4 pool of that model already occupies most of a 48\,GB device and leaves no room for a second tier or for the KV reserve.
-The tier pair is a property of the checkpoint and is held fixed across the budget sweep.
-Changing \(B\) changes \(\PhiRatio\), not the quantization recipe.
-Scales and zero-points travel in the handle metadata.
-A layer that contains both live tiers issues two grouped GEMM launches.
-The conversion workspace used by the INT4 and INT2 kernels is reserved in \(M_{\mathrm{stage}}\) as a constant number of blocks per in-flight transition, matching the workspace the kernel actually allocates on first use.
-We record that size from a one-expert probe at startup rather than from a formula.
+\paragraph{Representations.}
+Both representation tiers are prepared in pinned host memory before a timed
+run.  Packing proceeds one layer at a time and releases that layer's source
+weights after both tiers are complete.  The tier pair is fixed for a
+checkpoint and does not change with \(B\).  Format metadata is published with
+the representation, and a layer containing both tiers issues one grouped GEMM
+per tier.  A startup probe measures the largest conversion workspace; the
+runtime reserves it before allocating expert memory.
 
-\(C\) is the ratio of copied bytes to the duration of the migration-stream event, computed only for copies that overlapped expert compute.
-An idle H2D microbenchmark is recorded once per device and used solely as the alternative estimator in the model-error experiment.
-\(T_{\ell}\) is the elapsed time of the expert kernels on the compute stream, which includes dequantization and both GEMM launches when both tiers are live.
-The p95 miss size uses a ring of the last 64 observations of \(|\hat{U}(1)\setminus R|\) at that layer, scaled to horizon \(S\) by substituting the predicted union \(\hat{U}(S)\).
-The ring is not a linear extrapolation of one layer’s count, which would double-count experts that recur across layers.
+\paragraph{Arena and exchange execution.}
+The shared expert arena stores every device-resident expert representation without
+layer, tier, or lease-purpose partitions.  The arena may contain multiple
+preallocated segments.  The allocator rounds requests to 256-byte alignment,
+selects the smallest compatible free extent, splits it, and coalesces adjacent
+free ranges within the same segment.
 
-Continuous batching is supported for the latency workload.
-The density \(\hat{w}\) and the miss set are properties of the batch currently in the layer, so a mixed batch is controlled by its own union of experts rather than by any single request.
-Quality runs disable continuous batching and use greedy decoding so that a precision change cannot occur between the answer candidates of one multiple-choice item.
-All candidates of an item are scored in one unpadded batch.
+The memory manager holds named donors and binds all destination extents under
+one mutex.  If any binding fails, it releases every new extent and donor hold
+before returning.  It distinguishes insufficient aggregate bytes from the
+absence of a compatible extent.  A bounded worker queue applies backpressure
+before reservation, and donor holds prevent concurrent exchanges from
+spending the same future release.
 
-Startup classification, pool capacities, and the frozen constants \(\alpha\), \(\delta\), \(\theta_{h}\), \(T_{\mathrm{fast}}\), and \(T_{\mathrm{slow}}\) are written into the result artifact.
-The artifact also records the checkpoint revision, the quantization recipe, the GPU UUID, the process peak sampled through NVML every 2\,ms, and the runtime’s own reservation counters.
-A point is reportable only when those counters stayed within \(B\) for the whole run or when the log shows a refused reservation.
-A run that exceeds \(B\) by allocating anyway is a bug, not a data point.
+Accepted copies run on a dedicated CUDA stream.  A worker writes the packed
+representation and any kernel-native layout into the reserved extent, then
+waits for the completion event before publication.  Copy or publication
+failure rolls back a destination that never became visible.
 
-The prototype is single-GPU.
-Expert-parallel placements, in which a layer’s experts are partitioned across devices, change both \(B\) and \(C\) per device and are out of scope.
-The accounting identity does not depend on that restriction; the implementation does.
+\paragraph{Publication and dispatch.}
+A published handle contains the tier, arena extent, format metadata, and a
+monotonically increasing version.  The forward path acquires a reader
+reference before resolving the extent and releases it after kernel launch,
+recording the latest completion event for each compute stream.  Publication
+atomically replaces the registry entry.  Reclamation waits for the old
+handle's readers and recorded events; without a precise event, it uses a
+conservative device synchronization.  This sequence closes the race between
+pointer lookup, kernel launch, and extent reuse.
 
-\paragraph{Generative-model disclosure.}
-SIGMETRICS~2027 requires the methods text to state the extent of generative-model assistance.
-\tbd{Authors: replace this paragraph before submission. State which prose was drafted with a language model, that the model, controller, and protocol are the authors' claims, and that every citation and measurement was checked by the authors. Do not leave this placeholder in a submission.}
+The dispatcher launches groups backed by published representations before a
+group waiting on a transfer.  Repeated uses of one destination share its copy
+and readiness event.  The runtime logs arena occupancy, reservation failures,
+and exchange decisions.  On NVIDIA systems, a separate monitor samples
+process memory through NVML every 2\,ms.  A run is invalid if published plus
+reserved arena bytes exceed \(B\).

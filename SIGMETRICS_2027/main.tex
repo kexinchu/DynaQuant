@@ -23,17 +23,16 @@
 \acmJournal{POMACS}
 \acmYear{2027}
 
-\title{The Optimal Expert Prefetch Horizon Is Set by Precision}
+\title{DynaByte: Allocating Expert Memory and Transfer Bandwidth for MoE Tail Latency}
 
-%% After H2: replace nothing in the abstract body. Add one sentence with the
-%% measured shift in S-star (layers) and the p95 wait gap versus the two
-%% boundary policies. Do not mention unfilled cells here.
+%% Add the main end-to-end result and the gap to the strongest shared-budget
+%% baseline after the joint evaluation is complete.
 \begin{abstract}
-The optimal prefetch horizon for expert weights is set by precision: \(\PhiRatio=B/P_{\mathrm{lo}}\), the device budget divided by a low-precision copy of every expert, decides whether those bytes buy residency or lookahead.
-Precision assignment assumes that low-precision copy always fits, while prefetching assumes expert size is fixed and a longer horizon always helps; the two assumptions exchange places at \(\PhiRatio=1\).
-When \(\PhiRatio\ge 1\) the minimizing horizon is zero and leftover bytes raise the precision of experts the router uses; when \(\PhiRatio<1\) it is the smallest lookahead that hides the predicted misses inside the overlap window and the budget, and prefill versus decode crosses that boundary inside one request.
-\systemname\ computes this horizon from measured expert sizes, tracks it by at most one layer per period, and changes precision only while the byte budget and the latency band both hold.
-A sweep of budgets, models, and devices tests the predictions against precision-only residency, horizon-only prefetch, and a composition that lets each policy spend the full budget.
+How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency under a quality-degradation limit?
+Precision spends device bytes and increases the size of a later transfer, residency spends device bytes to avoid a transfer, and lookahead spends both bytes and bandwidth to hide a transfer that still occurs.
+Existing policies usually fix two of these uses and optimize the third, so a precision quota or a prefetch depth tuned on its own can still raise tail latency once the two budgets are shared.
+\systemname\ answers this question with donor-backed byte exchanges: each request names the precision, residency, or lookahead claim it displaces, and a deadline replay admits the exchange only when predicted exposed wait falls and the quality-degradation limit still holds.
+One byte ledger and a publish-after-copy protocol keep the expert-memory peak within budget while the three uses are admitted together.
 \end{abstract}
 
 \begin{CCSXML}
@@ -69,7 +68,7 @@ A sweep of budgets, models, and devices tests the predictions against precision-
 \noindent\textit{Draft status.}
 This manuscript follows the SIGMETRICS~2027 \texttt{acmsmall} rules (at most 20 single-column pages of technical content, unlimited references, double-anonymous review).
 Tables that depend on the joint re-measurement are marked in red and left blank.
-Preliminary routing statistics in Section~\ref{sec:prelim} are measurements already in hand; they are not end-to-end results for \systemname.
+The motivating measurements and trace replay in Sections~\ref{sec:obs-quality}--\ref{sec:obs-joint} are not end-to-end results for \systemname.
 
 \input{01_introduction}
 \input{02_background}

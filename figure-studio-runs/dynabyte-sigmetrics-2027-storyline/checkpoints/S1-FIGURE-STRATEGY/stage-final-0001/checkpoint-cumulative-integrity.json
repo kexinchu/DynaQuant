@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "stage": "S1-FIGURE-STRATEGY",
+  "substage_id": null,
+  "checkpoint_type": "stage-final",
+  "sequence": 1,
+  "created_at": "2026-10-03T02:39:51+00:00",
+  "checkpoint_scope": "cumulative_from_S0_to_current_stage_or_substage",
+  "no_hardcoded_candidate_or_filename_counts": true,
+  "root_coverage_audit": {
+    "stage": "S1-FIGURE-STRATEGY",
+    "expected_included_roots_through_stage": [
+      "state",
+      "inputs",
+      "outputs/S0-paper-foundation",
+      "outputs/S1-figure-strategy"
+    ],
+    "actual_included_roots": [
+      "state",
+      "inputs",
+      "outputs/S0-paper-foundation",
+      "outputs/S1-figure-strategy"
+    ],
+    "existing_file_count_by_expected_root": {
+      "state": 1,
+      "inputs": 1,
+      "outputs/S0-paper-foundation": 2,
+      "outputs/S1-figure-strategy": 4
+    },
+    "zip_member_count_by_expected_root": {
+      "state": 1,
+      "inputs": 1,
+      "outputs/S0-paper-foundation": 2,
+      "outputs/S1-figure-strategy": 4
+    },
+    "missing_expected_roots_from_manifest_scope": [],
+    "existing_expected_roots_with_no_zip_payload": [],
+    "status": "complete_cumulative_scope",
+    "policy": "generic cumulative checkpoint scope audit; no project, candidate, or filename hard-coding"
+  },
+  "required_existing_asset_count": 8,
+  "required_substage_page_asset_paths": [],
+  "missing_substage_page_asset_paths": [],
+  "missing_substage_page_asset_count": 0,
+  "missing_image_count": 0,
+  "missing_asset_count": 0,
+  "attempt_count": 1,
+  "checkpoint_integrity_status": "complete_restore_ready",
+  "policy": "A checkpoint cannot be reported as complete unless cumulative root coverage, required existing assets, generated images, and substage pages all pass post-write zip-member validation."
+}

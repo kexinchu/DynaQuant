@@ -1,59 +1,36 @@
 \section{Related Work}
 \label{sec:related}
 
-We organize prior work by which decision it holds fixed.
-The relevant decisions are the three residency states and the horizon.
-A system that optimizes one of them under a fixed setting of the others is a boundary policy of Section~\ref{sec:model}, and it is a baseline in Section~\ref{sec:systems} when we can run it.
+Prior systems control expert precision, residency, or transfer timing, often while holding the other decisions fixed.
+We group them by that control decision, then compare \systemname\ directly with systems that already combine the mechanisms.
 
-\subsection{Prefetch Horizons and Expert Caches}
+\paragraph{Precision assignment.}
+GPTQ, AWQ, SmoothQuant, and LLM.int8() fix representations before serving~\cite{frantar2022gptq,lin2024awq,xiao2023smoothquant,dettmers2022gptint8}.
+MoE-specific methods use expert sensitivity, activation frequency, or router statistics to assign precision under a memory or quality target~\cite{kim2023mixturequantizedexpertsmoqe,duanmu2025mxmoe,zhang2025moqe,chitty2025mopeq,chowdhury2026efficient}.
+Such methods improve fidelity for a chosen footprint but commonly evaluate the assignment under fixed placement and transfer policies.
+\systemname\ can use their packed representations and offline sensitivities; its additional question is whether a fidelity increment is worth the residency or lookahead displaced at runtime.
+Mixed-precision kernels such as MxMoE remain complementary~\cite{duanmu2025mxmoe}: they determine the compute cost of a selected representation, not which state should occupy expert memory.
 
-Cross-layer prefetch overlaps the transfer of experts predicted for the next \(S\) layers with compute~\cite{song2024promoe,eliseev2023fast,hwang2024pre}.
-ProMoE and the pregate predictor of Eliseev and Mazur select \(S\) as a deployment parameter.
-The preliminary sweep in Section~\ref{sec:prelim} is a measurement of that parameter’s U-shaped latency on one device family.
-Expert caches choose which resident expert to evict and which missing expert to stage~\cite{xue2024moe,li2023adaptive,yi2023edgemoe,zhong2024adapmoe,kong2024swapmoe,cao2024moe}.
-MoE-Infinity builds a locality-aware cache; MoE-Lightning rebalances residency across a memory hierarchy during a run.
-These systems are Phase~III designs with a single byte size per expert.
-Their horizon, when they have one, is not required to be the minimum feasible \(S\) under~\eqref{eq:overlap} and~\eqref{eq:fit}, and a high-precision pin is not a protected class of resident.
+\paragraph{Residency and placement.}
+Expert caches retain recently or frequently used experts and select victims using routing history, layer position, or co-activation~\cite{xue2024moe,li2023adaptive,yi2023edgemoe,zhong2024adapmoe,kong2024swapmoe,cao2024moe}.
+They primarily estimate residency value with a fixed expert representation.
+Placement methods instead colocate co-activated experts or map them according to topology and load~\cite{yao2024exploiting,dai2024deepseekmoe}; their multi-device communication objective is outside our single-accelerator implementation.
+In \systemname, a residency lease is valued together with the fidelity or lookahead request that would displace it, so eviction cost belongs to the complete exchange rather than to an independent cache policy.
 
-ExpertFlow appears as two distinct lines.
-He et al.\ allocate tokens to experts to improve activation efficiency~\cite{he2024expertflow}.
-Shen et al.\ adapt expert scheduling and coordinate expert memory under offload~\cite{shen2025expertflow}.
-Both change which experts move and when.
-Neither states a budget ratio that disables the horizon once a low-precision floor fits, which is the Phase~II prediction.
-We cite them as scheduling policies, and the horizon-only baseline is our implementation of the adaptive-horizon rule rather than a claim that we executed either codebase unchanged.
+\paragraph{Prefetch and mixed-precision offloading.}
+Cross-layer prefetchers predict future experts and overlap transfers with current computation, using either fixed lookahead or adaptation from observed demand and system state~\cite{song2024promoe,eliseev2023fast,hwang2024pre}.
+ExpertFlow coordinates expert scheduling and movement under offload~\cite{shen2025expertflow}; a separate work with the same name changes token assignment to improve activation efficiency~\cite{he2024expertflow}.
+Their principal control variable is transfer timing for a given expert size and quality policy.
 
-Placement systems that colocate frequently co-activated experts, or that avoid cross-device transfers by topology-aware routing, reduce communication for multi-device inference~\cite{yao2024exploiting,dai2024deepseekmoe}.
-They assume the experts they place can stay resident at the precision the checkpoint was loaded in.
-That is Phase~I.
-\systemname\ does not change placement across devices.
+HOBBIT combines dynamic mixed-precision loading, adaptive prefetching, and a multi-level cache; its low-precision miss path reduces transfer cost for experts judged less critical~\cite{tang2024hobbit}.
+DyMoE combines online expert importance, depth-aware mixed precision, caching, and lookahead prefetching, including configurations that retain low-bit experts or omit selected experts~\cite{huang2026dymoe}.
+Their designs establish that mixed precision, caching, and prefetching can coexist, so component composition is not a novelty claim for \systemname.
+The distinction is whether one exchange, under one quality-degradation limit, decides both which bytes occupy expert memory and which transfers occupy the migration queue.
+\systemname\ preserves top-\(k\) semantics and represents all three uses as byte leases.
+Each request names its donor leases, and one deadline replay compares the resulting states under the quality-risk and byte accounts.
+Matched-policy evaluation must establish this distinction; terminology or device class cannot.
 
-\subsection{Quantization}
-
-GPTQ, AWQ, SmoothQuant, and LLM.int8() produce a static low-bit representation~\cite{frantar2022gptq,lin2024awq,xiao2023smoothquant,dettmers2022gptint8}.
-MoE-specific recipes assign bit widths from expert sensitivity, activation frequency, or router statistics, still offline~\cite{kim2023mixturequantizedexpertsmoqe,duanmu2025mxmoe,zhang2025moqe,chitty2025mopeq,chowdhury2026efficient}.
-The static-mixed baseline is this family: a quota and an identity ranking frozen after calibration.
-The preliminary hot-set measurement is why a frozen ranking is a different policy from the slow loop.
-MxMoE additionally fuses mixed-precision expert GEMMs~\cite{duanmu2025mxmoe}.
-We treat that kernel as complementary.
-Our overhead account charges two launches when both tiers are live, and a fused kernel would change \(T_{\ell}\), which the fast loop already measures rather than assumes.
-
-\subsection{Precision on the Transfer Path}
-
-HOBBIT combines a multi-level expert cache with mixed precision so that a miss copies fewer bytes~\cite{tang2024hobbit}.
-DyMoE classifies expert importance online, applies a depth-aware 8/4/0-bit policy, and prefetches missing versions from host memory or SSD for edge-class budgets of 12--24\,GB~\cite{huang2026dymoe}.
-A zero-bit assignment drops the expert and changes the served function.
-\systemname\ does not drop experts.
-The substantive difference, including against HOBBIT’s cheaper miss path, is what a byte is allowed to buy.
-In those systems a low-precision copy is a transfer optimization for an expert that missed.
-In \systemname\ a low-precision copy is a resident state that can remove the miss entirely when \(\PhiRatio \ge 1\), and a high-precision copy is a pin paid for from slack after \(S^{\star}\) is feasible.
-The miss-path mixed baseline exists so that this difference is a measured gap rather than a taxonomic one.
-DyMoE’s edge budgets sit in Phase~III for the models in Table~\ref{tab:models}; the sweep includes that region instead of arguing from the device class.
-
-\subsection{Serving Engines}
-
-vLLM, SGLang, and FlexGen manage KV-cache pages, request scheduling, or offload of a dense model~\cite{kwon2023vllm,zheng2024sglang,sheng2023flexgen}.
-Their allocators are the reason \systemname’s invariant is stated on expert pools and not on the process.
-A paged KV allocator that stays inside its reserve is compatible with the startup check.
-An allocator that grows the KV cache from the same device heap as expert blocks is the reserve violation E6 is instrumented to catch.
-We do not modify those engines in this paper.
-The dispatcher is a Transformers module so that the policy comparison is not confounded with an engine’s scheduler.
+\paragraph{Serving and memory management.}
+vLLM and SGLang manage request scheduling and KV-cache memory, while FlexGen schedules dense-model computation and transfers across a memory hierarchy~\cite{kwon2023vllm,zheng2024sglang,sheng2023flexgen}.
+\systemname\ operates on the expert-memory budget left after non-expert state is reserved and is complementary to those serving functions.
+Because a serving engine can outgrow its declared KV or activation reserve, we report the runtime ledger and process-level peak separately.

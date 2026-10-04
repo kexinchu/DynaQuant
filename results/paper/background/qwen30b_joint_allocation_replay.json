@@ -1,0 +1,930 @@
+{
+  "schema_version": 1,
+  "artifact_type": "background_joint_allocation_replay",
+  "paper_model": "qwen30b",
+  "input_tokens": 2048,
+  "measured_trials": 10,
+  "byte_contract": {
+    "high_precision_expert_bytes": 9437184,
+    "low_precision_expert_bytes": 2506752,
+    "expert_budget_per_layer_bytes": 619659264,
+    "experts_per_layer": 128
+  },
+  "quality_constraint": {
+    "metric": "WikiText-2 perplexity",
+    "all_high_reference": 7.191010103327269,
+    "maximum_increase": 2.1,
+    "limit": 9.291010103327269
+  },
+  "replay_policy": {
+    "resident_ranking": "warmup_frequency",
+    "lookahead": "oracle active set bounded by staging slots",
+    "transfer_window_ms": 1.0,
+    "max_transferable_low_experts_per_window": 9,
+    "reported_metric": "copy-time equivalent of unhidden bytes"
+  },
+  "high_precision_ratios_pct": [
+    0,
+    10,
+    25,
+    40,
+    55,
+    70,
+    85,
+    100
+  ],
+  "staging_experts_per_layer": [
+    0,
+    4,
+    8,
+    12,
+    16,
+    20,
+    24,
+    28,
+    32
+  ],
+  "cells": [
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 495584870.4,
+      "mean_exposed_transfer_ms": 19.93512167794247
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 128847052.8,
+      "mean_exposed_transfer_ms": 5.182929965838356
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 17045913.6,
+      "mean_exposed_transfer_ms": 0.685679450733479
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 0,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 0,
+      "low_precision_residents_per_layer": 128,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.76617644055361,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 495584870.4,
+      "mean_exposed_transfer_ms": 19.93512167794247
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 128847052.8,
+      "mean_exposed_transfer_ms": 5.182929965838356
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 17045913.6,
+      "mean_exposed_transfer_ms": 0.685679450733479
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 10,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 13,
+      "low_precision_residents_per_layer": 115,
+      "memory_feasible": true,
+      "quality_feasible": false,
+      "perplexity": 9.75504885147028,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 495584870.4,
+      "mean_exposed_transfer_ms": 19.93512167794247
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 128847052.8,
+      "mean_exposed_transfer_ms": 5.182929965838356
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 17045913.6,
+      "mean_exposed_transfer_ms": 0.685679450733479
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 96,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 25,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 32,
+      "low_precision_residents_per_layer": 94,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 9.230748907462871,
+      "mean_exposed_bytes_per_request": 11029708.8,
+      "mean_exposed_transfer_ms": 0.4436749387098981
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 51,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 1088431718.4,
+      "mean_exposed_transfer_ms": 43.7826496335995
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 47,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 940533350.4,
+      "mean_exposed_transfer_ms": 37.83337204635313
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 43,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 867336192.0,
+      "mean_exposed_transfer_ms": 34.888983816732896
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 39,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 1156364697.6,
+      "mean_exposed_transfer_ms": 46.51528391519909
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 35,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 1578501734.4,
+      "mean_exposed_transfer_ms": 63.49593384218701
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 31,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 2033226547.2,
+      "mean_exposed_transfer_ms": 81.78744154263599
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 27,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 2490458112.0,
+      "mean_exposed_transfer_ms": 100.17978445642814
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 23,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 2949695078.4,
+      "mean_exposed_transfer_ms": 118.6527955408948
+    },
+    {
+      "high_precision_ratio_pct": 40,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 52,
+      "low_precision_residents_per_layer": 19,
+      "memory_feasible": true,
+      "quality_feasible": true,
+      "perplexity": 8.52250006432731,
+      "mean_exposed_bytes_per_request": 3406174617.6,
+      "mean_exposed_transfer_ms": 137.01488789068398
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 55,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 71,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 8.068658754072667,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 70,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 90,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.65772386133615,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 85,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 109,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.348488539524543,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 0,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 4,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 8,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 12,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 16,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 20,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 24,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 28,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    },
+    {
+      "high_precision_ratio_pct": 100,
+      "staging_experts_per_layer": 32,
+      "high_precision_experts_per_layer": 128,
+      "low_precision_residents_per_layer": 0,
+      "memory_feasible": false,
+      "quality_feasible": true,
+      "perplexity": 7.191010103327269,
+      "mean_exposed_bytes_per_request": null,
+      "mean_exposed_transfer_ms": null
+    }
+  ],
+  "joint_optimum": {
+    "high_precision_ratio_pct": 25,
+    "staging_experts_per_layer": 12,
+    "high_precision_experts_per_layer": 32,
+    "low_precision_residents_per_layer": 96,
+    "memory_feasible": true,
+    "quality_feasible": true,
+    "perplexity": 9.230748907462871,
+    "mean_exposed_bytes_per_request": 11029708.8,
+    "mean_exposed_transfer_ms": 0.4436749387098981
+  },
+  "created_at": "2026-10-03T05:04:05.503121+00:00",
+  "sources": [
+    {
+      "path": "results/paper/qwen30b_routing_active_set_trace.json",
+      "sha256": "69a6c3d0895e077796e1bbd12ad4ef58ee1358da9fa8b5a515995df3c3f502ab"
+    },
+    {
+      "path": "results/paper/qwen30b_offload_waiting.json",
+      "sha256": "15a9fcfc9d5fae3518d468e8ab125a34a820ee205765dc76fa90e4bad95c0bd8"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs1.json",
+      "sha256": "26785bd46de2f67057d318a674ac859c8b08933a2bce4b2386d4e204b2c70b63"
+    },
+    {
+      "path": "results/exploratory/qwen30b_activation_density.json",
+      "sha256": "58aa4a9dc322c1b4c8354d5d8993c7068aa47d5faf7c4d8bd54d170c635aeb6b"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-0.txt",
+      "sha256": "f79dbd76d4f1102d39a13a3dcae956d421347020206d63739f78e49a880691d9"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-100.txt",
+      "sha256": "008bfb4801e3b480581c3e5bca62bd5e1c3caa15622de7929e74cf8fca36488e"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-15.txt",
+      "sha256": "abaddecd89d93eafbfa4a2064adc6b366c5238bd3b0e021586495740dcdcedcc"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-30.txt",
+      "sha256": "b840d2f9df22fc5986d08d602dcf8872defd92301ce0afc0cdf6aa35b8ffd3b4"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-45.txt",
+      "sha256": "0dea413918bebb00e17326e25fec2fe11822641982b4ba3ecb0d91e71033fdd9"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-60.txt",
+      "sha256": "b98135dc3d952210db8c8c535dbd88027560e12dc51ed55b430441ff0c724f40"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-75.txt",
+      "sha256": "826a14e78081ad866c6df0a13e14e54b7452dfc449232ae24c145c4f3c36b818"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-90.txt",
+      "sha256": "788bff14dd414f789875cbdbd8f5f8f1b087f7c70e91b2494f8060dc635b861b"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs2.json",
+      "sha256": "cf590e8ddab57ace36dabaf8b78899385e52945a0a9767084f1bc2e19745b58f"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs4.json",
+      "sha256": "faddd61e1b8190fd52fd6125b4a87c3e647a20825323638f39ffddfd15b9d23d"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs8.json",
+      "sha256": "0a399b64c5a7ed081728c95371a94f424687680ac345c330924498380bcf1681"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs16.json",
+      "sha256": "b6fd5f41d7ed60f77de6a09a6890744ac177a1f5fdc9ca1bd71542dfac31d48e"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs32.json",
+      "sha256": "c8c7927d653fb20415db931f56fb3812a8a436a6791d70ccd1a76a0b20182791"
+    }
+  ],
+  "command": "python scripts/build_background_motivation_data.py",
+  "environment": {
+    "git": {
+      "commit": "40f6a6d6fb573792d69f430a2aa416cc41ede488",
+      "dirty": true
+    }
+  }
+}

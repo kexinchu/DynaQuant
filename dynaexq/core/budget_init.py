@@ -1,8 +1,4 @@
-"""
-BudgetInitializer: computes n_hi[l] and memory pool sizes.
-
-Implements budget feasibility: Σ_l (n_hi[l]*m_l(HI) + (E_l - n_hi[l])*m_l(LO)) ≤ M_exp
-"""
+"""Compute per-layer resident and high-precision quotas."""
 
 from __future__ import annotations
 
@@ -16,6 +12,7 @@ from .config import Tier
 class BudgetResult:
     """Result of budget initialization."""
     n_hi: list[int]  # n_hi[l] per layer
+    n_resident: list[int]  # total published residents per layer
     hi_pool_bytes: int
     lo_pool_bytes: int
     transient_bytes: int
@@ -34,8 +31,7 @@ class BudgetInitializer:
     """
     Initializes budget allocation for expert memory pools.
     
-    Computes n_hi[l] such that total expert memory fits within budget:
-    Σ_l (n_hi[l]*m_l(HI) + (E_l - n_hi[l])*m_l(LO)) ≤ M_exp
+    Computes resident and high-precision quotas that fit the expert budget.
     """
 
     def __init__(
@@ -88,6 +84,7 @@ class BudgetInitializer:
         strategy: str = "proportional",
         *,
         high_precision_ratio: float | None = None,
+        resident_ratio: float = 1.0,
     ) -> BudgetResult:
         """
         Compute n_hi[l] allocation.
@@ -99,6 +96,8 @@ class BudgetInitializer:
                 ``floor(E_l * ratio)`` HI slots. Unlike the automatic
                 strategies, an infeasible requested ratio fails rather than
                 silently reducing it.
+            resident_ratio: Fraction of each layer's experts initially
+                resident. The quota is ``floor(E_l * resident_ratio)``.
         
         Returns:
             BudgetResult with n_hi[l] and pool sizes
@@ -138,13 +137,20 @@ class BudgetInitializer:
                 "No resident expert memory remains after transient reservation"
             )
 
+        if not 0.0 <= resident_ratio <= 1.0:
+            raise ValueError("resident_ratio must be in [0, 1]")
+        n_resident = [
+            int(experts * resident_ratio)
+            for experts in self.experts_per_layer
+        ]
         total_lo = sum(
-            self.experts_per_layer[layer] * m_lo[layer]
+            n_resident[layer] * m_lo[layer]
             for layer in range(self.num_layers)
         )
         if total_lo > resident_budget:
             raise ValueError(
-                "All-LO expert footprint exceeds the resident expert budget: "
+                "All-LO requested resident footprint exceeds the resident "
+                "expert budget: "
                 f"required={total_lo}, available={resident_budget}"
             )
 
@@ -156,18 +162,32 @@ class BudgetInitializer:
                 int(experts * high_precision_ratio)
                 for experts in self.experts_per_layer
             ]
+            if any(
+                n_hi[layer] > n_resident[layer]
+                for layer in range(self.num_layers)
+            ):
+                raise ValueError(
+                    "requested high-precision ratio exceeds resident slots: "
+                    f"high={n_hi}, resident={n_resident}"
+                )
         elif strategy == "uniform":
-            n_hi = self._uniform_allocation(resident_budget, m_hi, m_lo)
+            n_hi = self._uniform_allocation(
+                resident_budget, m_hi, m_lo, n_resident
+            )
         elif strategy == "proportional":
-            n_hi = self._proportional_allocation(resident_budget, m_hi, m_lo)
+            n_hi = self._proportional_allocation(
+                resident_budget, m_hi, m_lo, n_resident
+            )
         elif strategy == "greedy":
-            n_hi = self._greedy_allocation(resident_budget, m_hi, m_lo)
+            n_hi = self._greedy_allocation(
+                resident_budget, m_hi, m_lo, n_resident
+            )
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
         
         # Verify feasibility
         total_bytes = sum(
-            n_hi[l] * m_hi[l] + (self.experts_per_layer[l] - n_hi[l]) * m_lo[l]
+            n_hi[l] * m_hi[l] + (n_resident[l] - n_hi[l]) * m_lo[l]
             for l in range(self.num_layers)
         )
         
@@ -179,16 +199,18 @@ class BudgetInitializer:
             )
         if total_bytes > resident_budget:
             # Reduce allocation greedily if needed
-            n_hi = self._greedy_reduce(n_hi, resident_budget, m_hi, m_lo)
+            n_hi = self._greedy_reduce(
+                n_hi, resident_budget, m_hi, m_lo, n_resident
+            )
             total_bytes = sum(
-                n_hi[l] * m_hi[l] + (self.experts_per_layer[l] - n_hi[l]) * m_lo[l]
+                n_hi[l] * m_hi[l] + (n_resident[l] - n_hi[l]) * m_lo[l]
                 for l in range(self.num_layers)
             )
         
         # Compute pool sizes
         hi_pool_bytes = sum(n_hi[l] * m_hi[l] for l in range(self.num_layers))
         lo_pool_bytes = sum(
-            (self.experts_per_layer[l] - n_hi[l]) * m_lo[l]
+            (n_resident[l] - n_hi[l]) * m_lo[l]
             for l in range(self.num_layers)
         )
         
@@ -200,6 +222,7 @@ class BudgetInitializer:
         
         return BudgetResult(
             n_hi=n_hi,
+            n_resident=n_resident,
             hi_pool_bytes=hi_pool_bytes,
             lo_pool_bytes=lo_pool_bytes,
             transient_bytes=transient_bytes,
@@ -210,23 +233,30 @@ class BudgetInitializer:
         )
 
     def _uniform_allocation(
-        self, M_exp: int, m_hi: list[int], m_lo: list[int]
+        self,
+        M_exp: int,
+        m_hi: list[int],
+        m_lo: list[int],
+        capacities: list[int] | None = None,
     ) -> list[int]:
         """Uniform allocation: same n_hi for all layers."""
         # Binary search the largest common per-layer quota. Layers with fewer
         # experts saturate at their own count.
         low = 0
-        high = max(self.experts_per_layer)
+        capacities = (
+            self.experts_per_layer if capacities is None else capacities
+        )
+        high = max(capacities)
         best = [0] * self.num_layers
         while low <= high:
             quota = (low + high) // 2
             candidate = [
-                min(quota, self.experts_per_layer[layer])
+                min(quota, capacities[layer])
                 for layer in range(self.num_layers)
             ]
             total = sum(
                 candidate[layer] * m_hi[layer]
-                + (self.experts_per_layer[layer] - candidate[layer]) * m_lo[layer]
+                + (capacities[layer] - candidate[layer]) * m_lo[layer]
                 for layer in range(self.num_layers)
             )
             if total <= M_exp:
@@ -237,16 +267,23 @@ class BudgetInitializer:
         return best
 
     def _proportional_allocation(
-        self, M_exp: int, m_hi: list[int], m_lo: list[int]
+        self,
+        M_exp: int,
+        m_hi: list[int],
+        m_lo: list[int],
+        capacities: list[int] | None = None,
     ) -> list[int]:
         """Proportional allocation: allocate based on layer size."""
         # Allocate proportionally to expert count
-        total_experts = sum(self.experts_per_layer)
+        capacities = (
+            self.experts_per_layer if capacities is None else capacities
+        )
+        total_experts = sum(capacities)
         if total_experts == 0:
             return [0] * self.num_layers
         
         # First, compute if all experts in LO tier fit
-        total_lo = sum(self.experts_per_layer[l] * m_lo[l] for l in range(self.num_layers))
+        total_lo = sum(capacities[l] * m_lo[l] for l in range(self.num_layers))
         if total_lo > M_exp:
             # Even all LO doesn't fit - return zeros (infeasible)
             return [0] * self.num_layers
@@ -260,12 +297,12 @@ class BudgetInitializer:
         for _ in range(20):  # 20 iterations should be enough
             ratio = (min_ratio + max_ratio) / 2.0
             n_hi = [
-                max(0, int(self.experts_per_layer[l] * ratio))
+                max(0, int(capacities[l] * ratio))
                 for l in range(self.num_layers)
             ]
             
             total = sum(
-                n_hi[l] * m_hi[l] + (self.experts_per_layer[l] - n_hi[l]) * m_lo[l]
+                n_hi[l] * m_hi[l] + (capacities[l] - n_hi[l]) * m_lo[l]
                 for l in range(self.num_layers)
             )
             
@@ -277,16 +314,23 @@ class BudgetInitializer:
         
         # Ensure n_hi[l] <= E_l
         return [
-            min(best_n_hi[l], self.experts_per_layer[l]) for l in range(self.num_layers)
+            min(best_n_hi[l], capacities[l]) for l in range(self.num_layers)
         ]
 
     def _greedy_allocation(
-        self, M_exp: int, m_hi: list[int], m_lo: list[int]
+        self,
+        M_exp: int,
+        m_hi: list[int],
+        m_lo: list[int],
+        capacities: list[int] | None = None,
     ) -> list[int]:
         """Greedy allocation: maximize HI experts within budget."""
         n_hi = [0] * self.num_layers
+        capacities = (
+            self.experts_per_layer if capacities is None else capacities
+        )
         total_lo = sum(
-            self.experts_per_layer[layer] * m_lo[layer]
+            capacities[layer] * m_lo[layer]
             for layer in range(self.num_layers)
         )
         remaining = M_exp - total_lo
@@ -299,7 +343,7 @@ class BudgetInitializer:
             best_cost = float('inf')
             
             for l in range(self.num_layers):
-                if n_hi[l] >= self.experts_per_layer[l]:
+                if n_hi[l] >= capacities[l]:
                     continue
                 
                 cost = m_hi[l] - m_lo[l]  # Additional bytes for one upgrade.
@@ -315,7 +359,7 @@ class BudgetInitializer:
                 # unproductive loop.
                 for layer in range(self.num_layers):
                     if m_hi[layer] == m_lo[layer]:
-                        n_hi[layer] = self.experts_per_layer[layer]
+                        n_hi[layer] = capacities[layer]
                 continue
             n_hi[best_layer] += 1
             remaining -= int(best_cost)
@@ -323,12 +367,20 @@ class BudgetInitializer:
         return n_hi
 
     def _greedy_reduce(
-        self, n_hi: list[int], M_exp: int, m_hi: list[int], m_lo: list[int]
+        self,
+        n_hi: list[int],
+        M_exp: int,
+        m_hi: list[int],
+        m_lo: list[int],
+        capacities: list[int] | None = None,
     ) -> list[int]:
         """Reduce allocation greedily to fit budget."""
         n_hi = n_hi.copy()
+        capacities = (
+            self.experts_per_layer if capacities is None else capacities
+        )
         total = sum(
-            n_hi[l] * m_hi[l] + (self.experts_per_layer[l] - n_hi[l]) * m_lo[l]
+            n_hi[l] * m_hi[l] + (capacities[l] - n_hi[l]) * m_lo[l]
             for l in range(self.num_layers)
         )
         

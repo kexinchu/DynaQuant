@@ -1,0 +1,19 @@
+{
+  "step": "S2-SKETCH-EXPLORE",
+  "candidate_id": "C01",
+  "status": "NEEDS_REVIEW",
+  "attempt": 1,
+  "revision_attempts_used": 0,
+  "candidate_dir": "outputs/S2-sketch-explore/candidates/C01",
+  "prompt_path": "outputs/S2-sketch-explore/candidates/C01/prompt-v01.md",
+  "target_image_path": "outputs/S2-sketch-explore/candidates/C01/image-v01.png",
+  "active_image_path": "outputs/S2-sketch-explore/candidates/C01/image-v01.png",
+  "active_audit_json": "outputs/S2-sketch-explore/candidates/C01/audit-latest.json",
+  "status_path": "outputs/S2-sketch-explore/candidates/C01/status.json",
+  "id_path_coherence_status": "candidate_id_matches_active_image_path",
+  "updated_at": "2026-10-03T02:53:24+00:00",
+  "image_generated": true,
+  "image_generation_event_id": "s2-imagegen-20261003-b01",
+  "registration_batch_id": "s2-c01-c08-v01",
+  "candidate_id_source_of_truth": "prompt-index target path"
+}

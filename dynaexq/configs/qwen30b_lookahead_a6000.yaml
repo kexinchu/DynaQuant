@@ -1,0 +1,35 @@
+model:
+  name: qwen3-moe-30b-a3b
+  layers: 48
+  experts_per_layer: 128
+  topk: 8
+precision:
+  hi: fp16
+  lo: int4
+  backend: reference
+scheduler:
+  alpha: 0.9
+  update_period_steps: 50
+  rate_limit: 8
+  delta_score_margin: 0.01
+  min_tenure_steps: 100
+  lookahead_depth: 3
+  lookahead_per_layer: 1
+  enabled: false
+memory:
+  device_mem_bytes: 48000000000
+  reserve_kv_bytes: 10000000000
+  reserve_act_bytes: 2000000000
+  reserve_dense_bytes: 5000000000
+  reserve_kernel_workspace_bytes: 0
+  safety_margin_bytes: 1000000000
+  max_inflight: 4
+  resident_ratio: 0.5
+  initial_high_precision_ratio: 0.0
+experiments:
+  concurrency: 64
+  input_tokens: 2048
+  output_tokens: 256
+  shift_phases: [wikitext, gsm8k, humaneval]
+  phase_duration_s: 180
+  cycles: 3

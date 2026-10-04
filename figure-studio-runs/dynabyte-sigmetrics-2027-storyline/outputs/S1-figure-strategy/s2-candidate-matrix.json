@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "stage": "S1-FIGURE-STRATEGY",
+  "target_stage": "S2-SKETCH-EXPLORE",
+  "scope": "conceptual motivation teaser only; no empirical plots",
+  "first_round_default_style_id": "formal_publication_schematic",
+  "empirical_figure_route": "script_only",
+  "candidates": [
+    {"candidate_id":"C01","narrative_role":"macro_backbone","protagonist":"shared expert-memory budget","dominant_visual_spine":"linear_backbone","layout_archetype":"left_center_right fork and convergence","primary_emphasis":"fastest whole-conflict scan","nearest_difference":"only candidate with strict one-line horizontal scan"},
+    {"candidate_id":"C02","narrative_role":"artifact_lineage","protagonist":"bytes","dominant_visual_spine":"funnel_hourglass","layout_archetype":"top source, middle three uses, bottom convergence","primary_emphasis":"resource lineage","nearest_difference":"vertical byte lineage rather than horizontal process"},
+    {"candidate_id":"C03","narrative_role":"problem_solution_storyboard","protagonist":"budget ownership","dominant_visual_spine":"comparison","layout_archetype":"left conflict versus right shared gate","primary_emphasis":"why independent knobs conflict","nearest_difference":"two-side conceptual comparison without performance result"},
+    {"candidate_id":"C04","narrative_role":"multi_space_balance","protagonist":"shared budget","dominant_visual_spine":"hub_and_spoke","layout_archetype":"central budget with three orbiting uses and lower outcome","primary_emphasis":"symmetric opportunity cost","nearest_difference":"radial relation map"},
+    {"candidate_id":"C05","narrative_role":"signature_mechanism_reveal","protagonist":"upcoming expert deadline","dominant_visual_spine":"zoom_callout","layout_archetype":"main deadline path plus one compact three-factor callout","primary_emphasis":"how bytes affect timely availability","nearest_difference":"deadline-focused scoped mechanism"},
+    {"candidate_id":"C06","narrative_role":"actor_centered","protagonist":"bounded GPU expert pool","dominant_visual_spine":"layered_stack","layout_archetype":"single capacity container with three internal allocations","primary_emphasis":"spatial opportunity cost","nearest_difference":"one shared memory-bin metaphor, no external fork"},
+    {"candidate_id":"C07","narrative_role":"model_state_lifecycle","protagonist":"fast and slow decisions","dominant_visual_spine":"cycle","layout_archetype":"fast inner staging arc and slow outer precision arc around one pool","primary_emphasis":"two timescales under one budget","nearest_difference":"temporal loop rather than static allocation"},
+    {"candidate_id":"C08","narrative_role":"dense_contract_stress_test","protagonist":"feasible operating point","dominant_visual_spine":"dual_space","layout_archetype":"three constraint borders surrounding compact three-use core","primary_emphasis":"memory, quality, and deadline feasibility","nearest_difference":"constraint-first inside-out reading"}
+  ],
+  "layout_divergence_gate": {
+    "distinct_spines": 8,
+    "same_triple_collisions": [],
+    "max_same_layout_family": 1,
+    "verdict": "pass"
+  }
+}

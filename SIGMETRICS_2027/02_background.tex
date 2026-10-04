@@ -1,235 +1,199 @@
 \section{Background and Motivation}
 \label{sec:bg}
 
-\subsection{Expert Bytes on One Accelerator}
+\subsection{Expert Memory on One Accelerator}
 \label{sec:serving}
 
-An MoE layer \(\ell\) holds \(E_{\ell}\) routed experts and sends each token to \(k_{\ell}\) of them.
-Expert weights are the movable object.
-Non-expert parameters, the KV cache, activations, and a conversion workspace are sized for a declared maximum batch and sequence length and are reserved outside \(B\).
-The runtime's allocation problem is only the expert budget.
-Host memory holds a packed low-precision copy and a packed high-precision copy of each expert.
-The device holds at most one live copy.
-A live copy occupies either \(m^{\mathrm{lo}}_{\ell}\) or \(m^{\mathrm{hi}}_{\ell}\) bytes, both measured from the packed representation rather than from a nominal bit width.
-Promoting an expert therefore costs \(m^{\mathrm{hi}}_{\ell}-m^{\mathrm{lo}}_{\ell}\) extra device bytes if a low-precision copy was already resident, and it costs \(m^{\mathrm{hi}}_{\ell}\) bytes if the expert was absent.
+An MoE layer \(\ell\) contains \(E_{\ell}\) routed experts and sends each token to \(k_{\ell}\) of them.
+The router determines which experts execute, but it does not determine where their weights are stored or when they arrive on the device.
+If a selected expert is absent, its weights must be transferred from host memory before its computation can finish.
+A demand transfer can expose most of this cost to the forward pass.
+A prefetch can hide part of the transfer by issuing it before the expert is needed.
 
-Three published mechanisms cover different corners of this state space.
-Uniform post-training quantization assigns every expert the same bit width offline~\cite{frantar2022gptq,lin2024awq,dettmers2022gptint8,xiao2023smoothquant}.
-The configuration is feasible only when the chosen width's pool fits in \(B\), and it cannot move fidelity when the router's hot set changes.
-Cross-layer prefetch issues transfers for the experts predicted over the next \(S\) layers on a side stream, overlapping them with the compute of layers \(\ell,\ldots,\ell{+}S{-}1\)~\cite{song2024promoe,eliseev2023fast,hwang2024pre}.
-\(S\) does not change routing.
-It changes only how many distinct expert bytes the cache must absorb.
-Mixed-precision offload uses a cheaper representation on the miss path so that a cache fill moves fewer bytes~\cite{tang2024hobbit,huang2026dymoe}.
-The bit width in that design is a property of the transfer, not a pin that is protected from eviction.
+We reserve memory for non-expert parameters, the KV cache, activations, and runtime workspaces before assigning memory to experts.
+The remaining capacity is the expert-memory budget \(B\).
+Host memory stores packed low- and high-precision representations of every routed expert.
+Their measured sizes are \(m^{\mathrm{lo}}_{\ell,e}\) and \(m^{\mathrm{hi}}_{\ell,e}\); nominal bit width is not used for accounting.
+Let \(P_b=\sum_{\ell,e}m^b_{\ell,e}\) be the aggregate footprint at tier \(b\in\{\mathrm{lo},\mathrm{hi}\}\).
+We use \(\PhiRatio=B/P_{\mathrm{lo}}\) for the budget relative to the low-tier footprint and \(\rho=P_{\mathrm{hi}}/P_{\mathrm{lo}}\) for the high-to-low footprint ratio.
+At any instant, an expert is absent, resident at low precision, resident at high precision, or in transition to a new published state.
+The forward pass can use only a published resident representation.
 
-\subsection{Preliminary Measurements}
-\label{sec:prelim}
+The host-to-device bandwidth budget is the measured copy rate on the migration path.
+It is the rate of one queue, not a second capacity that the runtime partitions.
+An exchange allocates that rate by choosing a representation size, whether the expert stays resident, and when its transfer occupies the queue.
+Allocating expert-memory bytes therefore decides which transfers consume the measured bandwidth.
 
-The joint protocol in Section~\ref{sec:eval} repeats the following measurements on one runtime.
-We report them here because they fix the quantities the model has to explain.
-All three were taken on an NVIDIA RTX~A6000~\cite{nvidiaA6000datasheet}.
-They are not comparable to each other as end-to-end system results: the density and hot-set traces use the model's native routing with experts forced to the low tier, and the horizon sweep uses a separate 20\,GB residency cap.
+Those two budgets meet in three uses.
+Precision assigns extra bytes to a higher-precision representation.
+We call that increment \emph{fidelity} and use fidelity for this use in the rest of the paper.
+\emph{Residency} keeps an expert on the device so that a later access requires no transfer.
+\emph{Lookahead} stages an absent expert early enough to overlap its transfer with preceding computation.
+Lookahead is not a separate representation: it is a timed transition from absence to residency.
+Residency avoids a transfer.
+Lookahead reduces the critical-path portion of a transfer that still occurs.
 
-\paragraph{Activation density swings inside one request.}
-We define the unique-expert ratio of a step as the number of distinct experts selected by top-\(k\) routing, divided by \(E_{\ell}\), averaged over routed layers.
-The average is over five fixed prompt blocks.
-Batch \(b\) uses the first \(b\) prompts of a 32-prompt block.
-Prefill is the unique set over all non-padding tokens of a prompt capped at 2{,}048 tokens.
-Decode is the unique set of the single next token, not an accumulation over a long generation.
-Table~\ref{tab:density} shows the ratio on three models.
-On Qwen3-30B at batch 32 the prefill ratio is 94.0\% and the next decode step is 26.0\%.
-On Phi-3.5-MoE the prefill ratio is essentially the entire pool at every batch we measured.
-A horizon chosen for the decode working set does not describe the prefill working set of the same request.
+The four measurements below are one argument about this allocation.
+The first prices a fidelity quota and records that the higher-precision copy is the larger transfer.
+The second shows that the experts a workload uses change across tasks, so neither the quota's recipients nor the resident set can be frozen from one task.
+The third holds representation size fixed and shows when host-to-device bandwidth can hide the experts that remain absent.
+The fourth places all three uses on one expert-memory budget, at one measured bandwidth, and shows that moving fidelity moves residency and lookahead together.
 
-\begin{table}[t]
+\begin{figure}[b]
   \centering
-  \caption{Preliminary unique-expert activation ratio (\%), RTX~A6000.
-  Each cell averages routed layers and five prompt blocks.
-  Prefill accumulates the prompt; decode is one subsequent token.
-  The joint protocol repeats this table before any system comparison.}
-  \label{tab:density}
-  \small
-  \begin{tabular}{@{}llrrrrrr@{}}
-    \toprule
-    Model & Stage & 1 & 2 & 4 & 8 & 16 & 32 \\
-    \midrule
-    Qwen3-30B & Decode & 6.3 & 7.9 & 11.8 & 16.1 & 20.8 & 26.0 \\
-              & Prefill & 59.8 & 70.0 & 82.9 & 89.7 & 92.4 & 94.0 \\
-    Qwen3-Next-80B & Decode & 1.9 & 3.7 & 6.7 & 14.9 & 25.4 & 39.2 \\
-                   & Prefill & 24.6 & 35.3 & 48.8 & 67.1 & 78.9 & 86.2 \\
-    Phi-3.5-MoE & Decode & 12.5 & 22.7 & 37.1 & 59.3 & 77.8 & 88.8 \\
-                & Prefill & 98.2 & 98.8 & 99.4 & 99.8 & 99.9 & 100.0 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/wiki_ppl_qwen30b.pdf}
+    \small (a) Qwen3-30B: FP16/INT4
+  \end{minipage}
+  \begin{minipage}{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/wiki_ppl_qwen80b.pdf}
+    \small (b) Qwen3-Next-80B: INT4/INT2
+  \end{minipage}
+  \Description{Two curves show WikiText-2 perplexity increasing as a larger fraction of experts uses the lower precision.}
+  \caption{WikiText-2 perplexity under frozen precision-quota sweeps.
+  Experts are demoted in the order defined by an independent, fixed ranking; these are not online-policy results.}
+  \label{fig:bg-ppl}
+\end{figure}
 
-\paragraph{The hot set is a property of the task.}
-On Qwen3-30B, Layer~15, we counted every selected top-\(k\) dispatch under three full workloads (WikiText, GSM8K, and HumanEval) with the scheduler frozen and every expert held at low precision.
-The ten most frequently selected experts were disjoint across the three workloads.
-A high-precision assignment computed on one calibration corpus therefore pins the wrong experts on the other two tasks.
-The slow loop has to be allowed to change identities.
-It also has to be slow: a swap replaces a resident block and consumes migration bandwidth.
+\subsection{Fidelity Has a Quality Price and a Transfer Cost}
+\label{sec:obs-quality}
 
-\paragraph{The horizon has a U-shaped latency curve when the pool does not fit.}
-Under a 20\,GB device cap that forces expert absence, latency against \(S\) on three smaller MoE models was U-shaped.
-Below the minimum, transfers do not finish inside the compute of the next \(S\) layers and the critical path accumulates exposed wait.
-Above the minimum, the speculative set exceeds the cap, evictions increase, and later misses reload experts that a smaller horizon would have kept.
-The location of the minimum differed by model on the same device.
-Holding \(S\) fixed and increasing the batch from 1 to 32 increased the waiting component by up to \(2.5\times\).
-At fixed batch size, requests with higher intra-batch embedding dispersion activated more distinct experts and showed up to \(300\%\) end-to-end latency variation against low-dispersion requests of the same length.
-Effective host-to-device bandwidth across the devices used in that sweep spans roughly an order of magnitude, from a low-bandwidth discrete GPU to NVIDIA~H20 and Ascend~910B at about 128\,GB/s.
-A horizon selected on one (device, batch, dispersion) triple is a different point on the curve for the others.
+Releasing expert-memory bytes by lowering precision also shrinks later transfers, but the released bytes have a quality price.
+Figure~\ref{fig:bg-ppl} varies the fraction of low-precision experts under a frozen expert ranking.
 
-These three facts are the constraints on the model.
-Density determines how many distinct experts a step demands.
-Task identity determines which of those experts are worth a high-precision pin, on a slower timescale than a single layer.
-Bandwidth, batch, and dispersion move the horizon that hides transfers, and they do so only when absence is unavoidable.
-The rest of this section writes those constraints as a budget ratio and an overlap predicate.
+Each point demotes a suffix of the same ranking, so the curves isolate the fidelity quota rather than online reassignment.
+Perplexity rises continuously on both models.
+Raising the fidelity share therefore spends expert memory and, because the high-precision representation is the larger packed size, increases the bytes a later transfer must move.
+That continuous rise is why the share sits under a quality-degradation limit.
+The sweep uses one frozen ranking and does not name the experts who receive the higher-precision bytes.
+The next measurement asks whether the experts a workload uses stay fixed.
 
-\subsection{The Budget Ratio}
-\label{sec:model}
+\subsection{The Experts a Workload Uses Also Change}
+\label{sec:obs-demand}
 
-Let \(P_{\mathrm{lo}}=\sum_{\ell} E_{\ell}\, m^{\mathrm{lo}}_{\ell}\) and \(P_{\mathrm{hi}}=\sum_{\ell} E_{\ell}\, m^{\mathrm{hi}}_{\ell}\).
-Both sums are known once the packed representations have been materialized.
-The deployment ratio is \(\PhiRatio=B/P_{\mathrm{lo}}\).
-Staging for a publish-before-reclaim overlap is a constant \(M_{\mathrm{stage}}=K \max_{\ell,b} m^{b}_{\ell}\), with \(K\) the maximum number of in-flight transitions.
-The controller spends \(B-M_{\mathrm{stage}}\).
-We fold \(M_{\mathrm{stage}}\) into the definition of the usable budget from here on and continue to call it \(B\), so the inequalities below are stated against the usable budget.
-Figure~\ref{fig:phase} is a schematic of the resulting regimes, not a measurement.
+The quality curve prices a fidelity quota without naming its recipients.
+Figure~\ref{fig:bg-hotsets} shows that the experts actually dispatched at Layer~15 change across text, math, and code.
+Every expert stays at low precision, and the counters reset between workloads.
+A fidelity assignment or a resident set taken from one workload therefore misses experts the next workload uses.
+The counts measure access frequency, not quantization sensitivity, so they do not rank the quality harm of a low-precision expert.
+They do make both the fidelity recipients and the resident set workload-dependent inputs to the same allocation.
 
 \begin{figure}[t]
   \centering
-  \begin{tikzpicture}[
-      font=\small,
-      box/.style={draw, minimum height=1.15cm, inner sep=2pt, align=center},
-      arr/.style={-{Stealth}, thick}
-    ]
-    \node[box, minimum width=3.3cm, fill=black!6] (p3) {Phase III\\ \(\PhiRatio<1\)\\ absent experts};
-    \node[box, minimum width=3.5cm, fill=black!3, right=0pt of p3] (p2) {Phase II\\ \(1\le\PhiRatio<\rho\)\\ all resident at low};
-    \node[box, minimum width=3.2cm, fill=white, right=0pt of p2] (p1) {Phase I\\ \(\PhiRatio\ge\rho\)\\ all resident at high};
-    \node[below=0.15cm of p3, align=center] {tighter budget};
-    \node[below=0.15cm of p1, align=center] {looser budget};
-  \end{tikzpicture}
-  \Description{Three adjacent boxes labeled Phase III, Phase II, and Phase I, ordered from a tighter budget to a looser budget.}
-  \caption{Regimes of the expert-byte budget.
-  \(\rho=P_{\mathrm{hi}}/P_{\mathrm{lo}}\).
-  Phase~II spends leftover bytes on high-precision pins and sets the horizon to zero.
-  Phase~III spends bytes first on the smallest feasible horizon, then on pins.
-  The figure is the model's partition; Section~\ref{sec:eval} checks it against measured latency.}
-  \label{fig:phase}
+  \begin{minipage}{0.32\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/wikitext_thinking_on_layer_15.pdf}
+    \small (a) WikiText
+  \end{minipage}
+  \begin{minipage}{0.32\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/gsm8k_thinking_off_layer_15.pdf}
+    \small (b) GSM8K
+  \end{minipage}
+  \begin{minipage}{0.32\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/humaneval_thinking_on_layer_15.pdf}
+    \small (c) HumanEval
+  \end{minipage}
+  \Description{Three expert-dispatch histograms show different hot experts for WikiText, GSM8K, and HumanEval at layer 15 of Qwen3-30B.}
+  \caption{Selected token--expert dispatch counts at Layer~15 of Qwen3-30B.
+  All experts remain at low precision and the counters are reset between workloads.}
+  \label{fig:bg-hotsets}
 \end{figure}
 
-\paragraph{Phase I.}
-If \(B \ge P_{\mathrm{hi}}\), every expert fits at high precision.
-The latency and quality costs of migration are both zero at the all-high assignment.
-\systemname\ loads that assignment and disables both loops.
+\subsection{Whether the Remaining Bytes Can Be Hidden Also Changes}
+\label{sec:obs-overlap}
 
-\paragraph{Phase II.}
-If \(P_{\mathrm{lo}} \le B < P_{\mathrm{hi}}\), every expert fits at low precision and the all-high assignment does not fit.
-Absence is unnecessary.
-Any prefetch that moves an expert already resident adds a transfer and does not remove one.
-The horizon that minimizes transfer latency is therefore \(S^{\star}=0\).
-Replacing a low-precision resident with a high-precision resident costs \(m^{\mathrm{hi}}_{\ell}-m^{\mathrm{lo}}_{\ell}\) additional bytes.
-When expert sizes are uniform within a layer and the same across layers, the maximum number of high-precision experts per layer satisfies
-\begin{equation}
-  n_{\mathrm{hi}}
-  \;\le\;
-  \left\lfloor
-    \frac{B-P_{\mathrm{lo}}}{m^{\mathrm{hi}}-m^{\mathrm{lo}}}
-    \cdot
-    \frac{1}{L}
-  \right\rfloor,
-  \label{eq:phase2-nhi}
-\end{equation}
-with \(L\) the number of MoE layers, the floor applying after a proportional split.
-The general case without that uniformity assumption is the integer knapsack that maximizes \(\sum_{\ell} n_{\mathrm{hi},\ell}\) subject to \(\sum_{\ell} n_{\mathrm{hi},\ell}(m^{\mathrm{hi}}_{\ell}-m^{\mathrm{lo}}_{\ell}) \le B-P_{\mathrm{lo}}\) and \(0 \le n_{\mathrm{hi},\ell} \le E_{\ell}\).
-We use the proportional split in the implementation and record the knapsack as an optimality gap to measure, not as the online algorithm.
-Identities inside the quota are the only online decision in this phase.
-They are ranked by the slow hotness score of Section~\ref{sec:slow}.
+The quality curve prices the fidelity quota, and the dispatch counts show that the accessed experts change with the task.
+What remains open is whether an expert that is still absent can arrive before it is used.
+High expert demand does not by itself imply that lookahead can hide a transfer.
+Figure~\ref{fig:bg-transfer-pressure} compares the bytes selected in one MoE layer with an aggregate upper bound on bytes transferable during that layer's compute window.
+Demand comes from five measured prompt blocks at each batch size.
+The bound multiplies measured blocking host-to-device (H2D) bandwidth by mean TTFT or TPOT divided by 48 routed layers.
+It is deliberately optimistic: it ignores individual expert deadlines and bandwidth lost to concurrent kernels.
+Prefill touches most routed experts, yet its compute window grows with the batch.
+Decode touches fewer experts, but its shorter window leaves less time before use.
+Demand determines what may need to move; the compute window and the expert's deadline determine whether moving it early is useful.
+Lookahead's bandwidth cost is the gap between selected bytes and the bytes this host-to-device rate can move inside the window.
+Prefill and decode move that gap in opposite directions, so one lookahead depth does not fit both phases.
+This comparison holds representation size fixed.
+The next measurement lets fidelity, residency, and lookahead draw from one budget.
 
-As a numerical illustration of the algebra, not as a measured operating point: if \(m^{\mathrm{hi}}=4\,m^{\mathrm{lo}}\) and \(B=1.5\,P_{\mathrm{lo}}\), then \(\PhiRatio=1.5\) and the high-precision share of the pool is \((\PhiRatio-1)/(\rho-1)=1/6\).
-About one sixth of the experts can be pinned high, and the rest stay resident at low precision.
-A horizon controller that still evicts cold experts to ``make room'' destroys the floor that made \(S^{\star}=0\) feasible.
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.85\linewidth]{figures/background_transfer_pressure_legend.pdf}
+  \begin{minipage}{0.47\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/background_transfer_pressure_prefill.pdf}
+    \small (a) Prefill
+  \end{minipage}
+  \hfill
+  \begin{minipage}{0.47\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/background_transfer_pressure_decode.pdf}
+    \small (b) Decode
+  \end{minipage}
+  \Description{Two panels compare active expert bytes with an upper bound on overlap capacity across batch sizes for prefill and decode. Prefill has higher demand and a much larger overlap window; decode has lower demand but less slack.}
+  \caption{Active expert bytes and an upper bound on overlap capacity for Qwen3-30B.
+  The bound uses measured blocking-copy bandwidth and mean per-layer TTFT or TPOT; it is not the result of an overlapping offload runtime.}
+  \label{fig:bg-transfer-pressure}
+\end{figure}
 
-\paragraph{Phase III.}
-If \(B < P_{\mathrm{lo}}\), a complete low-precision floor does not fit.
-Some experts are absent, and a miss moves \(m\) bytes, where \(m\) is the size of the representation being fetched.
-Let \(\hat{U}(S)\) be the set of experts the predictor expects to touch over the next \(S\) MoE layers, and let \(R\) be the set currently resident.
-The miss set is \(\hat{U}(S)\setminus R\), and its transfer size is
-\begin{equation}
-  M_{\mathrm{miss}}(S)
-  \;=\;
-  \sum_{(\ell,e)\in \hat{U}(S)\setminus R} m_{\ell,e},
-  \label{eq:miss-bytes}
-\end{equation}
-where \(m_{\ell,e}\) equals \(m^{\mathrm{hi}}_{\ell}\) if \((\ell,e)\) is a high-precision pin and \(m^{\mathrm{lo}}_{\ell}\) otherwise.
-Pins are not misses.
-A horizon \(S\) hides that transfer when two predicates hold simultaneously:
-\begin{align}
-  M_{\mathrm{miss}}(S) &\;\le\; S \cdot T_{\ell} \cdot C,
-  \label{eq:overlap}\\
-  \mathrm{bytes}(R \cup \hat{U}(S)) &\;\le\; B.
-  \label{eq:fit}
-\end{align}
-Equation~\eqref{eq:overlap} is the overlap window.
-Equation~\eqref{eq:fit} is cache pollution written as a hard constraint: a horizon whose speculative set does not fit is not a candidate, rather than a candidate with a penalty weight.
-Define
-\begin{equation}
-  S^{\star}
-  \;=\;
-  \min\{\, S \in [S_{\min}, S_{\max}] : \eqref{eq:overlap}\ \mathrm{and}\ \eqref{eq:fit}\,\},
-  \label{eq:sstar}
-\end{equation}
-and call the feasible set empty when no such \(S\) exists.
-The minimum is the latency-optimal choice under a lexicographic rule: meet the overlap constraint, then leave the largest possible slack \(B-\mathrm{bytes}(R \cup \hat{U}(S^{\star}))\) for high-precision pins.
-A larger feasible horizon would also hide the mean transfer and would consume bytes that could have raised \(n_{\mathrm{hi}}\).
+\subsection{A Fidelity Change Moves Residency and Lookahead}
+\label{sec:obs-joint}
 
-The empty-set case is the dense sub-phase.
-It is what Table~\ref{tab:density} suggests during prefill at high batch: \(\hat{U}(S)\) grows toward the full pool, \(M_{\mathrm{miss}}(S)\) exceeds both the overlap window and \(B\), and increasing \(S\) makes~\eqref{eq:fit} fail sooner.
-The latency-minimizing action is then \(S^{\star}=S_{\min}\), with resident slots filled by the immediate layer's demand and then by the slow hotness order.
-The non-empty case is the sparse sub-phase, typical of a small decode working set.
-There \(S^{\star}\) is achievable, and every byte above \(\mathrm{bytes}(\hat{U}(S^{\star}))\) is slack.
+None of the measurements above lets the three uses compete for one budget.
+Figure~\ref{fig:bg-joint} places fidelity, residency, and lookahead on the same expert-memory budget, at the measured transfer bandwidth of the replay.
+The experiment replays a measured 2,048-token routing trace under the byte-accurate expert budget used by our Qwen3-30B runtime.
+It imposes an illustrative WikiText-2 limit of 2.1 perplexity above the all-high configuration. Among the scanned high-precision fractions, only 25\% and 40\% satisfy both the quality-degradation limit and the expert-memory budget.
+Residents follow the frequency ranking from warm-up traces; lookahead has oracle knowledge of the measured active set but is limited by its staging slots and the measured transfer window.
 
-Tail demand uses the same predicate.
-Let \(M^{\mathrm{p95}}_{\mathrm{miss}}(S)\) be~\eqref{eq:miss-bytes} evaluated at the 95th percentile of the miss-set size observed over a sliding window of recent batches at this layer, with expert size \(m^{\mathrm{lo}}\) for unpinned experts.
-The controller substitutes \(M^{\mathrm{p95}}_{\mathrm{miss}}\) for \(M_{\mathrm{miss}}\) in~\eqref{eq:overlap}.
-The mean-demand horizon remains the quantity we plot against the model; the percentile horizon is what the runtime tracks.
-Section~\ref{sec:eval} reports both, because a model that predicts the mean and misses the tail has not met a latency objective.
+At 25\% high precision, 12 staging slots leave 96 low-precision residents per layer and reduce exposed transfer to 0.44\,ms/request.
+Raising the high-precision share to 40\% leaves only 43 low-precision residents at its best staging point.
+Exposed transfer is minimized at eight slots and then rises because additional staging displaces residents.
+Changing fidelity therefore changes both residency and the useful amount of lookahead.
+Host-to-device bandwidth is fixed in this replay.
+The figure shows the memory coupling at one measured rate; it does not sweep both budgets.
 
-\subsection{What the Model Predicts}
-\label{sec:predictions}
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=0.80\linewidth]{figures/background_joint_allocation.pdf}
+  \Description{Two curves plot replayed exposed transfer time against lookahead staging slots for the 25 and 40 percent high-precision allocations. The 25 percent curve reaches the joint best point at 12 slots with 96 low-precision residents. The 40 percent curve reaches its minimum at 8 slots with 43 low-precision residents and then rises as additional staging displaces residents.}
+  \caption{Trace replay of the two quality- and memory-feasible precision allocations on Qwen3-30B, at the measured host-to-device bandwidth of this trace.
+  Increasing the high-precision share from 25\% to 40\% reduces residency and moves the best staging allocation from 12 to 8 slots.
+  Bandwidth is not swept.
+  Lookahead uses oracle knowledge of the measured active set; this is not an end-to-end \systemname\ result.}
+  \label{fig:bg-joint}
+\end{figure}
 
-The regime rules are predictions about latency, not about task score.
-Quality enters only as the use of slack.
-We separate them so that a failure of the hotness proxy does not get mistaken for a failure of the overlap identity.
+\subsection{Motivation and Design Challenges}
 
-\begin{description}
-  \item[P1.] In Phase~II the horizon that minimizes exposed expert-transfer latency is \(S=0\). A positive horizon increases migration bytes and does not reduce misses.
-  \item[P2.] In Phase~III, when the feasible set is non-empty, \(S^{\star}\) is non-increasing in \(C\) and non-decreasing in the byte size \(m\) of a prefetched expert. Replacing a low-precision prefetch with a high-precision prefetch shifts \(S^{\star}\) up or empties the feasible set.
-  \item[P3.] At fixed \(\PhiRatio<1\), a request can move from an empty feasible set during prefill to a non-empty set during decode. The minimizing action changes from ``fill the immediate resident set, hold \(S\) at \(S_{\min}\)'' to ``track \(S^{\star}\), then pin from the slack.''
-  \item[P4.] Under the lexicographic rule, \(n_{\mathrm{hi}}\) is bounded by the slack after \(S^{\star}\) has been reserved. Raising \(S^{\star}\), raising \(m^{\mathrm{hi}}\), or entering the dense sub-phase all shrink that bound, including down to zero.
-\end{description}
+Together, the four measurements are one allocation problem.
+Fidelity has a quality price and enlarges later transfers.
+The experts a workload uses change with the task, so the fidelity recipients and the resident set change with it.
+Whether an absent expert's transfer can be hidden changes with host-to-device bandwidth and the compute window.
+Moving the fidelity share, at a fixed bandwidth, moves both residency and the lookahead depth that reduces exposed transfer.
+Existing mechanisms may provide quantization, caching, and prefetching in the same system without deciding which use has the greatest opportunity cost in the resulting expert state.
+A suitable policy assigns expert memory and transfer bandwidth among fidelity, residency, and lookahead by marginal value, under one quality-degradation limit, to reduce tail latency.
 
-P1--P4 are the claims a joint re-measurement has to accept or reject.
-They also state the boundary policies precisely.
-A precision-only policy is the Phase~II optimum, including its \(n_{\mathrm{hi}}\) bound, applied at every \(\PhiRatio\).
-When \(\PhiRatio<1\) that policy has no feasible full floor; an implementation must either exceed \(B\) or silently fall back to a tighter quantization.
-A horizon-only policy is the Phase~III rule with \(m\) fixed and \(n_{\mathrm{hi}}\) fixed at zero, applied at every \(\PhiRatio\).
-When \(\PhiRatio\ge 1\) it evicts experts the budget could have kept.
-A naive composition runs both controllers and lets each assume it may use \(B\).
-The composition violates~\eqref{eq:fit} whenever the pin quota and the speculative set are computed independently.
-Section~\ref{sec:design} is the tracker that enforces one budget across both timescales.
-Section~\ref{sec:eval} measures the four predictions before it measures that tracker against the boundary policies.
+\paragraph{Challenge 1: heterogeneous value under a quality-degradation limit.}
+Fidelity reduces quality risk, residency avoids a future transfer, and lookahead reduces the exposed portion of a transfer that still occurs.
+Their benefits have different units and durations.
+An action comparison must account for byte cost and transition cost without treating task quality as an unconstrained latency currency.
 
-\subsection{Inputs the Model Does Not Observe}
-\label{sec:model-limits}
+\paragraph{Challenge 2: future-dependent value at different time scales.}
+Fidelity depends on quantization sensitivity and the probability that an expert executes.
+Residency depends on reuse, while lookahead depends on an expert's deadline, the available compute window, and effective transfer bandwidth.
+Routing locality and deadlines can change faster than the evidence needed to justify a fidelity transition.
+Both budgets are still decided in the same exchange.
+Fidelity requests refresh more slowly only because their quality evidence and copy cost take longer to amortize.
 
-The overlap identity uses a scalar \(C\).
-Concurrent compute traffic reduces the bandwidth that a side-stream copy actually receives.
-\systemname\ estimates \(C\) from completed transfers during overlap, not from an idle bandwidth benchmark, and Section~\ref{sec:eval} reports the error of \(S^{\star}\) under both estimators.
-Dequantization and the launch of a second grouped GEMM, one per live precision in the layer, add device time that is not a host-to-device transfer.
-Those times sit inside the measured \(T_{\ell}\).
-They shrink the overlap window rather than appearing as a separate miss term.
-The model does not predict task score.
-Hotness is a proxy for which expert should receive a slack byte, and it can be wrong while P1--P3 still hold.
-Kernel-launch overhead and proxy error are measured quantities in Section~\ref{sec:eval}, not terms hidden inside \(\PhiRatio\).
+\paragraph{Challenge 3: hard memory safety during transitions.}
+A feasible final resident set does not guarantee a feasible transition.
+Promotion and prefetching require destination bytes before a copy begins, and an old published representation may remain live until its readers finish.
+An in-flight representation cannot serve the forward pass.
+The runtime must therefore account for published and reserved bytes together and publish a replacement only after its transfer completes.
+
+A runtime must therefore represent all three uses in one byte account, compare each requested state with the states displaced to fund it, and commit the exchange only when the expert-memory budget holds and the replayed migration queue prices the bandwidth that exchange consumes.

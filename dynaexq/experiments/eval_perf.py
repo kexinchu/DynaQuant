@@ -9,9 +9,11 @@ captions.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import itertools
 import json
 import math
+import random
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -296,6 +298,228 @@ def measure_latency(
     }
     if process_memory_monitor is not None:
         result["process_hbm_monitor"] = process_memory_monitor.metadata()
+    return result
+
+
+def load_sharegpt_trace(
+    path: str | Path,
+    tokenizer,
+    *,
+    regime: str,
+    request_count: int,
+    max_input_tokens: int,
+    max_output_tokens: int,
+    seed: int = 42,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Select a deterministic, length-stratified ShareGPT request trace."""
+    if regime not in {"prefill", "decode", "mixed"}:
+        raise ValueError(f"unknown ShareGPT regime {regime!r}")
+    if request_count <= 0 or max_input_tokens <= 0 or max_output_tokens <= 0:
+        raise ValueError("trace sizes must be positive")
+    source = Path(path)
+    payload = source.read_bytes()
+    raw = json.loads(payload)
+    raw_candidates: list[dict[str, Any]] = []
+    for item in raw:
+        conversations = item.get("conversations")
+        if not isinstance(conversations, list):
+            continue
+        human = next(
+            (
+                turn.get("value")
+                for turn in conversations
+                if turn.get("from") == "human"
+                and isinstance(turn.get("value"), str)
+                and turn["value"].strip()
+            ),
+            None,
+        )
+        assistant = next(
+            (
+                turn.get("value")
+                for turn in conversations
+                if turn.get("from") == "gpt"
+                and isinstance(turn.get("value"), str)
+                and turn["value"].strip()
+            ),
+            None,
+        )
+        if human is None or assistant is None:
+            continue
+        if len(human) < 32 or len(assistant) < 32:
+            continue
+        raw_candidates.append(
+            {
+                "request_id": str(item.get("id", len(raw_candidates))),
+                "human": human,
+                "assistant": assistant,
+                "input_chars": len(human),
+                "output_chars": len(assistant),
+            }
+        )
+    if regime == "prefill":
+        raw_candidates.sort(
+            key=lambda item: (
+                -(item["input_chars"] / item["output_chars"]),
+                -item["input_chars"],
+                item["request_id"],
+            )
+        )
+    elif regime == "decode":
+        raw_candidates.sort(
+            key=lambda item: (
+                -(item["output_chars"] / item["input_chars"]),
+                -item["output_chars"],
+                item["request_id"],
+            )
+        )
+    else:
+        raw_candidates.sort(
+            key=lambda item: (
+                abs(math.log(item["input_chars"] / item["output_chars"])),
+                item["request_id"],
+            )
+        )
+    # Character length is a cheap tokenizer-independent prefilter. Exact
+    # token lengths and final ordering are computed over a wide candidate
+    # pool, avoiding three full tokenizations of the 94k-record source.
+    prefilter_count = max(1000, request_count * 50)
+    candidates: list[dict[str, Any]] = []
+    for item in raw_candidates[:prefilter_count]:
+        input_ids = tokenizer.encode(item["human"], add_special_tokens=True)
+        output_ids = tokenizer.encode(
+            item["assistant"], add_special_tokens=False
+        )
+        if len(input_ids) < 16 or len(output_ids) < 16:
+            continue
+        input_ids = input_ids[:max_input_tokens]
+        candidates.append(
+            {
+                "request_id": item["request_id"],
+                "input_ids": input_ids,
+                "input_tokens": len(input_ids),
+                "output_tokens": min(len(output_ids), max_output_tokens),
+            }
+        )
+    if regime == "prefill":
+        candidates.sort(
+            key=lambda item: (
+                -(item["input_tokens"] / item["output_tokens"]),
+                -item["input_tokens"],
+                item["request_id"],
+            )
+        )
+    elif regime == "decode":
+        candidates.sort(
+            key=lambda item: (
+                -(item["output_tokens"] / item["input_tokens"]),
+                -item["output_tokens"],
+                item["request_id"],
+            )
+        )
+    else:
+        candidates.sort(
+            key=lambda item: (
+                abs(math.log(item["input_tokens"] / item["output_tokens"])),
+                item["request_id"],
+            )
+        )
+    pool = candidates[: min(len(candidates), request_count * 5)]
+    if len(candidates) >= request_count * 5:
+        rng = random.Random(seed)
+        rng.shuffle(pool)
+    selected = pool[:request_count]
+    if len(selected) != request_count:
+        raise ValueError(
+            f"ShareGPT trace has only {len(selected)} eligible requests"
+        )
+    selected_ids = "\n".join(item["request_id"] for item in selected).encode()
+    return selected, {
+        "dataset": "ShareGPT_Vicuna_unfiltered",
+        "source_path": str(source.resolve()),
+        "source_sha256": hashlib.sha256(payload).hexdigest(),
+        "regime": regime,
+        "request_count": request_count,
+        "selected_ids_sha256": hashlib.sha256(selected_ids).hexdigest(),
+        "max_input_tokens": max_input_tokens,
+        "max_output_tokens": max_output_tokens,
+        "seed": seed,
+        "selection": "character_prefilter_then_exact_token_length_v1",
+        "prefilter_count": min(prefilter_count, len(raw_candidates)),
+    }
+
+
+def measure_trace_latency(
+    model: torch.nn.Module,
+    tokenizer,
+    requests: list[dict[str, Any]],
+    *,
+    n_warmup: int = 5,
+    require_process_hbm_monitor: bool = False,
+) -> dict[str, Any]:
+    """Measure raw TTFT/TPOT samples for heterogeneous trace requests."""
+    if not requests:
+        raise ValueError("trace benchmark requires at least one request")
+    device = _model_input_device(model)
+    monitor = None
+    if require_process_hbm_monitor:
+        if device.type != "cuda":
+            raise ValueError("trace HBM monitoring requires CUDA")
+        monitor = NvmlProcessMemoryMonitor(
+            [torch.cuda.current_device() if device.index is None else device.index]
+        )
+
+    def run(request: dict[str, Any]) -> dict[str, Any]:
+        input_ids = torch.tensor(
+            [request["input_ids"]], dtype=torch.long, device=device
+        )
+        measured = _one_generation(
+            model,
+            input_ids,
+            torch.ones_like(input_ids),
+            int(request["output_tokens"]),
+            monitor,
+        )
+        return {
+            "request_id": request["request_id"],
+            "input_tokens": int(request["input_tokens"]),
+            "output_tokens": int(request["output_tokens"]),
+            **measured,
+        }
+
+    model.eval()
+    try:
+        for request in requests[:n_warmup]:
+            run(request)
+        samples = [run(request) for request in requests]
+    finally:
+        if monitor is not None:
+            monitor.close()
+    metric_names = [
+        "model_ttft_ms",
+        "model_tpot_ms",
+        "model_e2e_ms",
+        "throughput_tokens_s",
+        "peak_allocated_bytes",
+        "peak_reserved_bytes",
+    ]
+    if require_process_hbm_monitor:
+        metric_names.append("process_hbm_used_peak_bytes")
+    result = {
+        "scope": "isolated_model_trace",
+        "excludes": [
+            "request_queueing",
+            "tokenization",
+            "network_transport",
+            "response_serialization",
+        ],
+        "warmup_iterations": min(n_warmup, len(requests)),
+        "measured_iterations": len(samples),
+        "metrics": {key: _summarize(samples, key) for key in metric_names},
+        "samples": samples,
+    }
+    if monitor is not None:
+        result["process_hbm_monitor"] = monitor.metadata()
     return result
 
 

@@ -1,0 +1,68 @@
+% Editable TikZ source for the DynaByte design overview.
+\begin{tikzpicture}[
+    font=\footnotesize,
+    >=Stealth,
+    flow/.style={-{Stealth[length=5pt,width=5pt]}, semithick},
+    feedback/.style={-{Stealth[length=5pt,width=5pt]}, semithick, dashed},
+    block/.style={draw, rounded corners=1.5pt, align=center, inner sep=4pt},
+    lease/.style={block, minimum width=3.68cm, minimum height=1.02cm},
+    account/.style={block, minimum width=2.62cm, minimum height=0.80cm,
+                    fill=black!5, font=\scriptsize}
+  ]
+
+  \node[block, minimum width=12.6cm, minimum height=0.78cm] (monitor) at (0,0)
+    {\textbf{state monitor}\\[-1pt]
+     \scriptsize routing demand \quad sensitivity \quad predicted uses and deadlines
+     \quad bandwidth \quad byte state \quad stall / pollution};
+
+  \node[font=\bfseries, fill=white, inner sep=1.5pt] at (0,-0.90)
+    {lease requests within adaptive envelope \(S_t\)};
+  \node[lease] (fidelity) at (-4.18,-1.68)
+    {\textbf{fidelity}\\[-1pt]
+     \scriptsize high-precision increment\\[-1pt]
+     \scriptsize risk removed, slow lifetime};
+  \node[lease] (residency) at (0,-1.68)
+    {\textbf{residency}\\[-1pt]
+     \scriptsize low-precision footprint\\[-1pt]
+     \scriptsize reuse, avoided demand copy};
+  \node[lease] (lookahead) at (4.18,-1.68)
+    {\textbf{lookahead}\\[-1pt]
+     \scriptsize destination until use\\[-1pt]
+     \scriptsize deadline, hidden copy};
+
+  \coordinate (fanout) at (0,-0.55);
+  \draw[flow] (monitor.south) -- (fanout) -| (fidelity.north);
+  \draw[flow] (fanout) -- (residency.north);
+  \draw[flow] (fanout) -| (lookahead.north);
+
+  \node[block, minimum width=7.05cm, minimum height=1.20cm] (coord) at (0,-3.46)
+    {\textbf{exchange coordinator}\\[-1pt]
+     \scriptsize adjust \(S_t\); pair one request with explicit donor leases\\[-1pt]
+     \scriptsize replay \(X\) versus \(X\oplus x\); recompute after admission};
+  \node[account] (quality) at (-4.92,-3.46)
+    {quality-risk account\\\(\widehat R(X)\leq\widehat\epsilon\)};
+  \node[account] (ledger) at (4.92,-3.46)
+    {byte ledger\\\(M_{\mathrm{live}}+M_{\mathrm{reserved}}\leq B\)};
+
+  \coordinate (fanin) at (0,-2.48);
+  \draw[semithick] (fidelity.south) |- (fanin);
+  \draw[semithick] (residency.south) -- (fanin);
+  \draw[semithick] (lookahead.south) |- (fanin);
+  \draw[flow] (fanin) -- (coord.north);
+  \draw[flow] (quality) -- (coord);
+  \draw[flow] (ledger) -- (coord);
+
+  \node[block, minimum width=9.0cm, minimum height=0.88cm] (executor) at (0,-4.96)
+    {\textbf{safe executor}\qquad
+     \scriptsize reserve \(\rightarrow\) copy \(\rightarrow\) publish \(\rightarrow\) reclaim\\[-1pt]
+     \scriptsize shared arena; versioned handles; ready experts execute first};
+  \node[block, minimum width=4.9cm, minimum height=0.62cm, fill=black!8]
+    (forward) at (0,-6.04)
+    {forward path uses published representations};
+
+  \draw[flow] (coord) -- node[right, font=\scriptsize] {admitted exchanges} (executor);
+  \draw[flow] (executor) -- (forward);
+  \draw[feedback] (forward.west) -- ++(-3.75,0) |-
+    node[pos=0.58, left, rotate=90, font=\scriptsize] {wait, pollution, and lease outcome}
+    (monitor.west);
+\end{tikzpicture}

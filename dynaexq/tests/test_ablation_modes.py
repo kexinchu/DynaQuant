@@ -9,6 +9,7 @@ import torch
 from dynaexq.core import DynaExqConfig
 from dynaexq.experiments.eval_dynamic import (
     _ablation_paper_metrics,
+    _calibration_policy_hash,
     _configure_ablation,
     _load_calibration_prompts,
     _load_initial_map,
@@ -69,6 +70,26 @@ def test_ablation_switches_are_real_runtime_modes():
         True,
     )
     assert no_hysteresis.scheduler.delta_score_margin == 0.0
+
+    no_tenure = _config()
+    assert no_tenure.scheduler.min_tenure_steps > 0
+    assert _configure_ablation(no_tenure, "no_tenure") == (False, True)
+    assert no_tenure.scheduler.min_tenure_steps == 0
+
+    ind_value = _config()
+    assert _configure_ablation(ind_value, "ind_value") == (False, True)
+    assert ind_value.scheduler.valuation_mode == "independent"
+
+    slack_only = _config()
+    assert _configure_ablation(slack_only, "slack_only") == (False, True)
+    assert slack_only.scheduler.donor_mode == "slack_only"
+
+    single_timescale = _config()
+    assert _configure_ablation(single_timescale, "single_timescale") == (
+        False,
+        True,
+    )
+    assert single_timescale.scheduler.update_period_steps == 1
 
 
 def test_static_wrapper_does_not_call_scheduler():
@@ -248,6 +269,43 @@ def test_formal_runtime_final_state_fails_closed():
     )
 
 
+def test_formal_runtime_accepts_a_drained_shared_arena_exchange():
+    wrapper = {
+        "scheduler_enabled": False,
+        "scheduler_update_samples_ms": [],
+        "scheduler_update_count": 0,
+    }
+    stats = {
+        "accepted_requests": 1,
+        "accepted_bytes": 512,
+        "total_promotions": 0,
+        "total_demotions": 0,
+        "failed_transitions": 0,
+        "copied_bytes": 512,
+        "precise_fence_reclaims": 1,
+        "global_sync_reclaims": 0,
+        "active_transitions": 0,
+        "budget": None,
+        "arena": {
+            "capacity_bytes": 4096,
+            "reserved_bytes": 0,
+            "published_bytes": 1024,
+            "reclaim_pending_bytes": 0,
+            "free_bytes": 3072,
+            "held_donor_count": 0,
+            "fid_bytes": 0,
+            "res_bytes": 512,
+            "look_bytes": 512,
+        },
+    }
+    _validate_formal_runtime_final_state(
+        wrapper,
+        stats,
+        scheduler_enabled=False,
+        require_online_activity=True,
+    )
+
+
 def test_calibration_loader_rejects_test_splits_and_hashes_selection(tmp_path):
     source = tmp_path / "calibration.jsonl"
     rows = [
@@ -291,6 +349,15 @@ def test_initial_map_binds_checkpoint_model_and_ranking_hash(tmp_path):
         str(layer): list(range(config.model.experts_per_layer))
         for layer in range(config.model.layers)
     }
+    routing_weights = {
+        str(layer): [1.0 / config.model.experts_per_layer]
+        * config.model.experts_per_layer
+        for layer in range(config.model.layers)
+    }
+    normalized_sensitivity = {
+        str(layer): [1.0] * config.model.experts_per_layer
+        for layer in range(config.model.layers)
+    }
     artifact = {
         "schema_version": 2,
         "artifact_type": "dynaexq_initial_expert_ranking",
@@ -309,6 +376,14 @@ def test_initial_map_binds_checkpoint_model_and_ranking_hash(tmp_path):
         },
         "expert_ranking": ranking,
         "ranking_sha256": _ranking_sha256(ranking),
+        "routing_weights": routing_weights,
+        "normalized_sensitivity": normalized_sensitivity,
+        "fidelity_ranking": ranking,
+        "policy_state_sha256": _calibration_policy_hash(
+            routing_weights,
+            normalized_sensitivity,
+            ranking,
+        ),
     }
     path = tmp_path / "initial-map.json"
     path.write_text(json.dumps(artifact), encoding="utf-8")

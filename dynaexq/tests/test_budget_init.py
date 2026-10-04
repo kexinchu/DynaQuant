@@ -21,6 +21,7 @@ def test_budget_includes_transient_headroom():
     assert result.transient_bytes == 80
     assert result.resident_budget == 320
     assert result.total_reserved_bytes <= result.available_memory
+    assert result.n_resident == [4, 4]
 
 
 def test_budget_subtracts_runtime_workspace_before_expert_allocation():
@@ -110,3 +111,54 @@ def test_exact_ratio_must_be_a_probability(ratio):
     )
     with pytest.raises(ValueError, match=r"in \[0, 1\]"):
         initializer.compute(high_precision_ratio=ratio)
+
+
+def test_partial_residency_makes_small_budget_feasible():
+    result = BudgetInitializer(
+        num_layers=2,
+        experts_per_layer=8,
+        memory_footprint_fn=_footprint,
+        device_mem_bytes=150,
+        max_inflight=1,
+    ).compute(resident_ratio=0.5)
+    assert result.n_resident == [4, 4]
+    assert all(hi <= resident for hi, resident in zip(result.n_hi, result.n_resident))
+    assert result.total_reserved_bytes <= result.available_memory
+
+
+def test_zero_residency_does_not_fall_back_to_all_experts():
+    result = BudgetInitializer(
+        num_layers=1,
+        experts_per_layer=4,
+        memory_footprint_fn=_footprint,
+        device_mem_bytes=100,
+        max_inflight=1,
+    ).compute(resident_ratio=0.0)
+    assert result.n_resident == [0]
+    assert result.n_hi == [0]
+    assert result.total_expert_bytes == 0
+
+
+@pytest.mark.parametrize("ratio", (-0.01, 1.01))
+def test_resident_ratio_must_be_a_probability(ratio):
+    initializer = BudgetInitializer(
+        num_layers=1,
+        experts_per_layer=1,
+        memory_footprint_fn=_footprint,
+        device_mem_bytes=100,
+        max_inflight=1,
+    )
+    with pytest.raises(ValueError, match="resident_ratio"):
+        initializer.compute(resident_ratio=ratio)
+
+
+def test_high_precision_slots_must_be_resident():
+    initializer = BudgetInitializer(
+        num_layers=1,
+        experts_per_layer=10,
+        memory_footprint_fn=_footprint,
+        device_mem_bytes=1_000,
+        max_inflight=1,
+    )
+    with pytest.raises(ValueError, match="exceeds resident slots"):
+        initializer.compute(high_precision_ratio=0.5, resident_ratio=0.4)

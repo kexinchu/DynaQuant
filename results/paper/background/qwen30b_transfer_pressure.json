@@ -1,0 +1,204 @@
+{
+  "schema_version": 1,
+  "artifact_type": "background_stage_transfer_pressure",
+  "paper_model": "qwen30b",
+  "input_tokens": 2048,
+  "transfer_bandwidth_bytes_s": 24859886907.454784,
+  "expert_bytes": {
+    "precision": "INT4",
+    "bytes_per_expert": 2543616
+  },
+  "capacity_interpretation": "measured blocking-copy bandwidth multiplied by mean per-layer TTFT/TPOT; an aggregate upper-bound diagnostic, not a deadline schedule",
+  "stages": {
+    "prefill": [
+      {
+        "batch_size": 1,
+        "mean_active_experts_per_layer": 76.50833333333334,
+        "mean_demanded_bytes_per_layer": 194607820.8,
+        "mean_layer_window_ms": 38.5774811947825,
+        "overlap_capacity_upper_bytes": 959031819.6767566,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 2,
+        "mean_active_experts_per_layer": 89.57083333333334,
+        "mean_demanded_bytes_per_layer": 227833804.8,
+        "mean_layer_window_ms": 52.382463107060175,
+        "overlap_capacity_upper_bytes": 1302222108.7754385,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 4,
+        "mean_active_experts_per_layer": 106.15,
+        "mean_demanded_bytes_per_layer": 270004838.40000004,
+        "mean_layer_window_ms": 74.63001591725818,
+        "overlap_capacity_upper_bytes": 1855293755.6045885,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 8,
+        "mean_active_experts_per_layer": 114.84583333333333,
+        "mean_demanded_bytes_per_layer": 292123699.2,
+        "mean_layer_window_ms": 132.93428305982766,
+        "overlap_capacity_upper_bytes": 3304731242.990898,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 16,
+        "mean_active_experts_per_layer": 118.25833333333334,
+        "mean_demanded_bytes_per_layer": 300803788.8,
+        "mean_layer_window_ms": 243.4808949433985,
+        "overlap_capacity_upper_bytes": 6052907512.418767,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 32,
+        "mean_active_experts_per_layer": 120.3125,
+        "mean_demanded_bytes_per_layer": 306028800.0,
+        "mean_layer_window_ms": 466.84440588353027,
+        "overlap_capacity_upper_bytes": 11605699133.642483,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      }
+    ],
+    "decode": [
+      {
+        "batch_size": 1,
+        "mean_active_experts_per_layer": 8.0,
+        "mean_demanded_bytes_per_layer": 20348928.0,
+        "mean_layer_window_ms": 4.470748062319449,
+        "overlap_capacity_upper_bytes": 111142291.22098412,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 2,
+        "mean_active_experts_per_layer": 10.15,
+        "mean_demanded_bytes_per_layer": 25817702.400000002,
+        "mean_layer_window_ms": 4.7245873560457685,
+        "overlap_capacity_upper_bytes": 117452707.35568862,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 4,
+        "mean_active_experts_per_layer": 15.058333333333334,
+        "mean_demanded_bytes_per_layer": 38302617.6,
+        "mean_layer_window_ms": 4.08397701040182,
+        "overlap_capacity_upper_bytes": 101527206.61123453,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 8,
+        "mean_active_experts_per_layer": 20.558333333333334,
+        "mean_demanded_bytes_per_layer": 52292505.6,
+        "mean_layer_window_ms": 4.354891894493455,
+        "overlap_capacity_upper_bytes": 108262119.9912988,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 16,
+        "mean_active_experts_per_layer": 26.604166666666668,
+        "mean_demanded_bytes_per_layer": 67670784.0,
+        "mean_layer_window_ms": 4.237027655799133,
+        "overlap_capacity_upper_bytes": 105332028.34692469,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      },
+      {
+        "batch_size": 32,
+        "mean_active_experts_per_layer": 33.30416666666667,
+        "mean_demanded_bytes_per_layer": 84713011.2,
+        "mean_layer_window_ms": 4.569478169168433,
+        "overlap_capacity_upper_bytes": 113596710.51161079,
+        "cold_demand_excess_bytes": 0.0,
+        "cold_demand_exposed_lower_bound_ms": 0.0
+      }
+    ]
+  },
+  "created_at": "2026-10-03T05:04:05.487068+00:00",
+  "sources": [
+    {
+      "path": "results/paper/qwen30b_routing_active_set_trace.json",
+      "sha256": "69a6c3d0895e077796e1bbd12ad4ef58ee1358da9fa8b5a515995df3c3f502ab"
+    },
+    {
+      "path": "results/paper/qwen30b_offload_waiting.json",
+      "sha256": "15a9fcfc9d5fae3518d468e8ab125a34a820ee205765dc76fa90e4bad95c0bd8"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs1.json",
+      "sha256": "26785bd46de2f67057d318a674ac859c8b08933a2bce4b2386d4e204b2c70b63"
+    },
+    {
+      "path": "results/exploratory/qwen30b_activation_density.json",
+      "sha256": "58aa4a9dc322c1b4c8354d5d8993c7068aa47d5faf7c4d8bd54d170c635aeb6b"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-0.txt",
+      "sha256": "f79dbd76d4f1102d39a13a3dcae956d421347020206d63739f78e49a880691d9"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-100.txt",
+      "sha256": "008bfb4801e3b480581c3e5bca62bd5e1c3caa15622de7929e74cf8fca36488e"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-15.txt",
+      "sha256": "abaddecd89d93eafbfa4a2064adc6b366c5238bd3b0e021586495740dcdcedcc"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-30.txt",
+      "sha256": "b840d2f9df22fc5986d08d602dcf8872defd92301ce0afc0cdf6aa35b8ffd3b4"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-45.txt",
+      "sha256": "0dea413918bebb00e17326e25fec2fe11822641982b4ba3ecb0d91e71033fdd9"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-60.txt",
+      "sha256": "b98135dc3d952210db8c8c535dbd88027560e12dc51ed55b430441ff0c724f40"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-75.txt",
+      "sha256": "826a14e78081ad866c6df0a13e14e54b7452dfc449232ae24c145c4f3c36b818"
+    },
+    {
+      "path": "results/perplexity/Qwen3-30B/30b-90.txt",
+      "sha256": "788bff14dd414f789875cbdbd8f5f8f1b087f7c70e91b2494f8060dc635b861b"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs2.json",
+      "sha256": "cf590e8ddab57ace36dabaf8b78899385e52945a0a9767084f1bc2e19745b58f"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs4.json",
+      "sha256": "faddd61e1b8190fd52fd6125b4a87c3e647a20825323638f39ffddfd15b9d23d"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs8.json",
+      "sha256": "0a399b64c5a7ed081728c95371a94f424687680ac345c330924498380bcf1681"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs16.json",
+      "sha256": "b6fd5f41d7ed60f77de6a09a6890744ac177a1f5fdc9ca1bd71542dfac31d48e"
+    },
+    {
+      "path": "results/paper/performance/qwen30b_dynaexq_bs32.json",
+      "sha256": "c8c7927d653fb20415db931f56fb3812a8a436a6791d70ccd1a76a0b20182791"
+    }
+  ],
+  "command": "python scripts/build_background_motivation_data.py",
+  "environment": {
+    "git": {
+      "commit": "40f6a6d6fb573792d69f430a2aa416cc41ede488",
+      "dirty": true
+    }
+  }
+}

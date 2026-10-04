@@ -1,0 +1,128 @@
+{
+  "schema_version": 2,
+  "stage": "S2-SKETCH-EXPLORE",
+  "created_at": "2026-10-03T02:38:57+00:00",
+  "updated_at": "2026-10-03T02:38:57+00:00",
+  "runtime": "codex",
+  "image_chunk_limit": 8,
+  "recommended_image_chunk_size": 8,
+  "candidate_count": 8,
+  "max_candidate_count": 12,
+  "candidate_ids": [
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "C06",
+    "C07",
+    "C08"
+  ],
+  "candidates": [
+    {
+      "candidate_id": "C01",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C01",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C01/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C01/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C01/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C01/status.json"
+    },
+    {
+      "candidate_id": "C02",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C02",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C02/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C02/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C02/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C02/status.json"
+    },
+    {
+      "candidate_id": "C03",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C03",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C03/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C03/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C03/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C03/status.json"
+    },
+    {
+      "candidate_id": "C04",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C04",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C04/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C04/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C04/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C04/status.json"
+    },
+    {
+      "candidate_id": "C05",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C05",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C05/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C05/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C05/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C05/status.json"
+    },
+    {
+      "candidate_id": "C06",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C06",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C06/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C06/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C06/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C06/status.json"
+    },
+    {
+      "candidate_id": "C07",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C07",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C07/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C07/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C07/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C07/status.json"
+    },
+    {
+      "candidate_id": "C08",
+      "candidate_dir": "outputs/S2-sketch-explore/candidates/C08",
+      "prompt_path": "outputs/S2-sketch-explore/candidates/C08/prompt-v01.md",
+      "target_image_path": "outputs/S2-sketch-explore/candidates/C08/image-v01.png",
+      "active_image_path": "outputs/S2-sketch-explore/candidates/C08/image-v01.png",
+      "status_path": "outputs/S2-sketch-explore/candidates/C08/status.json"
+    }
+  ],
+  "prompt_index_path": "outputs/S2-sketch-explore/prompt-index.json",
+  "candidate_id_source_of_truth": "prompt-index",
+  "candidate_id_coherence_policy": "Use the exact same candidate_id in prompt-index rows, substage candidate_ids, candidate directory, active_image_path/target_image_path, artifacts, and checkpoint manifests. Do not renumber S5 candidates as Cxx when the prompt-index uses Fxx or any other registered id.",
+  "v3215_image_only_policy": {
+    "upstream_prepare_stage": "S1-FIGURE-STRATEGY",
+    "downstream_text_stage": "S3-DIRECTION-SELECT",
+    "text_plan_substage_removed": true,
+    "candidate_revision_loop_removed": true,
+    "text_recheck_removed": true,
+    "aggregate_substage_removed": true,
+    "s5_is_terminal": false
+  },
+  "substage_execution_policy": {
+    "chatgpt_web": "use one full S2/S5 image batch when available; split only when platform or user requires it",
+    "codex": "candidate image workers may run in parallel, but every worker must call image_gen for target-paper images; only the coordinator writes project-state.json",
+    "image_route_guard": "Image stages are not file-production chores. They must call the runtime image-generation route: Codex=image_gen; ChatGPT web=Create Image / ChatGPT Images 2.0; other runtimes=named approved image-generation API. SVG, Python/PIL, Matplotlib, Graphviz, TikZ, Mermaid, canvas, PPT/PDF rendering, screenshots, and local programmatic raster PNG/WebP files are invalid even when target_image_path is filled.",
+    "text_image_separation": "S2 and S5 image stages must not write audit/ranking/explanation/aggregate/next-step text. S1 owns S2 prompt preparation, S3 owns S3 review/aggregate over S2 outputs, and S4 owns S5 prompt preparation.",
+    "user_guidance": "Before image-only units, the preceding text stage shows only a compact prompt-index or prompt-file reference as user-facing copyable text; full image prompts stay in prompt files.",
+    "prompt_readiness": "S1/S4 must save evidence lock, edge-support ledger, connector multiplicity/bundling audit, reviewer first-glance gate, element layout plan, routing and evidence-backed arrow plan, edge-label-first variable placement, modularity-not-fragmentation gate, simple internal motif gate, text/symbol verification, density and whitespace budget, repeated-flow compression plan, redundancy budget, background/context budget gate, and prompt hallucination audit before IMAGE_GENERATE; max three audit/repair cycles."
+  },
+  "substage_plan": [
+    {
+      "substage_id": "S2-01-image-generate-c01-c08",
+      "mode": "IMAGE_GENERATE",
+      "candidate_ids": [
+        "C01",
+        "C02",
+        "C03",
+        "C04",
+        "C05",
+        "C06",
+        "C07",
+        "C08"
+      ],
+      "status": "pending",
+      "image_chunk_limit": 8,
+      "planned_chunk_size": 8,
+      "rule": "Generate only images for these candidates. Use the environment-locked image route only: Codex=image_gen; ChatGPT web=Create Image / ChatGPT Images 2.0; other runtimes=named approved image-generation API. Do not write audit/ranking/explanation/aggregate/next-step text. Do not create SVG, code-drawn PNGs, screenshots, PPT/PDF renders, or local programmatic raster substitutes."
+    }
+  ],
+  "default_next_step": "S3-DIRECTION-SELECT"
+}

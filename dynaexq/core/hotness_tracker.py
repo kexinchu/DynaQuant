@@ -140,6 +140,25 @@ class HotnessTracker:
                 update_counts=self._update_counts.copy(),
             )
 
+    def seed_scores(self, scores: list[list[float]]) -> None:
+        """Initialize the EMA from an independent calibration trace.
+
+        Seeding does not change cumulative online statistics. Subsequent
+        updates decay this prior through the ordinary EMA rule.
+        """
+        if len(scores) != self.num_layers:
+            raise ValueError("seed score layer count mismatch")
+        with self._lock:
+            self._scores.fill(0.0)
+            for layer, values in enumerate(scores):
+                if len(values) != self.experts_per_layer[layer]:
+                    raise ValueError(
+                        f"seed score width mismatch in layer {layer}"
+                    )
+                if any(value < 0.0 for value in values):
+                    raise ValueError("seed scores must be non-negative")
+                self._scores[layer, : len(values)] = values
+
     def reset(self) -> None:
         """Reset all scores to zero."""
         with self._lock:

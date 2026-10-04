@@ -43,9 +43,15 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def load_prompts(path: Path, *, repeats: int) -> tuple[list[dict], dict]:
-    """Load deterministic 32-prompt blocks with stable, unique IDs."""
-    required = repeats * max(BATCH_SIZES)
+def load_prompts(
+    path: Path,
+    *,
+    repeats: int,
+    batch_sizes: tuple[int, ...] = BATCH_SIZES,
+) -> tuple[list[dict], dict]:
+    """Load disjoint prompt blocks, one block per repeat, nested by batch size."""
+    block = max(batch_sizes)
+    required = repeats * block
     rows = []
     for line_number, line in enumerate(
         path.read_text(encoding="utf-8").splitlines(),
@@ -88,7 +94,11 @@ def load_prompts(path: Path, *, repeats: int) -> tuple[list[dict], dict]:
         "source_sha256": _sha256(resolved),
         "selected_ids_sha256": selected_hash,
         "selected_prompt_count": len(rows),
-        "selection": "ordered_blocks_of_32_nested_by_batch_size",
+        "selection": (
+            "ordered_blocks_of_32_nested_by_batch_size"
+            if tuple(batch_sizes) == BATCH_SIZES
+            else f"ordered_blocks_of_{block}_nested_by_batch_size"
+        ),
     }
 
 
@@ -309,6 +319,8 @@ def collect(
     topk: int,
     repeats: int,
     max_input_tokens: int,
+    batch_sizes: tuple[int, ...] = BATCH_SIZES,
+    on_batch=None,
 ) -> tuple[dict, list[int]]:
     """Run nested batches and return raw prefill/decode density samples."""
     if tokenizer.pad_token_id is None:
@@ -323,7 +335,8 @@ def collect(
     last_logit_kwargs = last_logit_only_kwargs(model)
     model.eval()
     try:
-        for batch_size in BATCH_SIZES:
+        block = max(batch_sizes)
+        for batch_size in batch_sizes:
             raw = {"prefill": [], "decode": []}
             for repeat in range(repeats):
                 print(
@@ -337,7 +350,7 @@ def collect(
                     ),
                     flush=True,
                 )
-                begin = repeat * max(BATCH_SIZES)
+                begin = repeat * block
                 texts = [
                     row["prompt"]
                     for row in prompts[begin : begin + batch_size]
@@ -401,6 +414,8 @@ def collect(
                         ),
                     }
                 )
+            if on_batch is not None:
+                on_batch(batch_size, stages, collector.layer_ids)
     finally:
         collector.close()
     return stages, collector.layer_ids
@@ -419,16 +434,30 @@ def main() -> None:
     parser.add_argument("--repeats", type=int, default=5)
     parser.add_argument("--max-input-tokens", type=int, default=2048)
     parser.add_argument(
+        "--batch-sizes",
+        default=",".join(str(value) for value in BATCH_SIZES),
+        help="Comma-separated batch sizes. The paper default is 1,2,4,8,16,32.",
+    )
+    parser.add_argument(
         "--device",
         default="cuda:0",
         help="One device such as cuda:0, or auto for model sharding",
     )
     parser.add_argument("--hash-model-files", action="store_true")
     args = parser.parse_args()
+    batch_sizes = tuple(
+        int(value) for value in args.batch_sizes.split(",") if value.strip()
+    )
+    if (
+        not batch_sizes
+        or batch_sizes != tuple(sorted(set(batch_sizes)))
+        or any(value <= 0 for value in batch_sizes)
+    ):
+        parser.error("--batch-sizes must be sorted, unique positive integers")
     if args.repeats != 5:
-        parser.error("the paper protocol requires --repeats=5")
+        parser.error("the measurement requires --repeats=5")
     if args.max_input_tokens != 2048:
-        parser.error("the paper protocol requires --max-input-tokens=2048")
+        parser.error("the measurement requires --max-input-tokens=2048")
 
     checkpoint = checkpoint_metadata(
         args.model_path,
@@ -444,6 +473,7 @@ def main() -> None:
         prompts, prompt_provenance = load_prompts(
             args.prompts,
             repeats=args.repeats,
+            batch_sizes=batch_sizes,
         )
     except (OSError, ValueError) as error:
         parser.error(str(error))
@@ -468,6 +498,29 @@ def main() -> None:
     )
     device = model.get_input_embeddings().weight.device
     contract = MODEL_CONTRACTS[args.paper_model]
+    protocol_name = (
+        "tc_activation_density_v1"
+        if batch_sizes == BATCH_SIZES
+        else "background_stage_transfer_activation_v1"
+    )
+
+    def write_partial(_batch_size: int, stages: dict, layer_ids: list[int]) -> None:
+        artifact = _activation_artifact(
+            args,
+            checkpoint,
+            protocol_name,
+            batch_sizes,
+            prompt_provenance,
+            stages,
+            layer_ids,
+            contract,
+        )
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(artifact, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     stages, layer_ids = collect(
         model,
         tokenizer,
@@ -477,8 +530,34 @@ def main() -> None:
         topk=contract["topk"],
         repeats=args.repeats,
         max_input_tokens=args.max_input_tokens,
+        batch_sizes=batch_sizes,
+        on_batch=write_partial,
     )
-    artifact = {
+    write_partial(batch_sizes[-1], stages, layer_ids)
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "paper_model": args.paper_model,
+                "moe_layers": len(layer_ids),
+                "batch_sizes": list(batch_sizes),
+            },
+            indent=2,
+        )
+    )
+
+
+def _activation_artifact(
+    args,
+    checkpoint,
+    protocol_name: str,
+    batch_sizes: tuple[int, ...],
+    prompt_provenance: dict,
+    stages: dict,
+    layer_ids: list[int],
+    contract: dict,
+) -> dict:
+    return {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": "activation_density",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -487,8 +566,8 @@ def main() -> None:
         "seed": PAPER_PROTOCOL["seed"],
         "environment": environment_metadata(),
         "protocol": {
-            "name": "tc_activation_density_v1",
-            "batch_sizes": list(BATCH_SIZES),
+            "name": protocol_name,
+            "batch_sizes": list(batch_sizes),
             "repeats": args.repeats,
             "max_input_tokens": args.max_input_tokens,
             "padding_side": "left",
@@ -504,21 +583,6 @@ def main() -> None:
         "moe_layer_ids": layer_ids,
         "stages": stages,
     }
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
-        json.dumps(artifact, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    print(
-        json.dumps(
-            {
-                "output": str(args.output),
-                "paper_model": args.paper_model,
-                "moe_layers": len(layer_ids),
-            },
-            indent=2,
-        )
-    )
 
 
 if __name__ == "__main__":

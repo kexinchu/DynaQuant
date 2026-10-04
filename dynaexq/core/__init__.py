@@ -19,6 +19,13 @@ from .budget_tracker import BudgetTracker, Reservation
 from .scheduler import PrecisionScheduler, TransitionReq
 from .registry import ExpertRegistry, ExpertHandle, ExpertKey
 from .memory_pool import MemoryPool, PoolAllocator
+from .shared_arena import ArenaExtent, ExtentState, SharedArenaAllocator
+from .expert_memory import (
+    ExchangeReservation,
+    ExpertMemoryManager,
+    MemoryClaim,
+    MemoryRequest,
+)
 from .transition_engine import TransitionEngine
 from .weight_store import ModelWeightStore
 from .config import DynaExqConfig, Tier
@@ -36,6 +43,13 @@ __all__ = [
     "ExpertKey",
     "MemoryPool",
     "PoolAllocator",
+    "ArenaExtent",
+    "ExtentState",
+    "SharedArenaAllocator",
+    "ExchangeReservation",
+    "ExpertMemoryManager",
+    "MemoryClaim",
+    "MemoryRequest",
     "TransitionEngine",
     "TransitionReq",
     "ModelWeightStore",
@@ -47,4 +61,3 @@ __all__ = [
     "DynaExqConfig",
     "Tier",
 ]
-

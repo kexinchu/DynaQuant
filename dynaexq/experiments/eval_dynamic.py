@@ -14,9 +14,14 @@ from pathlib import Path
 
 import torch
 
-from ..core import DynaExqConfig
+from ..core import DynaExqConfig, ExpertKey
 from ..integration.moe_wrapper import MoEWrapper
-from .eval_perf import measure_latency
+from ..policy import (
+    QualityRiskAccount,
+    RuntimeExchangePlanner,
+    RuntimeResidencyController,
+)
+from .eval_perf import load_sharegpt_trace, measure_latency, measure_trace_latency
 from .eval_quality import (
     PAPER_PROTOCOL,
     SCHEMA_VERSION,
@@ -27,7 +32,16 @@ from .eval_quality import (
 from .run_shift import initialize_dynaexq, load_model
 
 
-ABLATION_CONFIGS = ("full", "static", "blocking", "no_hysteresis")
+ABLATION_CONFIGS = (
+    "full",
+    "static",
+    "blocking",
+    "no_hysteresis",
+    "no_tenure",
+    "ind_value",
+    "slack_only",
+    "single_timescale",
+)
 ABLATION_BENCHMARKS = (
     "mmlu_pro",
     "gpqa",
@@ -40,6 +54,16 @@ PERPLEXITY_LOW_RATIOS_PCT = (0, 15, 30, 45, 60, 75, 90, 100)
 ROUTING_HOTSET_WORKLOADS = ("wikitext", "gsm8k", "humaneval")
 ROUTING_HOTSET_LAYER = 15
 CALIBRATION_SPLITS = {"train", "validation", "dev", "calibration"}
+PAPER_SEEDS = (42, 43, 44, 45, 46)
+PAPER_POLICIES = (
+    "all_high_reference",
+    "uniform_low",
+    "static_mixed",
+    "residency",
+    "lookahead",
+    "fidelity",
+    "joint",
+)
 
 
 def _wait_for_idle_physical_gpu(
@@ -47,16 +71,20 @@ def _wait_for_idle_physical_gpu(
     *,
     max_used_memory_mib: int,
     poll_seconds: int,
+    stable_polls: int = 3,
 ) -> None:
-    """Wait after checkpoint hashing so a shared GPU is still loadable."""
+    """Wait for a sustained idle window before loading a shared GPU."""
     if physical_gpu_index < 0:
         raise ValueError("physical GPU index must be non-negative")
     if max_used_memory_mib < 0:
         raise ValueError("idle GPU memory threshold must be non-negative")
     if poll_seconds <= 0:
         raise ValueError("idle GPU poll interval must be positive")
+    if stable_polls <= 0:
+        raise ValueError("stable GPU poll count must be positive")
 
     last_reported_minute = -1
+    consecutive_idle = 0
     started = time.monotonic()
     while True:
         try:
@@ -82,11 +110,15 @@ def _wait_for_idle_physical_gpu(
 
         elapsed = time.monotonic() - started
         if used_memory_mib <= max_used_memory_mib and utilization_pct == 0:
+            consecutive_idle += 1
+            status = "idle" if consecutive_idle >= stable_polls else "candidate_idle"
             print(
                 json.dumps(
                     {
                         "stage": "shared_gpu_wait",
-                        "status": "idle",
+                        "status": status,
+                        "consecutive_idle_polls": consecutive_idle,
+                        "required_idle_polls": stable_polls,
                         "physical_gpu_index": physical_gpu_index,
                         "used_memory_mib": used_memory_mib,
                         "utilization_pct": utilization_pct,
@@ -96,7 +128,12 @@ def _wait_for_idle_physical_gpu(
                 ),
                 flush=True,
             )
-            return
+            if consecutive_idle >= stable_polls:
+                return
+            time.sleep(poll_seconds)
+            continue
+
+        consecutive_idle = 0
 
         elapsed_minute = int(elapsed // 60)
         if elapsed_minute != last_reported_minute:
@@ -185,8 +222,21 @@ def _load_initial_map(
         or data.get("artifact_type") != "dynaexq_initial_expert_ranking"
     ):
         raise ValueError("initial map is not a schema-v2 ranking artifact")
-    if data.get("checkpoint") != checkpoint:
-        raise ValueError("initial map checkpoint does not match this run")
+    recorded_checkpoint = data.get("checkpoint")
+    if recorded_checkpoint != checkpoint:
+        def stat_identity(value: dict) -> dict:
+            normalized = json.loads(json.dumps(value))
+            normalized["weight_hashes_included"] = False
+            for group in ("files", "control_files", "weight_files"):
+                for item in normalized.get(group, []):
+                    item.pop("sha256", None)
+            return normalized
+
+        if (
+            not isinstance(recorded_checkpoint, dict)
+            or stat_identity(recorded_checkpoint) != stat_identity(checkpoint)
+        ):
+            raise ValueError("initial map checkpoint does not match this run")
     if data.get("model_config") != config.to_dict()["model"]:
         raise ValueError("initial map model contract does not match this run")
     calibration = data.get("calibration")
@@ -203,8 +253,17 @@ def _load_initial_map(
         raise ValueError("initial map lacks a valid independent calibration trace")
     environment = data.get("environment")
     git = environment.get("git", {}) if isinstance(environment, dict) else {}
-    if not git.get("commit") or git.get("dirty") is not False:
-        raise ValueError("initial map must be generated from a clean Git commit")
+    if not git.get("commit"):
+        raise ValueError("initial map has no Git revision")
+    if git.get("dirty") is not False:
+        recorded_source = git.get("source_tree_sha256")
+        current_source = environment_metadata().get("git", {}).get(
+            "source_tree_sha256"
+        )
+        if not recorded_source or recorded_source != current_source:
+            raise ValueError(
+                "dirty initial map does not match the current runtime source tree"
+            )
     raw_ranking = data.get("expert_ranking")
     if not isinstance(raw_ranking, dict):
         raise ValueError("initial map has no expert ranking")
@@ -233,6 +292,55 @@ def _load_initial_map(
     ranking_hash = _ranking_sha256(string_ranking)
     if data.get("ranking_sha256") != ranking_hash:
         raise ValueError("initial map ranking hash mismatch")
+    raw_routing = data.get("routing_weights")
+    raw_sensitivity = data.get("normalized_sensitivity")
+    raw_fidelity_ranking = data.get("fidelity_ranking")
+    if not all(
+        isinstance(value, dict)
+        for value in (
+            raw_routing,
+            raw_sensitivity,
+            raw_fidelity_ranking,
+        )
+    ):
+        raise ValueError("initial map lacks calibrated policy state")
+    try:
+        routing_weights = {
+            str(layer): [float(value) for value in raw_routing[str(layer)]]
+            for layer in sorted(expected_layers)
+        }
+        normalized_sensitivity = {
+            str(layer): [
+                float(value) for value in raw_sensitivity[str(layer)]
+            ]
+            for layer in sorted(expected_layers)
+        }
+        fidelity_ranking = {
+            str(layer): [
+                int(expert) for expert in raw_fidelity_ranking[str(layer)]
+            ]
+            for layer in sorted(expected_layers)
+        }
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("initial-map policy state is malformed") from error
+    width = config.model.experts_per_layer
+    if any(
+        len(routing_weights[str(layer)]) != width
+        or len(normalized_sensitivity[str(layer)]) != width
+        or any(value < 0.0 or value == float("inf") for value in routing_weights[str(layer)])
+        or any(value < 0.0 or value == float("inf") for value in normalized_sensitivity[str(layer)])
+        or len(fidelity_ranking[str(layer)]) != width
+        or set(fidelity_ranking[str(layer)]) != expected_experts
+        for layer in expected_layers
+    ):
+        raise ValueError("initial-map policy state violates shape or value constraints")
+    policy_hash = _calibration_policy_hash(
+        routing_weights,
+        normalized_sensitivity,
+        fidelity_ranking,
+    )
+    if data.get("policy_state_sha256") != policy_hash:
+        raise ValueError("initial-map policy-state hash mismatch")
     provenance = {
         "artifact_sha256": _sha256_bytes(payload_bytes),
         "ranking_sha256": ranking_hash,
@@ -241,6 +349,10 @@ def _load_initial_map(
         "calibration": calibration,
         "environment": environment,
         "expert_ranking": string_ranking,
+        "routing_weights": routing_weights,
+        "normalized_sensitivity": normalized_sensitivity,
+        "fidelity_ranking": fidelity_ranking,
+        "policy_state_sha256": policy_hash,
     }
     return ranking, provenance
 
@@ -327,6 +439,18 @@ def _configure_ablation(
     if ablation_config == "no_hysteresis":
         config.scheduler.delta_score_margin = 0.0
         return False, True
+    if ablation_config == "no_tenure":
+        config.scheduler.min_tenure_steps = 0
+        return False, True
+    if ablation_config == "ind_value":
+        config.scheduler.valuation_mode = "independent"
+        return False, True
+    if ablation_config == "slack_only":
+        config.scheduler.donor_mode = "slack_only"
+        return False, True
+    if ablation_config == "single_timescale":
+        config.scheduler.update_period_steps = 1
+        return False, True
     raise ValueError(f"unknown ablation configuration: {ablation_config}")
 
 
@@ -398,7 +522,9 @@ def _runtime_overhead_paper_metrics(
             float(initialization["transient_expert_bytes"]) / 1e9
         ),
         "migration_count": (
-            int(transition_stats["total_promotions"])
+            int(transition_stats["accepted_requests"])
+            if "accepted_requests" in transition_stats
+            else int(transition_stats["total_promotions"])
             + int(transition_stats["total_demotions"])
         ),
         "transferred_gb": float(transition_stats["copied_bytes"]) / 1e9,
@@ -441,12 +567,32 @@ def _validate_formal_runtime_final_state(
         precise_reclaims = int(transition_stats["precise_fence_reclaims"])
         global_reclaims = int(transition_stats["global_sync_reclaims"])
         active = int(transition_stats["active_transitions"])
-        budget = transition_stats["budget"]
-        cap = int(budget["total_cap"])
-        live = int(budget["total_live"])
-        hi_pending = int(budget["hi_pending"])
-        lo_pending = int(budget["lo_pending"])
-        staging_used = int(budget["staging_used"])
+        arena = transition_stats.get("arena")
+        if isinstance(arena, dict):
+            cap = int(arena["capacity_bytes"])
+            reserved = int(arena["reserved_bytes"])
+            published = int(arena["published_bytes"])
+            reclaim_pending = int(arena["reclaim_pending_bytes"])
+            free = int(arena["free_bytes"])
+            live = reserved + published + reclaim_pending
+            pending = reserved + reclaim_pending
+            held_donors = int(arena["held_donor_count"])
+            purpose_bytes = sum(
+                int(arena[name])
+                for name in ("fid_bytes", "res_bytes", "look_bytes")
+            )
+        else:
+            budget = transition_stats["budget"]
+            cap = int(budget["total_cap"])
+            live = int(budget["total_live"])
+            pending = (
+                int(budget["hi_pending"])
+                + int(budget["lo_pending"])
+                + int(budget["staging_used"])
+            )
+            free = cap - live
+            held_donors = 0
+            purpose_bytes = live
     except (KeyError, TypeError, ValueError) as error:
         raise RuntimeError(
             "formal run has incomplete transition lifecycle telemetry"
@@ -464,19 +610,21 @@ def _validate_formal_runtime_final_state(
             global_reclaims,
             active,
             live,
-            hi_pending,
-            lo_pending,
-            staging_used,
+            pending,
+            free,
+            held_donors,
+            purpose_bytes,
         )
         < 0
         or cap < 0
         or live > cap
         or failed != 0
-        or accepted != promotions + demotions
+        or promotions + demotions > accepted
         or active != 0
-        or hi_pending != 0
-        or lo_pending != 0
-        or staging_used != 0
+        or pending != 0
+        or held_donors != 0
+        or live + free != cap
+        or (isinstance(arena, dict) and purpose_bytes != published)
         or global_reclaims != 0
         or (
             accepted > 0
@@ -486,7 +634,6 @@ def _validate_formal_runtime_final_state(
                 or precise_reclaims <= 0
             )
         )
-        or (not scheduler_enabled and accepted != 0)
         or (require_online_activity and accepted <= 0)
     ):
         raise RuntimeError(
@@ -565,6 +712,104 @@ def _collect_calibration_ranking(
     }
 
 
+def _collect_representation_sensitivity(
+    weight_store,
+    config: DynaExqConfig,
+) -> tuple[dict[str, list[float]], dict[str, list[float]], dict]:
+    """Measure and normalize the exact HI-to-LO reconstruction error."""
+    started = time.perf_counter()
+    raw: dict[str, list[float]] = {}
+    normalized: dict[str, list[float]] = {}
+    for layer in range(config.model.layers):
+        values = [
+            weight_store.representation_nmse(ExpertKey(layer, expert))
+            for expert in range(config.model.experts_per_layer)
+        ]
+        if any(not (0.0 <= value < float("inf")) for value in values):
+            raise RuntimeError(
+                f"non-finite representation sensitivity in layer {layer}"
+            )
+        mean = sum(values) / len(values)
+        scaled = (
+            [value / mean for value in values]
+            if mean > 0.0
+            else [0.0 for _ in values]
+        )
+        raw[str(layer)] = values
+        normalized[str(layer)] = scaled
+        print(
+            json.dumps(
+                {
+                    "stage": "calibration_representation_sensitivity",
+                    "completed_layers": layer + 1,
+                    "total_layers": config.model.layers,
+                    "elapsed_seconds": time.perf_counter() - started,
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+    return raw, normalized, {
+        "definition": "per_expert_lo_reconstruction_nmse_against_hi",
+        "normalization": "unit_mean_within_layer",
+        "backend": config.precision.backend,
+        "hi_format": config.precision.hi,
+        "lo_format": config.precision.lo,
+        "elapsed_seconds": time.perf_counter() - started,
+    }
+
+
+def _calibration_policy_hash(
+    routing_weights: dict[str, list[float]],
+    normalized_sensitivity: dict[str, list[float]],
+    fidelity_ranking: dict[str, list[int]],
+) -> str:
+    return _sha256_bytes(
+        json.dumps(
+            {
+                "routing_weights": routing_weights,
+                "normalized_sensitivity": normalized_sensitivity,
+                "fidelity_ranking": fidelity_ranking,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+
+
+def _quality_risk_account(
+    provenance: dict | None,
+    initialization: dict,
+    config: DynaExqConfig,
+) -> QualityRiskAccount | None:
+    """Build the calibrated proxy limit for a dynamic joint-policy run."""
+    if provenance is None:
+        return None
+    routing = provenance["routing_weights"]
+    sensitivity = provenance["normalized_sensitivity"]
+    values = {
+        ExpertKey(layer, expert): float(sensitivity[str(layer)][expert])
+        for layer in range(config.model.layers)
+        for expert in range(config.model.experts_per_layer)
+    }
+    weights = {
+        ExpertKey(layer, expert): float(routing[str(layer)][expert])
+        for layer in range(config.model.layers)
+        for expert in range(config.model.experts_per_layer)
+    }
+    high = {
+        ExpertKey(int(layer), int(expert))
+        for layer, experts in initialization["bootstrap_hi_experts"].items()
+        for expert in experts
+    }
+    limit = sum(
+        weights[key] * values[key]
+        for key in weights
+        if key not in high
+    )
+    return QualityRiskAccount(values, limit=limit)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
@@ -577,6 +822,11 @@ def main() -> None:
         help="Exactly one execution device (for example cuda:0)",
     )
     parser.add_argument("--hash-model-files", action="store_true")
+    parser.add_argument(
+        "--policy",
+        choices=PAPER_POLICIES,
+        help="Explicit policy identity serialized into the result artifact",
+    )
     parser.add_argument(
         "--wait-for-idle-physical-gpu",
         type=int,
@@ -619,6 +869,18 @@ def main() -> None:
             "whole-process NVML HBM high-water monitoring"
         ),
     )
+    trace_perf = subparsers.add_parser(
+        "trace-perf",
+        help="Run a deterministic length-stratified ShareGPT trace",
+    )
+    trace_perf.add_argument("--trace", required=True)
+    trace_perf.add_argument(
+        "--regime", required=True, choices=("prefill", "decode", "mixed")
+    )
+    trace_perf.add_argument("--requests", type=int, default=100)
+    trace_perf.add_argument("--n-warmup", type=int, default=5)
+    trace_perf.add_argument("--max-input-tokens", type=int, default=2048)
+    trace_perf.add_argument("--max-output-tokens", type=int, default=256)
     ablation = subparsers.add_parser(
         "ablation",
         help=(
@@ -693,6 +955,8 @@ def main() -> None:
         help="Required opt-in for official HumanEval execution",
     )
     args = parser.parse_args()
+    if args.mode != "calibrate" and args.policy is None:
+        parser.error("every non-calibration run requires --policy")
     if (
         args.mode == "quality"
         and args.paper_protocol
@@ -702,10 +966,10 @@ def main() -> None:
     if (
         args.mode == "quality"
         and args.paper_protocol
-        and args.seed != PAPER_PROTOCOL["seed"]
+        and args.seed not in PAPER_SEEDS
     ):
         parser.error(
-            f"--paper-protocol requires --seed={PAPER_PROTOCOL['seed']}"
+            f"--paper-protocol requires --seed in {PAPER_SEEDS}"
         )
     if args.mode == "perf" and args.paper_protocol:
         expected = {
@@ -713,7 +977,6 @@ def main() -> None:
             "output_length": 256,
             "n_warmup": 5,
             "n_repeats": 100,
-            "seed": PAPER_PROTOCOL["seed"],
         }
         if args.batch_size not in (1, 2, 4, 8, 16, 32):
             parser.error(
@@ -730,6 +993,11 @@ def main() -> None:
                 "perf --paper-protocol has incompatible arguments: "
                 + ", ".join(mismatches)
             )
+    if args.mode == "trace-perf":
+        if args.seed not in PAPER_SEEDS:
+            parser.error(f"trace-perf requires --seed in {PAPER_SEEDS}")
+        if args.requests != 100 or args.n_warmup != 5:
+            parser.error("trace-perf requires 100 requests and 5 warmups")
     if (
         args.mode in {
             "ablation",
@@ -737,10 +1005,10 @@ def main() -> None:
             "overhead",
             "routing-hotset",
         }
-        and args.seed != PAPER_PROTOCOL["seed"]
+        and args.seed not in PAPER_SEEDS
     ):
         parser.error(
-            f"{args.mode} mode requires --seed={PAPER_PROTOCOL['seed']}"
+            f"{args.mode} mode requires --seed in {PAPER_SEEDS}"
         )
     if (
         args.mode in {
@@ -760,10 +1028,10 @@ def main() -> None:
         )
     if (
         args.mode == "perplexity-point"
-        and args.seed != PAPER_PROTOCOL["seed"]
+        and args.seed not in PAPER_SEEDS
     ):
         parser.error(
-            f"perplexity-point mode requires --seed={PAPER_PROTOCOL['seed']}"
+            f"perplexity-point mode requires --seed in {PAPER_SEEDS}"
         )
 
     torch.manual_seed(args.seed)
@@ -775,6 +1043,7 @@ def main() -> None:
         config,
         ablation_config,
     )
+    scheduler_enabled = scheduler_enabled and config.scheduler.enabled
     if args.mode == "calibrate":
         scheduler_enabled = False
     if args.mode == "perplexity-point":
@@ -829,6 +1098,7 @@ def main() -> None:
                 "calibrate",
                 "perplexity-point",
                 "routing-hotset",
+                "trace-perf",
             }
             or (args.mode == "quality" and args.paper_protocol)
             or (args.mode == "perf" and args.paper_protocol)
@@ -846,6 +1116,7 @@ def main() -> None:
             "overhead",
             "perplexity-point",
             "routing-hotset",
+            "trace-perf",
         }
         or (args.mode == "quality" and args.paper_protocol)
         or (args.mode == "perf" and args.paper_protocol)
@@ -857,6 +1128,7 @@ def main() -> None:
             "independent calibration trace"
         )
     initial_ranking = None
+    initial_fidelity_ranking = None
     initial_map_provenance = None
     if args.initial_map:
         try:
@@ -865,6 +1137,12 @@ def main() -> None:
                 checkpoint,
                 config,
             )
+            initial_fidelity_ranking = {
+                int(layer): [int(expert) for expert in ranking]
+                for layer, ranking in initial_map_provenance[
+                    "fidelity_ranking"
+                ].items()
+            }
         except ValueError as error:
             parser.error(str(error))
     if args.wait_for_idle_physical_gpu is not None:
@@ -917,6 +1195,61 @@ def main() -> None:
         transition_synchronous=transition_synchronous,
         high_precision_ratio=high_precision_ratio,
         initial_expert_ranking=initial_ranking,
+        initial_fidelity_ranking=initial_fidelity_ranking,
+    )
+    if initial_map_provenance is not None:
+        tracker.seed_scores(
+            [
+                [
+                    float(value)
+                    for value in initial_map_provenance["routing_weights"][
+                        str(layer)
+                    ]
+                ]
+                for layer in range(config.model.layers)
+            ]
+        )
+        scheduler.set_sensitivities(
+            [
+                [
+                    float(value)
+                    for value in initial_map_provenance[
+                        "normalized_sensitivity"
+                    ][str(layer)]
+                ]
+                for layer in range(config.model.layers)
+            ]
+        )
+    exchange_planner = RuntimeExchangePlanner(registry, transition_engine)
+    quality_risk = (
+        _quality_risk_account(
+            initial_map_provenance,
+            initialization,
+            config,
+        )
+        if args.policy == "joint"
+        else None
+    )
+    scheduler.set_quality_risk(quality_risk)
+    residency_controller = (
+        RuntimeResidencyController(
+            exchange_planner,
+            tracker,
+            num_layers=config.model.layers,
+            lookahead_depth=config.scheduler.lookahead_depth,
+            lookahead_per_layer=config.scheduler.lookahead_per_layer,
+            valuation_mode=config.scheduler.valuation_mode,
+            donor_mode=config.scheduler.donor_mode,
+            quality_risk=quality_risk,
+            transition_reserve_bytes=initialization[
+                "transient_expert_bytes"
+            ],
+        )
+        if (
+            config.memory.resident_ratio < 1.0
+            or config.scheduler.lookahead_depth > 0
+        )
+        else None
     )
     wrapper = MoEWrapper(
         model=model,
@@ -925,6 +1258,8 @@ def main() -> None:
         scheduler=scheduler,
         registry=registry,
         transition_engine=transition_engine,
+        exchange_planner=exchange_planner,
+        residency_controller=residency_controller,
         num_layers=config.model.layers,
         experts_per_layer=config.model.experts_per_layer,
         topk=config.model.topk,
@@ -959,13 +1294,51 @@ def main() -> None:
                 config,
                 max_input_tokens=args.max_input_tokens,
             )
+            routing_weights = {
+                str(layer): [
+                    float(value)
+                    for value in tracker.get_cumulative_layer_scores(layer)
+                ]
+                for layer in range(config.model.layers)
+            }
+            (
+                raw_sensitivity,
+                normalized_sensitivity,
+                sensitivity_metadata,
+            ) = _collect_representation_sensitivity(
+                transition_engine.weight_store,
+                config,
+            )
+            fidelity_ranking = {
+                str(layer): sorted(
+                    range(config.model.experts_per_layer),
+                    key=lambda expert: (
+                        -routing_weights[str(layer)][expert]
+                        * normalized_sensitivity[str(layer)][expert],
+                        expert,
+                    ),
+                )
+                for layer in range(config.model.layers)
+            }
             calibration_metadata["runtime"] = calibration_runtime
+            calibration_metadata["representation_sensitivity"] = (
+                sensitivity_metadata
+            )
             result_payload = {
                 "artifact_type": "dynaexq_initial_expert_ranking",
                 "model_config": config.to_dict()["model"],
                 "calibration": calibration_metadata,
                 "expert_ranking": expert_ranking,
                 "ranking_sha256": _ranking_sha256(expert_ranking),
+                "routing_weights": routing_weights,
+                "raw_representation_sensitivity": raw_sensitivity,
+                "normalized_sensitivity": normalized_sensitivity,
+                "fidelity_ranking": fidelity_ranking,
+                "policy_state_sha256": _calibration_policy_hash(
+                    routing_weights,
+                    normalized_sensitivity,
+                    fidelity_ranking,
+                ),
             }
         elif args.mode == "perplexity-point":
             result = evaluate(
@@ -1041,6 +1414,26 @@ def main() -> None:
                     "workload_order": list(ROUTING_HOTSET_WORKLOADS),
                 },
                 "workloads": workloads,
+            }
+        elif args.mode == "trace-perf":
+            trace_requests, trace_metadata = load_sharegpt_trace(
+                args.trace,
+                tokenizer,
+                regime=args.regime,
+                request_count=args.requests,
+                max_input_tokens=args.max_input_tokens,
+                max_output_tokens=args.max_output_tokens,
+                seed=args.seed,
+            )
+            result_payload = {
+                "trace": trace_metadata,
+                "benchmark": measure_trace_latency(
+                    wrapper,
+                    tokenizer,
+                    trace_requests,
+                    n_warmup=args.n_warmup,
+                    require_process_hbm_monitor=True,
+                ),
             }
         elif args.mode == "quality":
             benchmarks = [
@@ -1202,8 +1595,10 @@ def main() -> None:
             "artifact_type": f"dynaexq_{args.mode}",
             "created_at": datetime.now(timezone.utc).isoformat(),
             "method": "dynaexq",
+            "policy": args.policy,
             "paper_model": paper_model,
             "paper_method": "dynaexq",
+            "config_path": str(Path(args.config).resolve()),
             "device": str(device),
             "model": args.model_path,
             "checkpoint": checkpoint,
@@ -1213,12 +1608,20 @@ def main() -> None:
                 {"name": "independent_calibration_v1"}
                 if args.mode == "calibrate"
                 else {
+                    "name": "sharegpt_length_stratified_v1",
+                    "seed": args.seed,
+                    "request_count": args.requests,
+                    "warmup_iterations": args.n_warmup,
+                    "process_hbm_high_water": True,
+                }
+                if args.mode == "trace-perf"
+                else {
                     "name": "tc_isolated_performance_v2",
-                    "seed": PAPER_PROTOCOL["seed"],
+                    "seed": args.seed,
                     "process_hbm_high_water": True,
                 }
                 if args.mode == "perf" and args.paper_protocol
-                else PAPER_PROTOCOL
+                else {**PAPER_PROTOCOL, "seed": args.seed}
                 if formal_result_run
                 else {"name": "custom"}
             ),

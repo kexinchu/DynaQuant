@@ -1,0 +1,120 @@
+{
+  "schema_version": 2,
+  "skill_name": "paper-framework-figure-studio-pro",
+  "skill_version": "3.2.15b",
+  "project_id": "dynabyte-sigmetrics-2027-storyline",
+  "stage": "S1-FIGURE-STRATEGY",
+  "checkpoint_type": "stage-final",
+  "sequence": 1,
+  "created_at": "2026-10-03T02:39:51+00:00",
+  "state_file": "state/project-state.json",
+  "included_roots": [
+    "state",
+    "inputs",
+    "outputs/S0-paper-foundation",
+    "outputs/S1-figure-strategy"
+  ],
+  "stage_coverage": [
+    {
+      "step": "S0-PAPER-FOUNDATION",
+      "mode": "TEXT_ONLY",
+      "output_dir": "outputs/S0-paper-foundation"
+    },
+    {
+      "step": "S1-FIGURE-STRATEGY",
+      "mode": "TEXT_ONLY_WITH_EMBEDDED_S2_PREPARE",
+      "output_dir": "outputs/S1-figure-strategy"
+    }
+  ],
+  "cumulative_required": true,
+  "substage_checkpoint_page_integrity_required": true,
+  "checkpoint_scope": "cumulative_from_workflow_start_to_current_stage_or_substage",
+  "non_delta_checkpoint_guard": "Do not accept or advertise current-stage-only or current-substage-only checkpoint zips as cumulative restore bundles.",
+  "required_existing_asset_paths": [
+    "inputs/source-inventory.md",
+    "outputs/S0-paper-foundation/framework-figure-risk-register.md",
+    "outputs/S0-paper-foundation/paper-foundation-report.md",
+    "outputs/S1-figure-strategy/figure-strategy-brief.md",
+    "outputs/S1-figure-strategy/motivation-script-figure-specs.md",
+    "outputs/S1-figure-strategy/prompt-audit-summary.md",
+    "outputs/S1-figure-strategy/s2-candidate-matrix.json",
+    "state/project-state.json"
+  ],
+  "required_existing_asset_count": 8,
+  "required_image_paths": [],
+  "required_existing_image_paths": [],
+  "required_existing_image_count": 0,
+  "pending_future_image_paths": [],
+  "pending_future_image_count": 0,
+  "pending_future_policy": "Planned images that have not yet been generated are recorded for next-action guidance only; they are not restore blockers and must not be listed as missing required images.",
+  "restore_policy": "Upload/extract this cumulative checkpoint, restore project-run-relative paths exactly, load the state file, then run resume/scan-substages for the requested stage. If checkpoint_parts is present, all listed parts are required for restore.",
+  "required_asset_policy": "Every already-existing file inside the cumulative included roots and every generated/registered raster asset that should exist is required for restore. Prior checkpoint zip files are intentionally not recursively included.",
+  "checkpoint_integrity": {
+    "schema_version": 1,
+    "cumulative_required": true,
+    "checkpoint_scope": "cumulative_from_workflow_start_to_current_stage_or_substage",
+    "current_stage": "S1-FIGURE-STRATEGY",
+    "checkpoint_type": "stage-final",
+    "included_roots": [
+      "state",
+      "inputs",
+      "outputs/S0-paper-foundation",
+      "outputs/S1-figure-strategy"
+    ],
+    "stage_coverage": [
+      {
+        "step": "S0-PAPER-FOUNDATION",
+        "mode": "TEXT_ONLY",
+        "output_dir": "outputs/S0-paper-foundation"
+      },
+      {
+        "step": "S1-FIGURE-STRATEGY",
+        "mode": "TEXT_ONLY_WITH_EMBEDDED_S2_PREPARE",
+        "output_dir": "outputs/S1-figure-strategy"
+      }
+    ],
+    "required_existing_asset_count": 8,
+    "required_existing_image_count": 0,
+    "pending_future_image_count": 0,
+    "post_write_validation_status": "passed",
+    "rebuild_attempt_count": 0,
+    "checkpoint_status": "complete_restore_ready",
+    "non_delta_checkpoint_guard": "current_stage_or_substage_only_zips_are_invalid_when_earlier_workflow_assets_exist",
+    "hardcoding_forbidden": "Do not hard-code project ids, paper names, candidate ids, image counts, filenames, or task-specific stage assumptions."
+  },
+  "checkpoint_status": "complete_restore_ready",
+  "restore_status": "complete_restore_ready",
+  "image_checkpoint_completeness": "complete_all_required_images_present",
+  "asset_checkpoint_completeness": "complete_all_required_assets_present",
+  "current_substage_id": null,
+  "required_substage_page_asset_paths": [],
+  "required_substage_page_asset_count": 0,
+  "substage_page_policy": "When a checkpoint is emitted from an internal substage, existing substage text pages, manifests, prompt indexes, guidance, and audit pages are required restore assets. Discovery is derived from state/guidance/path fragments and never from project-specific filenames.",
+  "root_coverage_prewrite_audit": {
+    "stage": "S1-FIGURE-STRATEGY",
+    "expected_included_roots_through_stage": [
+      "state",
+      "inputs",
+      "outputs/S0-paper-foundation",
+      "outputs/S1-figure-strategy"
+    ],
+    "actual_included_roots": [
+      "state",
+      "inputs",
+      "outputs/S0-paper-foundation",
+      "outputs/S1-figure-strategy"
+    ],
+    "existing_file_count_by_expected_root": {
+      "state": 1,
+      "inputs": 1,
+      "outputs/S0-paper-foundation": 2,
+      "outputs/S1-figure-strategy": 4
+    },
+    "zip_member_count_by_expected_root": {},
+    "missing_expected_roots_from_manifest_scope": [],
+    "existing_expected_roots_with_no_zip_payload": [],
+    "status": "complete_cumulative_scope",
+    "policy": "generic cumulative checkpoint scope audit; no project, candidate, or filename hard-coding"
+  },
+  "non_hardcoding_checkpoint_policy": "Checkpoint completeness is derived from workflow roots, state, manifests, registries, and existing files; do not hard-code project ids, paper names, candidate ids, image counts, or task-specific output filenames."
+}

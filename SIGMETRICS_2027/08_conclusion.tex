@@ -1,14 +1,7 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-Expert-weight memory on one accelerator is one byte budget.
-\(\PhiRatio = B / P_{\mathrm{lo}}\) decides whether that budget can hold a low-precision copy of every expert.
-When it can, the horizon that minimizes exposed transfer latency is zero, and the leftover bytes are a high-precision pin quota whose identities follow the router on a slow loop.
-When it cannot, the horizon is the smallest value that hides the predicted miss set inside both the overlap window and the budget, and pins are funded only from the slack above that horizon.
-Prefill and decode move a request between those two sub-cases without changing \(\PhiRatio\).
-
-\systemname\ classifies the regime from measured sizes, tracks the predicted horizon by one layer per period, and admits a precision change only against reserved bytes.
-Precision-only residency, horizon-only prefetch, and a naive composition of the two are the boundary policies of the same model.
-The measurement protocol tests the overlap predictions first, including the prediction that the minimizing horizon moves with prefetch size.
-If that prediction fails, the coupling is the wrong design and the tables will show it.
-Until those runs exist, this paper is a model, a controller, and a protocol, not a performance result.
+Under a quality-degradation limit, \systemname\ allocates expert memory and host-to-device bandwidth among fidelity, residency, and lookahead to reduce MoE inference tail latency.
+Its donor-backed byte exchanges expose the opportunity cost of each request, while deadline replay prevents residency and lookahead from receiving credit for the same avoided transfer.
+One admission path refreshes residency and lookahead faster than fidelity, through a shared byte ledger and a publish-after-copy protocol.
+The resulting design preserves routing semantics, enforces peak expert-memory use during transitions, and reduces to simpler policies when one purpose dominates.

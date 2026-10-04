@@ -1,58 +1,48 @@
 \section{Introduction}
 \label{sec:intro}
 
-A Mixture-of-Experts (MoE) layer routes each token to a few expert subnetworks, so parameter count grows without a proportional increase in per-token arithmetic~\cite{shazeer2017outrageously,fedus2022switch,lepikhin2021gshard}.
-Deployed models such as Mixtral, DeepSeek-V2, and Qwen3 keep tens to hundreds of billions of parameters resident in the expert pool while activating only a few billion per token~\cite{jiang2024mixtral,deepseekv2,qwen3technicalreport}.
-On one accelerator the expert pool dominates the footprint: in the models we study it is about 95--96\% of the weights.
-Device memory must also hold non-expert parameters, activations, the KV cache, and runtime buffers.
-The resulting constraint is a byte budget \(B\) for expert weights.
-Every expert is in one of three states under that budget: absent from the device, resident at low precision, or resident at high precision.
-The same bytes also determine how many future layers of experts can be prefetched before the cache overflows.
+A Mixture-of-Experts (MoE) layer routes each token to a small subset of expert subnetworks, allowing model capacity to grow without a proportional increase in per-token computation~\cite{shazeer2017outrageously,fedus2022switch,lepikhin2021gshard}.
+The memory footprint remains large because every expert representation must still be stored or made available at inference time.
+Models such as Mixtral, DeepSeek-V2, and Qwen3 contain tens to hundreds of billions of parameters while activating only a fraction of them for each token~\cite{jiang2024mixtral,deepseekv2,qwen3technicalreport}.
+On a single accelerator, expert weights compete with non-expert parameters, the KV cache, activations, and runtime workspaces for device memory.
+When experts cannot all remain at the desired precision, the system must both compress them and move them across the host-to-device link.
 
-Two lines of work each freeze one of those choices.
-Precision-oriented systems compress experts with post-training quantization and, in the adaptive case, spend a scarce high-precision quota on experts that the router uses heavily~\cite{lin2024awq,frantar2022gptq,duanmu2025mxmoe,tang2024hobbit}.
-Their operating assumption is that a low-precision copy of every routed expert stays addressable on the device, so a cache miss never occurs.
-Prefetch-oriented systems treat device memory as a cache and overlap expert transfers with compute by fetching the experts of the next \(S\) layers~\cite{song2024promoe,eliseev2023fast,xue2024moe,shen2025expertflow}.
-Their operating assumption is that expert byte size is fixed, so the only decision is which experts to stage and how large \(S\) should be.
-Each assumption defines a real deployment, and each is the wrong deployment for the other budget.
+How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency under a quality-degradation limit?
 
-The optimal expert prefetch horizon is set by precision, through one ratio.
-Let \(P_{\mathrm{lo}}\) be the number of bytes required to store every routed expert at low precision, and \(P_{\mathrm{hi}}\) the same quantity at high precision.
-\[
-  \PhiRatio \;=\; B / P_{\mathrm{lo}}.
-\]
-Section~\ref{sec:model} derives three regimes from \(\PhiRatio\) and from the overlap identity that a horizon of \(S\) layers hides at most \(S \cdot T_{\ell} \cdot C\) bytes of transfer, where \(T_{\ell}\) is the per-layer compute time and \(C\) is the effective host-to-device bandwidth.
-When \(\PhiRatio \ge P_{\mathrm{hi}}/P_{\mathrm{lo}}\), the pool fits at high precision and neither actuator is needed.
-When \(1 \le \PhiRatio < P_{\mathrm{hi}}/P_{\mathrm{lo}}\), the pool fits at low precision and does not fit at high precision.
-The latency-minimizing horizon is then \(S^{\star}=0\): every expert can stay resident, and leftover bytes, \(B-P_{\mathrm{lo}}\), buy high-precision pins.
-When \(\PhiRatio < 1\), some experts are absent.
-\(S^{\star}\) is the smallest horizon that hides the predicted miss set and whose speculative bytes still fit in \(B\); high-precision pins are taken only from the slack above that horizon.
-A second, faster variable sits inside the third regime.
-Prefill and large batches touch a large fraction of the experts in a layer, while the next decode step touches far fewer (Section~\ref{sec:prelim}).
-The feasible set for \(S\) can be empty during prefill and non-empty during decode at the same \(\PhiRatio\).
-The active actuator therefore changes inside one request.
+These two budgets meet in three uses.
+Precision spends expert-memory bytes on a higher-precision representation and increases the size of any later transfer.
+Residency spends bytes to keep an expert on the device so that a later access requires no transfer.
+Lookahead spends both bytes and bandwidth to stage an absent expert early enough that an otherwise unavoidable transfer overlaps preceding computation.
+A byte assigned to precision cannot also retain another expert or stage a future one.
+Host-to-device bandwidth determines whether that early transfer finishes before its deadline.
 
-\systemname\ is a runtime that tracks this model.
-At startup it measures packed expert sizes and classifies \(\PhiRatio\).
-A slow loop maintains high-precision identities with an exponentially smoothed hotness score and a hysteresis margin, and it changes the pin count by at most one expert per layer per period.
-A fast loop moves \(S\) by at most one layer per period toward the model's \(S^{\star}\), using the precision at which the expert will actually be transferred.
-Admission control reserves bytes before any promotion, demotion, or prefetch, and a versioned handle becomes visible to the forward pass only after its copy completes.
-Routing semantics are unchanged: the runtime does not drop experts and does not alter top-\(k\).
+Prior work has developed effective policies for parts of this problem.
+Quantization and mixed-precision methods choose expert representations under a memory or accuracy target~\cite{lin2024awq,frantar2022gptq,duanmu2025mxmoe}.
+Expert caches and prefetchers decide which experts to keep and when to transfer missing experts, commonly under a fixed representation size~\cite{song2024promoe,eliseev2023fast,xue2024moe,shen2025expertflow}.
+Mixed-precision offloading systems demonstrate that lower-precision transfers, caching, and prefetching can coexist~\cite{tang2024hobbit,huang2026dymoe}.
+The right assignment still changes with the workload: expert sensitivity sets the value of precision, routing locality sets the value of residency, and transfer deadlines set the value of lookahead.
+A fixed partition or a fixed priority among the three uses cannot express these changing opportunity costs.
+These systems show that the three mechanisms can operate together, yet they do not allocate expert memory and transfer bandwidth jointly among precision, residency, and lookahead under one quality-degradation limit.
 
-This paper makes four contributions.
+\systemname\ answers this question.
+Under a hard expert-memory budget \(B\) and a quality-degradation limit \(\epsilon\), it selects expert precision, residency, and prefetch timing to reduce tail latency.
+The decision unit is a byte exchange: a requested expert state together with the precision, residency, or lookahead claim that would fund it.
+Its value is the change in predicted exposed wait per requested byte after applying the complete exchange.
+Quality risk is a feasibility constraint on that resulting state, rather than a latency reward.
+\systemname\ represents each memory claim as a time-bounded \emph{byte lease} that records its owner, size, purpose, and expected lifetime.
+A state monitor tracks routing demand, reuse, transfer deadlines, and quality-risk estimates.
+It also measures \emph{in-overlap bandwidth}, the copy rate observed while expert computation is active.
+A joint coordinator pairs requested leases with explicit \emph{donor leases}, the existing claims released to fund a request, and replays the deadline-ordered transfer queue before and after each exchange.
+It admits only exchanges that improve predicted exposed wait while satisfying the quality-risk and peak-memory accounts.
+Residency and lookahead refresh on a short time scale, and precision on a longer window, so that a precision change can amortize its migration cost.
+Both rates use one admission path and the same byte ledger, which records published and reserved expert bytes. Neither rate receives a private quota.
+The executor reserves memory before a copy begins, publishes a new expert representation only after the copy completes, and reclaims the old representation after its readers finish.
+
+We make three contributions.
 \begin{itemize}
-  \item We formulate expert-weight memory as one byte budget with three residency states, and we show that the ratio \(\PhiRatio\) plus the overlap identity predict which actuator---high-precision pins, a low-precision resident floor, or a prefetch horizon---can reduce exposed transfer latency.
-  \item We give a two-timescale controller that tracks the predicted horizon with a bounded update and spends residual bytes on high-precision pins only when the latency band remains feasible.
-  \item We specify the memory invariant and the publication protocol required for precision migration and prefetch to share that budget without a forward-path dependence on an in-flight copy.
-  \item We specify a measurement protocol that sweeps \(\PhiRatio\) on one stack, tests the model's predictions before any system comparison, and treats precision-only residency, horizon-only prefetch, and their naive composition as the baselines that occupy the boundary policies.
+  \item To answer this question, we formulate the joint allocation of expert memory and host-to-device transfer bandwidth among precision, residency, and lookahead. The objective is tail latency under a quality-degradation limit and a peak expert-memory budget. The formulation exposes opportunity costs hidden by independent precision, caching, and prefetch policies.
+  \item We develop a byte-lease exchange policy that names the memory displaced by each request and counterfactually replays the resulting deadline schedule. Joint replay prevents residency and lookahead from receiving credit for the same avoided transfer and charges precision choices for their transfer cost.
+  \item We design a runtime with one byte ledger and a publish-after-copy protocol. It admits transitions only when their peak footprint fits and never exposes an incomplete representation to the forward path.
 \end{itemize}
 
-On acceptance we will release the controller, the budget-accounting runtime, the routing-trace tools, and the configuration files for every reported point, hosted in a long-lived archive.
-Section~\ref{sec:bg} states the serving model and the preliminary measurements.
-Section~\ref{sec:model} defines \(\PhiRatio\) and the predictions.
-Section~\ref{sec:design} describes the controller.
-Section~\ref{sec:impl} records the implementation.
-Section~\ref{sec:eval} states the hypotheses and the protocol.
-Section~\ref{sec:discussion} records limitations.
-Section~\ref{sec:related} places the boundary policies in prior work.
-Section~\ref{sec:conclusion} concludes.
+% Upon acceptance, we will release the controller, runtime, routing-trace tools, and configurations for the reported experiments in a long-lived archive.

@@ -17,10 +17,13 @@ import torch
 
 from .budget_tracker import BudgetTracker, Reservation
 from .config import Tier
+from .expert_memory import ExchangeReservation, ExpertMemoryManager, MemoryRequest
 from .memory_pool import PoolAllocator, PoolBlock
+from .shared_arena import ArenaExtent, SharedArenaAllocator
 from .quant import PackedTensor, QuantFormat, _INT4PACK_MM_AVAILABLE, _prepare_int4pack_mm
 from .registry import ExpertHandle, ExpertKey, ExpertRegistry
 from .scheduler import TransitionReq
+from dynaexq.lease.plan import ExchangePlan
 
 # WeightStore is an abstract base - ModelWeightStore implements it
 from .weight_store import ModelWeightStore
@@ -44,29 +47,31 @@ class TransitionStage:
 
 class TransitionEngine:
     """
-    Executes expert precision transitions asynchronously.
+    Executes expert representation transitions asynchronously.
     
     Pipeline stages:
     1. Fetch: Load weights from storage (SSD/DRAM)
     2. H2D Transfer: Copy to GPU using dedicated CUDA stream
     3. Register: Atomically update ExpertRegistry
-    4. Reclaim: Free old block back to pool
+    4. Reclaim: Return the old extent or legacy pool block
     """
     
     def __init__(
         self,
         registry: ExpertRegistry,
-        pool_allocator: PoolAllocator,
+        pool_allocator: PoolAllocator | SharedArenaAllocator | None,
         weight_store: WeightStore,
         max_workers: int = 4,
         max_inflight: int = 4,
         budget_tracker: Optional[BudgetTracker] = None,
         synchronous: bool = False,
+        memory_manager: Optional[ExpertMemoryManager] = None,
     ):
         """
         Args:
             registry: ExpertRegistry for handle updates
-            pool_allocator: PoolAllocator for block allocation
+            pool_allocator: Legacy fixed-partition allocator. Production
+                shared-arena runs pass ``None`` and provide ``memory_manager``.
             weight_store: WeightStore for loading weights
             max_workers: Max worker threads
             max_inflight: Max concurrent transitions
@@ -81,7 +86,15 @@ class TransitionEngine:
                 layout conversion remain on the caller's critical path.
         """
         self.registry = registry
+        if memory_manager is None and pool_allocator is None:
+            raise ValueError("an allocator or expert memory manager is required")
+        if memory_manager is not None and budget_tracker is not None:
+            raise ValueError("shared-arena manager and legacy budget tracker are exclusive")
         self.pool_allocator = pool_allocator
+        self.memory_manager = memory_manager
+        self.allocator = (
+            memory_manager.allocator if memory_manager is not None else pool_allocator
+        )
         self.weight_store = weight_store
         self.max_workers = max_workers
         self.max_inflight = max_inflight
@@ -96,10 +109,10 @@ class TransitionEngine:
         # CUDA stream for async transfers
         self._uses_cuda = (
             torch.cuda.is_available()
-            and pool_allocator.device.type == "cuda"
+            and self.allocator.device.type == "cuda"
         )
         self._copy_stream = (
-            torch.cuda.Stream(device=pool_allocator.device)
+            torch.cuda.Stream(device=self.allocator.device)
             if self._uses_cuda and not synchronous
             else None
         )
@@ -148,20 +161,44 @@ class TransitionEngine:
             self._active_transitions[key] = threading.Event()
 
         # Reserve HBM bytes against the budget BEFORE the worker thread
-        # touches the pool. The worker is the only place that allocates
+        # touches device storage. The worker is the only place that allocates
         # blocks; if we let it run without a reservation we'd be racing
         # the budget against the actual cudaMalloc-equivalent. Plan §IV.a
         # backpressure: failed reservation → request is rejected and the
         # caller (Scheduler) defers it until evict-driven release frees
         # bytes.
-        reservation: Optional[Reservation] = None
+        reservation: Optional[Reservation | ExchangeReservation] = None
         try:
             nbytes = self.weight_store.get_byte_size(req.key, req.dst)
         except Exception:
             with self._transition_lock:
                 self._active_transitions.pop(req.key, None)
             raise
-        if self.budget_tracker is not None:
+        if self.memory_manager is not None:
+            accounting = None
+            if req.dst == Tier.HI:
+                low_bytes = self.weight_store.get_byte_size(req.key, Tier.LO)
+                resident_base = min(low_bytes, nbytes)
+                accounting = (nbytes - resident_base, resident_base, 0)
+            reservation = self.memory_manager.try_reserve_exchange(
+                f"transition:{req.key.layer}:{req.key.expert}:{req.issued_step}",
+                [
+                    MemoryRequest(
+                        req.key,
+                        req.dst,
+                        "res",
+                        nbytes,
+                        accounting,
+                    )
+                ],
+            )
+            if reservation is None:
+                with self._transition_lock:
+                    self._active_transitions.pop(req.key, None)
+                with self._stats_lock:
+                    self._rejected_budget += 1
+                return False
+        elif self.budget_tracker is not None:
             reservation = self.budget_tracker.try_reserve(nbytes, req.dst)
             if reservation is None:
                 with self._transition_lock:
@@ -189,17 +226,258 @@ class TransitionEngine:
                     reservation,
                 )
         except Exception:
-            if reservation is not None and self.budget_tracker is not None:
+            if isinstance(reservation, ExchangeReservation):
+                assert self.memory_manager is not None
+                self.memory_manager.abort(reservation)
+            elif reservation is not None and self.budget_tracker is not None:
                 self.budget_tracker.release(reservation)
             with self._transition_lock:
                 self._active_transitions.pop(req.key, None)
             raise
         return True
+
+    def enqueue_exchange(self, plan: ExchangePlan) -> bool:
+        """Reserve and execute one donor-backed multi-destination exchange.
+
+        All destination extents and donor holds are acquired in one memory
+        transaction. Copies finish before one atomic registry commit exposes
+        any destination or removes any donor. This path is the executor-side
+        boundary for the joint controller; ordinary ``enqueue`` remains the
+        legacy single-representation transition API.
+        """
+        if self.memory_manager is None:
+            raise RuntimeError("exchange plans require the shared arena")
+        request_keys = [request.key for request in plan.requests]
+        if len(request_keys) != len(set(request_keys)):
+            raise ValueError("an exchange cannot publish one expert twice")
+        allowed_steps = {"reserve", "copy", "publish", "reclaim", "release"}
+        unknown_steps = {step.kind for step in plan.schedule} - allowed_steps
+        if unknown_steps:
+            raise ValueError(f"unsupported exchange schedule steps: {sorted(unknown_steps)}")
+
+        donor_handles: dict[ExpertKey, ExpertHandle] = {}
+        donor_claims = []
+        for donor in plan.donors:
+            handle = self.registry.get_handle(donor.key)
+            if (
+                handle is None
+                or handle.memory_claim is None
+                or handle.memory_claim.claim_id != donor.claim_id
+            ):
+                return False
+            donor_handles[donor.key] = handle
+            donor_claims.append(handle.memory_claim)
+
+        memory_requests = []
+        for request in plan.requests:
+            actual = self.weight_store.get_byte_size(request.key, request.tier)
+            if actual != request.nbytes:
+                raise ValueError(
+                    f"exchange request size mismatch for {request.key}: "
+                    f"plan={request.nbytes}, runtime={actual}"
+                )
+            accounting = self._purpose_accounting(
+                request.key,
+                request.tier,
+                request.purpose,
+                actual,
+            )
+            memory_requests.append(
+                MemoryRequest(
+                    request.key,
+                    request.tier,
+                    request.purpose,
+                    actual,
+                    accounting,
+                )
+            )
+
+        with self._stats_lock:
+            self._enqueue_attempts += len(request_keys)
+        with self._transition_lock:
+            if len(self._active_transitions) + len(request_keys) > self.max_inflight:
+                with self._stats_lock:
+                    self._rejected_inflight_limit += len(request_keys)
+                return False
+            if any(key in self._active_transitions for key in request_keys):
+                with self._stats_lock:
+                    self._rejected_duplicate += 1
+                return False
+            for key in request_keys:
+                self._active_transitions[key] = threading.Event()
+
+        reservation = self.memory_manager.try_reserve_exchange(
+            plan.exchange_id,
+            memory_requests,
+            donors=donor_claims,
+        )
+        if reservation is None:
+            with self._transition_lock:
+                for key in request_keys:
+                    self._active_transitions.pop(key, None)
+            with self._stats_lock:
+                self._rejected_budget += len(request_keys)
+            return False
+
+        with self._stats_lock:
+            self._accepted_requests += len(request_keys)
+            self._accepted_bytes += sum(item.nbytes for item in plan.requests)
+        try:
+            if self.synchronous:
+                self._execute_exchange(plan, reservation, donor_handles)
+            else:
+                self._executor.submit(
+                    self._execute_exchange,
+                    plan,
+                    reservation,
+                    donor_handles,
+                )
+        except Exception:
+            self.memory_manager.abort(reservation)
+            with self._transition_lock:
+                for key in request_keys:
+                    self._active_transitions.pop(key, None)
+            raise
+        return True
+
+    def _purpose_accounting(
+        self,
+        key: ExpertKey,
+        tier: Tier,
+        purpose: str,
+        nbytes: int,
+    ) -> tuple[int, int, int] | None:
+        if purpose == "look":
+            return None
+        if tier == Tier.LO:
+            return (0, nbytes, 0)
+        low_bytes = min(self.weight_store.get_byte_size(key, Tier.LO), nbytes)
+        return (nbytes - low_bytes, low_bytes, 0)
+
+    def _execute_exchange(
+        self,
+        plan: ExchangePlan,
+        reservation: ExchangeReservation,
+        donor_handles: dict[ExpertKey, ExpertHandle],
+    ) -> None:
+        assert self.memory_manager is not None
+        request_keys = [request.key for request in plan.requests]
+        published = False
+        copied = 0
+        started = time.time()
+        try:
+            replacements: dict[ExpertKey, ExpertHandle] = {}
+            for request, claim in zip(plan.requests, reservation.claims):
+                packed = self.weight_store.load_weights(request.key, request.tier)
+                payload = self._packed_to_bytes(packed)
+                if payload.numel() > claim.extent.tensor.numel():
+                    raise RuntimeError(
+                        f"exchange extent too small for {request.key}: "
+                        f"payload={payload.numel()}, extent={claim.extent.tensor.numel()}"
+                    )
+                copy_len = payload.numel()
+                if self._copy_stream is not None:
+                    with torch.cuda.stream(self._copy_stream):
+                        claim.extent.tensor[:copy_len].copy_(payload, non_blocking=True)
+                        copy_done = torch.cuda.Event()
+                        copy_done.record(self._copy_stream)
+                    copy_done.synchronize()
+                else:
+                    claim.extent.tensor[:copy_len].copy_(payload)
+                resident = self._bind_packed_to_block(packed, claim.extent.tensor)
+                if self._copy_stream is not None:
+                    with torch.cuda.stream(self._copy_stream):
+                        self._materialize_kernel_caches(
+                            packed,
+                            resident,
+                            claim.extent.tensor,
+                        )
+                        layout_done = torch.cuda.Event()
+                        layout_done.record(self._copy_stream)
+                    layout_done.synchronize()
+                else:
+                    self._materialize_kernel_caches(
+                        packed,
+                        resident,
+                        claim.extent.tensor,
+                    )
+                first_use_callback = None
+                if request.purpose == "look":
+                    resident_accounting = self._purpose_accounting(
+                        request.key,
+                        request.tier,
+                        "res",
+                        request.nbytes,
+                    )
+
+                    def consume_prefetch(
+                        handle: ExpertHandle,
+                        *,
+                        accounting=resident_accounting,
+                    ) -> None:
+                        if handle.memory_claim is None:
+                            raise RuntimeError("prefetched handle has no arena claim")
+                        self.memory_manager.reclassify(
+                            handle.memory_claim,
+                            purpose="res",
+                            accounting=accounting,
+                        )
+
+                    first_use_callback = consume_prefetch
+                replacements[request.key] = ExpertHandle(
+                    tier=request.tier,
+                    block=claim.extent,
+                    quant_meta=resident,
+                    memory_claim=claim,
+                    first_use_callback=first_use_callback,
+                )
+                copied += copy_len
+
+            for claim in reservation.claims:
+                self.memory_manager.publish(claim)
+            detached = self.registry.publish_exchange(replacements, donor_handles)
+            published = True
+
+            released_claim_ids: set[int] = set()
+            for handle in detached.values():
+                claim = handle.memory_claim
+                if claim is None or claim.claim_id in released_claim_ids:
+                    continue
+                self._fence_before_reclaim(handle)
+                self.memory_manager.mark_reclaim_pending(claim)
+                if claim.claim_id in reservation.donor_claim_ids:
+                    self.memory_manager.release_held_donor(
+                        plan.exchange_id,
+                        claim,
+                    )
+                else:
+                    self.memory_manager.release(claim)
+                released_claim_ids.add(claim.claim_id)
+            self.memory_manager.finish(reservation)
+            with self._stats_lock:
+                self._copied_bytes += copied
+                self._stage_timings.append(
+                    TransitionStage(total_ms=(time.time() - started) * 1000.0)
+                )
+        except Exception:
+            with self._stats_lock:
+                self._failed_transitions += 1
+            if not published:
+                self.memory_manager.rollback_before_registry_publish(reservation)
+            else:
+                self.memory_manager.release_donor_holds(plan.exchange_id)
+            raise
+        finally:
+            with self._transition_lock:
+                for key in request_keys:
+                    event = self._active_transitions.pop(key, None)
+                    if event is not None:
+                        event.set()
     
     def _execute_transition(
         self,
         req: TransitionReq,
-        reservation: Optional[Reservation] = None,
+        reservation: Optional[Reservation | ExchangeReservation] = None,
     ) -> None:
         """Execute a single transition (runs in background thread).
 
@@ -230,7 +508,11 @@ class TransitionEngine:
 
             # Stage 2: Allocate block and transfer
             h2d_start = time.time()
-            block = self.pool_allocator.alloc(key.layer, req.dst)
+            if isinstance(reservation, ExchangeReservation):
+                block = reservation.claims[0].extent
+            else:
+                assert self.pool_allocator is not None
+                block = self.pool_allocator.alloc(key.layer, req.dst)
             if block is None:
                 raise RuntimeError(f"Failed to allocate block for {key}")
 
@@ -256,7 +538,7 @@ class TransitionEngine:
             else:
                 block.tensor[:copy_len].copy_(payload)
 
-            # Rebind qweight/scales as typed views into the pool block.
+            # Rebind qweight/scales as typed views into the destination.
             # Publishing the original host PackedTensor would make the
             # supposedly resident handle execute against CPU storage.
             resident_packed = self._bind_packed_to_block(packed, block.tensor)
@@ -298,18 +580,30 @@ class TransitionEngine:
                 block=block,
                 quant_meta=resident_packed,
                 version=0,  # registry will increment
-                reservation=reservation,
+                reservation=(reservation if isinstance(reservation, Reservation) else None),
+                memory_claim=(
+                    reservation.claims[0]
+                    if isinstance(reservation, ExchangeReservation)
+                    else None
+                ),
             )
 
             # Convert pending admission into committed ownership immediately
             # before the atomic publication. If publication unexpectedly
             # fails, the exception path releases the committed reservation
             # and the un-published block.
-            if reservation is not None and self.budget_tracker is not None:
+            if isinstance(reservation, ExchangeReservation):
+                assert self.memory_manager is not None
+                self.memory_manager.publish(reservation.claims[0])
+                committed = True
+            elif reservation is not None and self.budget_tracker is not None:
                 self.budget_tracker.commit(reservation)
                 committed = True
             self.registry.register(key, new_handle)
             published = True
+            if isinstance(reservation, ExchangeReservation):
+                assert self.memory_manager is not None
+                self.memory_manager.finish(reservation)
 
             stage.register_ms = (time.time() - register_start) * 1000
 
@@ -327,7 +621,13 @@ class TransitionEngine:
             reclaim_start = time.time()
             if old_handle is not None and old_handle.block is not None:
                 self._fence_before_reclaim(old_handle)
-                self.pool_allocator.free_block(old_handle.block)
+                if old_handle.memory_claim is not None:
+                    assert self.memory_manager is not None
+                    self.memory_manager.mark_reclaim_pending(old_handle.memory_claim)
+                    self.memory_manager.release(old_handle.memory_claim)
+                else:
+                    assert self.pool_allocator is not None
+                    self.pool_allocator.free_block(old_handle.block)
                 # Release the OLD reservation back to the budget. This
                 # is what makes a long promote/demote loop steady-state
                 # under a tight cap (the reservation cycle is closed).
@@ -341,7 +641,10 @@ class TransitionEngine:
                 # full. The block just reclaimed creates a resident hole;
                 # move one same-layer/same-tier staging handle into it so
                 # transient capacity cannot become permanently occupied.
-                if old_handle.block.pool_name != "staging":
+                if (
+                    self.memory_manager is None
+                    and old_handle.block.pool_name != "staging"
+                ):
                     self._repatriate_one(key.layer, old_handle.tier)
             stage.reclaim_ms = (time.time() - reclaim_start) * 1000
             
@@ -369,10 +672,17 @@ class TransitionEngine:
             #   attached, so we leave it alone — the next eviction of this
             #   expert will release it via the normal Stage 4 path.
             if not published:
-                if block is not None and block.in_use:
+                if isinstance(reservation, ExchangeReservation):
+                    assert self.memory_manager is not None
+                    self.memory_manager.rollback_before_registry_publish(
+                        reservation
+                    )
+                elif block is not None and block.in_use:
+                    assert self.pool_allocator is not None
                     self.pool_allocator.free_block(block)
                 if (
                     reservation is not None
+                    and isinstance(reservation, Reservation)
                     and self.budget_tracker is not None
                     and not reservation.is_released()
                 ):
@@ -412,6 +722,10 @@ class TransitionEngine:
         # handle but has not launched its kernels yet. The lease wait closes
         # that gap; the event then fences asynchronous work from the reader.
         self.registry.wait_until_unused(old_handle)
+        # Bootstrap and speculative handles may be evicted before any forward
+        # dispatch acquires them.  No compute stream can reference such an
+        # extent, so a device-wide synchronization would add cost without
+        # closing a real race.
         fences = list(old_handle.last_use_events.values())
         if not fences and old_handle.last_use_event is not None:
             fences = [old_handle.last_use_event]
@@ -423,6 +737,8 @@ class TransitionEngine:
                 fence.synchronize()
             with self._stats_lock:
                 self._precise_fence_reclaims += 1
+            return
+        if not old_handle.ever_acquired:
             return
         # No precise fence was recorded — fall back to the conservative
         # global sync. The CPU path is a no-op.
@@ -450,10 +766,10 @@ class TransitionEngine:
         storage: torch.Tensor,
     ) -> None:
         """
-        Bind kernel-native INT4 layouts into the tail of a pool block.
+        Bind kernel-native INT4 layouts into the tail of a destination extent.
 
         A host source has no native cache, so the layout is prepared once and
-        copied into pool storage. A staging-backed source already has cache
+        copied into device storage. A staging-backed source already has cache
         metadata; repatriation has copied the entire block, so this method
         recreates typed views without another conversion.
         """
@@ -543,12 +859,14 @@ class TransitionEngine:
             )
         if offset > storage.numel():
             raise RuntimeError(
-                f"pool block cannot hold resident kernel cache: "
+                f"destination cannot hold resident kernel cache: "
                 f"required={offset}, block={storage.numel()}"
             )
 
     def _repatriate_one(self, layer: int, tier: Tier) -> bool:
         """Move one staging-backed handle into a free resident block."""
+        if self.memory_manager is not None:
+            return False
         candidate_key = None
         candidate_handle = None
         for key, handle in self.registry.handle_snapshot().items():
@@ -671,7 +989,7 @@ class TransitionEngine:
         storage: torch.Tensor,
         offset: int,
     ) -> tuple[PackedTensor, int]:
-        """Create typed qweight/scales views into a uint8 pool allocation."""
+        """Create typed qweight/scales views into uint8 device storage."""
         q_bytes = packed.qweight.numel() * packed.qweight.element_size()
         q_end = offset + q_bytes
         qweight = storage[offset:q_end].view(packed.qweight.dtype).view(
@@ -769,12 +1087,16 @@ class TransitionEngine:
                 ]
         with self._transition_lock:
             stats["active_transitions"] = len(self._active_transitions)
-        stats["pool"] = self.pool_allocator.snapshot()
-        stats["budget"] = (
-            self.budget_tracker.snapshot()
-            if self.budget_tracker is not None
-            else None
-        )
+        if self.memory_manager is not None:
+            stats["arena"] = self.memory_manager.snapshot()
+            stats["budget"] = None
+        else:
+            stats["pool"] = self.pool_allocator.snapshot()
+            stats["budget"] = (
+                self.budget_tracker.snapshot()
+                if self.budget_tracker is not None
+                else None
+            )
         return stats
 
     def reset_stats(self) -> None:
