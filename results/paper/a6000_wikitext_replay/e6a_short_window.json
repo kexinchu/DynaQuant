@@ -1,0 +1,848 @@
+{
+  "schema_version": 1,
+  "artifact_type": "e7_e6a_replay",
+  "created_at": "2026-10-07T04:04:23.488646+00:00",
+  "not_end_to_end": true,
+  "epsilon": 2.1,
+  "native_bandwidth_bytes_s": 24859886907.454784,
+  "stale_bandwidth_gbps": 20.0,
+  "sweep_gbps": [
+    8.0,
+    16.0,
+    24.86,
+    40.0
+  ],
+  "layer_times_source": null,
+  "cells": [
+    {
+      "input_tokens": 128,
+      "layer_time_ms": 2.4110925746739063,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 20.0,
+      "phi": 1.0,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 185.71195954024262,
+          "mean_ms": 166.1188140547377
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 185.71195954024262,
+          "mean_ms": 166.1188140547377
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 11,
+          "slots": 4,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 147.9159134401854,
+          "mean_ms": 122.92236875335702
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 60,
+          "expired_prefetches": 5,
+          "p95_ms": 182.24606139084133,
+          "mean_ms": 163.45861226402408,
+          "n_exchange_keys": 60
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 361,
+          "expired_prefetches": 25,
+          "p95_ms": 176.1743745734603,
+          "mean_ms": 159.34152835694096,
+          "n_exchange_keys": 361
+        }
+      ]
+    },
+    {
+      "input_tokens": 128,
+      "layer_time_ms": 2.4110925746739063,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 20.0,
+      "phi": 1.3,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 10.950145494402262,
+          "mean_ms": 6.958001609003084
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 10.950145494402262,
+          "mean_ms": 6.958001609003084
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 4.888763299214588,
+          "mean_ms": 3.1019242278001733
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 10.950145494402262,
+          "mean_ms": 6.958001609003084,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 382,
+          "expired_prefetches": 148,
+          "p95_ms": 10.778456434585785,
+          "mean_ms": 5.736810931464805,
+          "n_exchange_keys": 382
+        }
+      ]
+    },
+    {
+      "input_tokens": 128,
+      "layer_time_ms": 2.4110925746739063,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 20.0,
+      "phi": 1.931219362745098,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        }
+      ]
+    },
+    {
+      "input_tokens": 128,
+      "layer_time_ms": 2.4110925746739063,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 24.859886907,
+      "phi": 1.0,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 138.37334852279182,
+          "mean_ms": 122.1125276223656
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 138.37334852279182,
+          "mean_ms": 122.1125276223656
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 7,
+          "slots": 8,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 106.05238036202172,
+          "mean_ms": 84.51491272405113
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 60,
+          "expired_prefetches": 5,
+          "p95_ms": 135.44650287979965,
+          "mean_ms": 119.8664161661213,
+          "n_exchange_keys": 60
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 361,
+          "expired_prefetches": 25,
+          "p95_ms": 130.30590675530843,
+          "mean_ms": 116.38149383473709,
+          "n_exchange_keys": 361
+        }
+      ]
+    },
+    {
+      "input_tokens": 128,
+      "layer_time_ms": 2.4110925746739063,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 24.859886907,
+      "phi": 1.3,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 5.390156791970538,
+          "mean_ms": 3.6487142417101026
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 5.390156791970538,
+          "mean_ms": 3.6487142417101026
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 2.8795675935048597,
+          "mean_ms": 1.6575569697295882
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 5.390156791970538,
+          "mean_ms": 3.6487142417101026,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 382,
+          "expired_prefetches": 148,
+          "p95_ms": 5.19943447700515,
+          "mean_ms": 3.089975881936047,
+          "n_exchange_keys": 382
+        }
+      ]
+    },
+    {
+      "input_tokens": 128,
+      "layer_time_ms": 2.4110925746739063,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 24.859886907,
+      "phi": 1.931219362745098,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        }
+      ]
+    },
+    {
+      "input_tokens": 512,
+      "layer_time_ms": 9.644370298695625,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 20.0,
+      "phi": 1.0,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 136.2047224955464,
+          "mean_ms": 103.58661187145276
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 136.2047224955464,
+          "mean_ms": 103.58661187145276
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 104.9137458760626,
+          "mean_ms": 69.7994180466831
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 36,
+          "expired_prefetches": 1,
+          "p95_ms": 132.62179165781825,
+          "mean_ms": 101.06492536567988,
+          "n_exchange_keys": 36
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 214,
+          "expired_prefetches": 5,
+          "p95_ms": 128.43959359857868,
+          "mean_ms": 96.93678345396036,
+          "n_exchange_keys": 214
+        }
+      ]
+    },
+    {
+      "input_tokens": 512,
+      "layer_time_ms": 9.644370298695625,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 20.0,
+      "phi": 1.3,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 331,
+          "expired_prefetches": 50,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 331
+        }
+      ]
+    },
+    {
+      "input_tokens": 512,
+      "layer_time_ms": 9.644370298695625,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 20.0,
+      "phi": 1.931219362745098,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        }
+      ]
+    },
+    {
+      "input_tokens": 512,
+      "layer_time_ms": 9.644370298695625,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 24.859886907,
+      "phi": 1.0,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 72.09127240166323,
+          "mean_ms": 47.943589775063046
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 72.09127240166323,
+          "mean_ms": 47.943589775063046
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 15,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 49.614251970150086,
+          "mean_ms": 27.709949457392476
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 36,
+          "expired_prefetches": 1,
+          "p95_ms": 68.90037975041469,
+          "mean_ms": 45.96205880405431,
+          "n_exchange_keys": 36
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 214,
+          "expired_prefetches": 5,
+          "p95_ms": 65.68288982207049,
+          "mean_ms": 43.40084928304521,
+          "n_exchange_keys": 214
+        }
+      ]
+    },
+    {
+      "input_tokens": 512,
+      "layer_time_ms": 9.644370298695625,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 24.859886907,
+      "phi": 1.3,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 53,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 331,
+          "expired_prefetches": 50,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 331
+        }
+      ]
+    },
+    {
+      "input_tokens": 512,
+      "layer_time_ms": 9.644370298695625,
+      "layer_time_source": "scaled_from_2048_ttft_by_token_count",
+      "bandwidth_gbps": 24.859886907,
+      "phi": 1.931219362745098,
+      "static": [
+        {
+          "policy": "static-joint-cal",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "seq-pq",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        },
+        {
+          "policy": "oracle-grid-test",
+          "quality_feasible": true,
+          "n_high": 30,
+          "n_low": 98,
+          "slots": 0,
+          "delta_ppl": 2.094353381636374,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0
+        }
+      ],
+      "online": [
+        {
+          "policy": "dynabyte-counterfactual",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        },
+        {
+          "policy": "dynabyte-independent",
+          "exchanges": 0,
+          "expired_prefetches": 0,
+          "p95_ms": 0.0,
+          "mean_ms": 0.0,
+          "n_exchange_keys": 0
+        }
+      ]
+    }
+  ],
+  "e6a_admit_flips": [
+    {
+      "input_tokens": 128,
+      "phi": 1.0,
+      "policy": "dynabyte-counterfactual",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 60,
+      "native_admits": 60,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 128,
+      "phi": 1.0,
+      "policy": "dynabyte-independent",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 361,
+      "native_admits": 361,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 128,
+      "phi": 1.931219362745098,
+      "policy": "dynabyte-counterfactual",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 0,
+      "native_admits": 0,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 128,
+      "phi": 1.931219362745098,
+      "policy": "dynabyte-independent",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 0,
+      "native_admits": 0,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 128,
+      "phi": 1.3,
+      "policy": "dynabyte-counterfactual",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 0,
+      "native_admits": 0,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 128,
+      "phi": 1.3,
+      "policy": "dynabyte-independent",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 382,
+      "native_admits": 382,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 512,
+      "phi": 1.0,
+      "policy": "dynabyte-counterfactual",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 36,
+      "native_admits": 36,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 512,
+      "phi": 1.0,
+      "policy": "dynabyte-independent",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 214,
+      "native_admits": 214,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 512,
+      "phi": 1.931219362745098,
+      "policy": "dynabyte-counterfactual",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 0,
+      "native_admits": 0,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 512,
+      "phi": 1.931219362745098,
+      "policy": "dynabyte-independent",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 0,
+      "native_admits": 0,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 512,
+      "phi": 1.3,
+      "policy": "dynabyte-counterfactual",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 0,
+      "native_admits": 0,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    },
+    {
+      "input_tokens": 512,
+      "phi": 1.3,
+      "policy": "dynabyte-independent",
+      "stale_gbps": 20.0,
+      "native_gbps": 24.859886907454783,
+      "stale_admits": 331,
+      "native_admits": 331,
+      "only_stale": 0,
+      "only_native": 0,
+      "admit_flips": 0
+    }
+  ]
+}

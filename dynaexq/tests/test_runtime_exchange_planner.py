@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import torch
 
 from dynaexq.core.config import Tier
@@ -11,6 +13,7 @@ from dynaexq.core.hotness_tracker import HotnessTracker
 from dynaexq.core.shared_arena import SharedArenaAllocator
 from dynaexq.core.transition_engine import TransitionEngine
 from dynaexq.lease.exchange import Exchange
+from dynaexq.integration.moe_wrapper import MoEWrapper
 from dynaexq.policy.runtime import RuntimeExchangePlanner, RuntimeResidencyController
 from dynaexq.policy.risk import QualityRiskAccount
 
@@ -199,7 +202,7 @@ def test_residency_controller_admits_positive_counterfactual_lookahead() -> None
         engine.shutdown()
 
 
-def test_lookahead_reuses_one_counterfactual_snapshot_for_rejections() -> None:
+def test_lookahead_bounds_counterfactual_work_for_rejections() -> None:
     engine, _manager, registry, planner = _runtime(4096)
     current = ExpertKey(0, 0)
     donor = ExpertKey(1, 0)
@@ -231,9 +234,40 @@ def test_lookahead_reuses_one_counterfactual_snapshot_for_rejections() -> None:
         controller.on_route(0, torch.tensor([[0]]), issued_step=1)
 
         assert snapshots == 1
-        assert controller.snapshot()["counterfactual_candidates"] == 3
-        assert controller.snapshot()["counterfactual_rejected"] == 3
+        assert controller.snapshot()["counterfactual_candidates"] == 1
+        assert controller.snapshot()["counterfactual_rejected"] == 1
+        assert controller.snapshot()["fast_control_events"] == 1
+        assert controller.snapshot()["fast_control_mean_us"] > 0.0
+        assert controller.snapshot()["counterfactual_mean_us"] > 0.0
         assert registry.get_handle(donor) is not None
+    finally:
+        engine.shutdown()
+
+
+def test_all_rejected_lookahead_candidates_retire_search_depth() -> None:
+    engine, _manager, _registry, planner = _runtime(4096)
+    try:
+        tracker = HotnessTracker(2, 2, alpha=0.5)
+        tracker.update(1, {1: 1.0})
+        controller = RuntimeResidencyController(
+            planner,
+            tracker,
+            num_layers=2,
+            lookahead_depth=1,
+            lookahead_per_layer=1,
+        )
+        controller._counterfactual_gain = (  # type: ignore[method-assign]
+            lambda exchange, *, state=None: -1.0
+        )
+
+        for step in range(1, 34):
+            controller.on_route(0, torch.tensor([[0]]), issued_step=step)
+
+        snapshot = controller.snapshot()
+        assert snapshot["counterfactual_candidates"] == 31
+        assert snapshot["counterfactual_rejected"] == 31
+        assert snapshot["effective_lookahead_depth"] == 0
+        assert snapshot["depth_decreases"] == 1
     finally:
         engine.shutdown()
 
@@ -326,6 +360,255 @@ def test_quality_risk_rejects_a_precision_swap_that_drops_required_hi() -> None:
 
         assert not feasible
         assert controller.snapshot()["quality_risk_rejected"] == 1
+    finally:
+        engine.shutdown()
+
+
+def test_quality_repair_pairs_promotions_and_demotions_across_layers() -> None:
+    engine, _manager, registry, planner = _runtime(4096)
+    old_high = ExpertKey(0, 0)
+    new_high = ExpertKey(1, 0)
+    try:
+        assert engine.enqueue(_transition(old_high, Tier.HI, Tier.HI, 0))
+        assert engine.enqueue(_transition(new_high, Tier.LO, Tier.LO, 0))
+        tracker = HotnessTracker(2, 1, alpha=0.5)
+        tracker.seed_scores([[0.1], [0.8]])
+        risk = QualityRiskAccount(
+            {old_high: 1.0, new_high: 1.0},
+            limit=0.2,
+        )
+        controller = RuntimeResidencyController(
+            planner,
+            tracker,
+            num_layers=2,
+            quality_risk=risk,
+        )
+        wrapper = MoEWrapper(
+            model=torch.nn.Identity(),
+            router_observer=object(),  # type: ignore[arg-type]
+            hotness_tracker=tracker,
+            scheduler=object(),  # type: ignore[arg-type]
+            registry=registry,
+            transition_engine=engine,
+            exchange_planner=planner,
+            residency_controller=controller,
+        )
+
+        wrapper._submit_precision_exchanges(
+            [
+                TransitionReq(
+                    old_high,
+                    Tier.HI,
+                    Tier.LO,
+                    "repair_quality_risk",
+                    1,
+                    score_gap=0.1,
+                ),
+                TransitionReq(
+                    new_high,
+                    Tier.LO,
+                    Tier.HI,
+                    "repair_quality_risk",
+                    1,
+                    score_gap=0.8,
+                ),
+            ]
+        )
+
+        assert planner.snapshot()["accepted"] == 1
+        assert registry.get_handle(old_high).tier == Tier.LO
+        assert registry.get_handle(new_high).tier == Tier.HI
+    finally:
+        engine.shutdown()
+
+
+def test_quality_repair_retries_transient_exchange_rejection() -> None:
+    engine, _manager, registry, planner = _runtime(4096)
+    old_high = ExpertKey(0, 0)
+    new_high = ExpertKey(1, 0)
+    try:
+        assert engine.enqueue(_transition(old_high, Tier.HI, Tier.HI, 0))
+        assert engine.enqueue(_transition(new_high, Tier.LO, Tier.LO, 0))
+        tracker = HotnessTracker(2, 1, alpha=0.5)
+        tracker.seed_scores([[0.1], [0.8]])
+        risk = QualityRiskAccount(
+            {old_high: 1.0, new_high: 1.0},
+            limit=0.2,
+        )
+        controller = RuntimeResidencyController(
+            planner,
+            tracker,
+            num_layers=2,
+            quality_risk=risk,
+            wait_timeout_s=1.0,
+        )
+        wrapper = MoEWrapper(
+            model=torch.nn.Identity(),
+            router_observer=object(),  # type: ignore[arg-type]
+            hotness_tracker=tracker,
+            scheduler=object(),  # type: ignore[arg-type]
+            registry=registry,
+            transition_engine=engine,
+            exchange_planner=planner,
+            residency_controller=controller,
+        )
+        original_submit = planner.submit_precision_unit
+        attempts = {"count": 0}
+
+        def flaky_submit(*args, **kwargs):
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                return False
+            return original_submit(*args, **kwargs)
+
+        planner.submit_precision_unit = flaky_submit  # type: ignore[method-assign]
+
+        wrapper._submit_precision_exchanges(
+            [
+                TransitionReq(
+                    old_high,
+                    Tier.HI,
+                    Tier.LO,
+                    "repair_quality_risk",
+                    1,
+                    score_gap=0.1,
+                ),
+                TransitionReq(
+                    new_high,
+                    Tier.LO,
+                    Tier.HI,
+                    "repair_quality_risk",
+                    1,
+                    score_gap=0.8,
+                ),
+            ]
+        )
+
+        assert attempts["count"] == 2
+        assert registry.get_handle(old_high).tier == Tier.LO
+        assert registry.get_handle(new_high).tier == Tier.HI
+    finally:
+        engine.shutdown()
+
+
+def test_quality_repair_rejection_uses_short_retry_window() -> None:
+    engine, _manager, registry, planner = _runtime(4096)
+    old_high = ExpertKey(0, 0)
+    new_high = ExpertKey(1, 0)
+    try:
+        assert engine.enqueue(_transition(old_high, Tier.HI, Tier.HI, 0))
+        assert engine.enqueue(_transition(new_high, Tier.LO, Tier.LO, 0))
+        tracker = HotnessTracker(2, 1, alpha=0.5)
+        tracker.seed_scores([[0.1], [0.8]])
+        risk = QualityRiskAccount(
+            {old_high: 1.0, new_high: 1.0},
+            limit=0.2,
+        )
+        controller = RuntimeResidencyController(
+            planner,
+            tracker,
+            num_layers=2,
+            quality_risk=risk,
+            wait_timeout_s=10.0,
+        )
+        wrapper = MoEWrapper(
+            model=torch.nn.Identity(),
+            router_observer=object(),  # type: ignore[arg-type]
+            hotness_tracker=tracker,
+            scheduler=object(),  # type: ignore[arg-type]
+            registry=registry,
+            transition_engine=engine,
+            exchange_planner=planner,
+            residency_controller=controller,
+        )
+        attempts = {"count": 0}
+
+        def always_reject(*args, **kwargs):
+            attempts["count"] += 1
+            return False
+
+        planner.submit_precision_unit = always_reject  # type: ignore[method-assign]
+        started = time.perf_counter()
+
+        wrapper._submit_precision_exchanges(
+            [
+                TransitionReq(
+                    old_high,
+                    Tier.HI,
+                    Tier.LO,
+                    "repair_quality_risk",
+                    1,
+                    score_gap=0.1,
+                ),
+                TransitionReq(
+                    new_high,
+                    Tier.LO,
+                    Tier.HI,
+                    "repair_quality_risk",
+                    1,
+                    score_gap=0.8,
+                ),
+            ]
+        )
+
+        elapsed = time.perf_counter() - started
+        assert attempts["count"] >= 2
+        assert elapsed < 2.0
+        assert registry.get_handle(old_high).tier == Tier.HI
+        assert registry.get_handle(new_high).tier == Tier.LO
+    finally:
+        engine.shutdown()
+
+
+def test_request_boundary_direct_repair_promotes_published_resident() -> None:
+    engine, _manager, registry, planner = _runtime(4096)
+    required = ExpertKey(0, 0)
+    hot_low = ExpertKey(0, 1)
+    cold_low = ExpertKey(0, 2)
+    colder_low = ExpertKey(0, 3)
+    coldest_low = ExpertKey(0, 4)
+    try:
+        assert engine.enqueue(_transition(required, Tier.HI, Tier.HI, 0))
+        assert engine.enqueue(_transition(hot_low, Tier.LO, Tier.LO, 0))
+        assert engine.enqueue(_transition(cold_low, Tier.LO, Tier.LO, 0))
+        assert engine.enqueue(_transition(colder_low, Tier.LO, Tier.LO, 0))
+        assert engine.enqueue(_transition(coldest_low, Tier.LO, Tier.LO, 0))
+        tracker = HotnessTracker(1, 5, alpha=0.5)
+        tracker.seed_scores([[0.0, 0.8, 0.0, 0.0, 0.0]])
+        risk = QualityRiskAccount(
+            {
+                required: 1.0,
+                hot_low: 1.0,
+                cold_low: 1.0,
+                colder_low: 1.0,
+                coldest_low: 1.0,
+            },
+            limit=0.1,
+        )
+        controller = RuntimeResidencyController(
+            planner,
+            tracker,
+            num_layers=1,
+            quality_risk=risk,
+            transition_reserve_bytes=1024,
+        )
+        wrapper = MoEWrapper(
+            model=torch.nn.Identity(),
+            router_observer=object(),  # type: ignore[arg-type]
+            hotness_tracker=tracker,
+            scheduler=object(),  # type: ignore[arg-type]
+            registry=registry,
+            transition_engine=engine,
+            exchange_planner=planner,
+            residency_controller=controller,
+        )
+
+        assert not controller.quality_risk_feasible()
+        assert wrapper._repair_quality_risk_from_published_state()
+
+        assert registry.get_handle(hot_low).tier == Tier.HI
+        assert registry.get_handle(cold_low) is None
+        assert controller.quality_risk_feasible()
     finally:
         engine.shutdown()
 

@@ -1,7 +1,6 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-Under a quality-degradation limit, \systemname\ allocates expert memory and host-to-device bandwidth among fidelity, residency, and lookahead to reduce MoE inference tail latency.
-Its donor-backed byte exchanges expose the opportunity cost of each request, while deadline replay prevents residency and lookahead from receiving credit for the same avoided transfer.
-One admission path refreshes residency and lookahead faster than fidelity, through a shared byte ledger and a publish-after-copy protocol.
-The resulting design preserves routing semantics, enforces peak expert-memory use during transitions, and reduces to simpler policies when one purpose dominates.
+\systemname\ allocates expert memory and host-to-device bandwidth among fidelity, residency, and lookahead on one byte ledger.
+One byte ledger and a publish-after-copy protocol keep the expert-memory peak within budget during a transition.
+In Figure~\ref{fig:eval-mechanisms}, a separate quota is slower than \systemname. The gain over the offline oracle is unresolved in Table~\ref{tab:eval-main}, and at the marked copy rate in Figure~\ref{fig:eval-robustness} the two p95 TPOT values differ by 4\,ms.

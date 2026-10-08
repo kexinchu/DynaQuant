@@ -5,15 +5,17 @@
 \documentclass[acmsmall,screen,review,anonymous]{acmart}
 
 \usepackage{booktabs}
+\usepackage{longtable}
 \usepackage{tabularx}
 \usepackage{amsmath}
 \usepackage{algorithm}
 \usepackage{algpseudocode}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,fit}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds,calc,patterns}
 
 \newcommand{\systemname}{DynaByte}
 \newcommand{\tbd}[1]{\textcolor{red}{[#1]}}
+\newcommand{\draft}[1]{\textcolor{red}{\emph{#1}}}
 \newcommand{\PhiRatio}{\Phi}
 
 \setcopyright{none}
@@ -23,16 +25,17 @@
 \acmJournal{POMACS}
 \acmYear{2027}
 
-\title{DynaByte: Allocating Expert Memory and Transfer Bandwidth for MoE Tail Latency}
+\title{DynaByte: Shared-Budget Allocation of Expert Precision, Residency, and Lookahead}
 
 %% Add the main end-to-end result and the gap to the strongest shared-budget
 %% baseline after the joint evaluation is complete.
 \begin{abstract}
-How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency under a quality-degradation limit?
-Precision spends device bytes and increases the size of a later transfer, residency spends device bytes to avoid a transfer, and lookahead spends both bytes and bandwidth to hide a transfer that still occurs.
-Existing policies usually fix two of these uses and optimize the third, so a precision quota or a prefetch depth tuned on its own can still raise tail latency once the two budgets are shared.
-\systemname\ answers this question with donor-backed byte exchanges: each request names the precision, residency, or lookahead claim it displaces, and a deadline replay admits the exchange only when predicted exposed wait falls and the quality-degradation limit still holds.
-One byte ledger and a publish-after-copy protocol keep the expert-memory peak within budget while the three uses are admitted together.
+How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency while the expert-memory peak stays within budget?
+Precision spends device bytes and enlarges a later transfer, residency spends bytes to avoid a transfer, and lookahead spends both bytes and bandwidth to hide a transfer.
+Policies that fix two of these uses and tune the third can still raise tail latency once the two budgets are shared.
+\systemname\ admits each byte exchange only when the claim it displaces lowers predicted exposed wait and the quality-risk target still holds; one ledger publishes a representation after its copy completes and keeps the expert-memory peak within budget.
+On Qwen3-30B, under that budget, p95 TPOT is 45.6\,ms against 51.8\,ms for HOBBIT.
+The \systemname\ interval overlaps a frozen joint assignment, so that comparison is unresolved.
 \end{abstract}
 
 \begin{CCSXML}
@@ -64,11 +67,6 @@ One byte ledger and a publish-after-copy protocol keep the expert-memory peak wi
 \begin{document}
 
 \maketitle
-
-\noindent\textit{Draft status.}
-This manuscript follows the SIGMETRICS~2027 \texttt{acmsmall} rules (at most 20 single-column pages of technical content, unlimited references, double-anonymous review).
-Tables that depend on the joint re-measurement are marked in red and left blank.
-The motivating measurements and trace replay in Sections~\ref{sec:obs-quality}--\ref{sec:obs-joint} are not end-to-end results for \systemname.
 
 \input{01_introduction}
 \input{02_background}

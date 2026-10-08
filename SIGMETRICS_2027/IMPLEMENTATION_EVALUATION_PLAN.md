@@ -1,5 +1,10 @@
 # DynaByte 代码实现与评测计划（目标 9/10）
 
+> **Qwen3-30B/A6000 执行口径更新（2026-10-05）：** 本文件保留总体研究设计。
+> 当前本地 Qwen3-30B 实验的权威矩阵、复用规则、缺口补齐顺序与验收门禁见
+> `QWEN30B_REQUIREMENTS_ALIGNED_PLAN.md`。若两者在预算点、统计协议或执行顺序上
+> 冲突，以后者为准；其他模型和硬件仍由本文件规划并由独立数据补齐。
+
 > 本文件是 `STORYLINE_WRITING_OUTLINE.md` 第 8 节所推迟的 Evaluation 规划，以及支撑它的实现规划。
 > 上游依据：`03_design.tex`（byte lease / exchange 机制）、`DESIGN_NOVELTY_REWRITE_PLAN.md` 第 4 节（9/10 所需证据）、`STORYLINE_RESTRUCTURING.md` 第 7 节（实验组织）与 0.6 节（模拟审稿意见）。
 > 快照时间：2026-10-03。所有硬件与 checkpoint 状态在开跑前需重新核验。

@@ -1,333 +1,210 @@
 \section{Evaluation}
 \label{sec:eval}
 
-We evaluate five questions.  RQ1 asks whether \systemname\ improves tail
-latency at the same expert-memory budget and quality-degradation limit.  RQ2
-tests whether joint online allocation is necessary.  RQ3 attributes the result
-to counterfactual valuation, explicit donors, and the shared expert arena.
-RQ4 measures model accuracy and runtime cost.  RQ5 identifies operating
-regions in which a simpler policy is sufficient.
-
-\providecommand{\evalplaceholder}[1]{%
-  \fbox{\parbox[c][39mm][c]{0.96\linewidth}{\centering
-  \textcolor{red}{[Figure placeholder]}\\[3pt]#1}}}
+We evaluate five questions.  RQ1 asks whether \systemname\ lowers p95 TPOT
+at the same expert-memory budget among rows whose measured \(\Delta\)PPL meets
+\(\epsilon\), and whether that comparison separates from \textsc{Static-Joint}.
+RQ2 asks when a shared online allocation improves on a sequential order or a
+frozen assignment, and when one of those simpler policies is enough.  RQ3 asks
+which of counterfactual replay, explicit donors, and separate quotas separate
+from \systemname.  RQ4 reports the unsafe-accept rate of the quality-risk
+proxy, the latency-surrogate error, and the controller's runtime cost.  RQ5
+asks when a simpler policy is sufficient.
 
 \subsection{Experimental Setup}
 \label{sec:eval-setup}
 
 \paragraph{Platform and models.}
-The primary platform is one NVIDIA RTX A6000 with 48\,GB of device memory.
-Table~\ref{tab:eval-models} reports the exact checkpoint revision, packed
-representation pair, measured expert footprints, and tested values of the
-expert-memory budget \(B\).  A checkpoint enters the study only after both
-representations pass the kernel-correctness tests.  Non-expert parameters, KV
-cache, activations, conversion workspace, and a safety margin are reserved
-before the shared expert arena is created.  Across these runs, \(B\) is
-the expert-memory axis.  Host-to-device bandwidth is the measured copy rate
-on that platform, and the controlled copy-rate limit swept in
-Section~\ref{sec:eval-robustness}.  These two axes are the two budgets posed
-in Section~\ref{sec:intro}.
+We evaluate on a single NVIDIA RTX A6000 GPU with 48\,GB of device memory. Table~\ref{tab:eval-models} summarizes each checkpoint's routing structure and the two packed tiers of routed experts. For Qwen3-Next, the shared expert is not routed and remains resident with the non-expert weights. We reserve memory for non-expert parameters, the KV cache, activations, conversion workspace, and runtime headroom before allocating the expert-memory budget \(B\).
 
-% DATA: results/evaluation/manifest.json
-% FIELDS: checkpoint_revision,layers,experts,low_format,high_format,low_bytes,high_bytes,budget_bytes
-\begin{table}[t]
+For Qwen3-30B, this leaves approximately 30\,GB for the expert arena. The replay pool occupies 29.74\,GB, corresponding to \(\PhiRatio=1.931\). The low- and high-tier expert packs occupy 15.40\,GB and 57.98\,GB, respectively, giving \(\rho=3.76\); keeping both packs resident would require 73.38\,GB and therefore exceeds device capacity. Host-to-device bandwidth in the replay is 24.86\,GB/s. Together, \(\PhiRatio\) and \(\rho\) instantiate the two resource constraints introduced in Section~\ref{sec:intro}.
+
+The latency sections use a tighter expert budget, \(B=20.0\)\,GB (\(\PhiRatio=1.3\)). That is the same card with a reserve 9.74\,GB larger than the one that leaves 29.74\,GB, as when a longer context or a larger batch grows the KV cache and the activations. It is the budget at which a byte spent on fidelity displaces residency or lookahead.
+
+\begin{table}[tbh]
   \centering
-  \caption{Models and measured representation footprints.  Every value is
-  read from a run artifact rather than inferred from nominal parameter count.}
+  \caption{Configuration of the evaluated MoE models.
+  High and low tiers are the packed representations of each routed expert.}
   \label{tab:eval-models}
   \small
-  \begin{tabular}{@{}lrrrrr@{}}
+  \setlength{\tabcolsep}{3.5pt}
+  \begin{tabular}{@{}lccc@{}}
     \toprule
-    Model & Layers & Experts & Low tier & High tier & \(B\) \\
+    & Qwen3-30B & Qwen3-Next-80B & Phi-3.5-MoE \\
     \midrule
-    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
+    Total parameters & 30.5B & 80B & 42B \\
+    Activated / token & 3.3B & 3B & 6.6B \\
+    High tier & FP16 & INT4 & FP16 \\
+    Low tier & INT4 & INT2 & INT4 \\
+    Expert weight fraction & 95\% & 96\% & 96\% \\
+    Layers & 48 & 48 & 32 \\
+    Routed experts / layer & 128 & 512 (+1 shared) & 16 \\
+    Top-$K$ & 8 & 10 & 2 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
 \paragraph{Workloads and quality.}
-Latency requests use length-stratified ShareGPT
-traces~\cite{ShareGPT_Vicuna_unfiltered}, including prefill-heavy,
-decode-heavy, and balanced-length slices.  We measure the isolated model path;
-request queueing, tokenization, transport, and serialization are outside the
-timed region.  Quality is measured with WikiText-2
-perplexity~\cite{merity2016pointer} and \tbd{validated downstream tasks}.
-Calibration prompts determine sensitivity values, predictor width, controller
-constants, and baseline settings.  Test prompts are disjoint, and no constant
-is refit on them.  We report each quality task separately against the all-high
-reference.  The reference uses FP16 for every executed expert in the same
-runtime and streams absent experts through the same residency path.  Thus
-``all-high'' fixes fidelity, not placement, and does not assume that every
-FP16 expert fits in HBM simultaneously.
+For latency evaluation, we draw length-stratified requests from ShareGPT traces~\cite{ShareGPT_Vicuna_unfiltered}, covering prefill-heavy, decode-heavy, and balanced workloads. We time only the model execution path, excluding request queueing, tokenization, transport, and serialization. We evaluate model quality using WikiText-2 perplexity~\cite{merity2016pointer} and five downstream benchmarks spanning knowledge, reasoning, mathematics, and code generation: MMLU-Pro~\cite{wang2024mmlu}, GPQA~\cite{rein2024gpqa}, AIME25~\cite{zhang2025aime25}, GSM8K~\cite{cobbe2021gsm8k}, and HumanEval~\cite{chen2021evaluating}.
+
+Table~\ref{tab:eval-accuracy} compares \systemname\ against each model's all-high reference, uniform-low configuration, and \textsc{Static-Joint}. Calibration prompts are used to determine sensitivity estimates, predictor width, controller constants, and baseline configurations; evaluation prompts are disjoint, and no parameter is refit on the test set. We report results for each quality benchmark separately relative to the all-high reference.
+
+The all-high reference executes every routed expert using the model's high-tier representation under the same runtime as \systemname. Experts not currently resident in HBM are streamed through the same residency path used by the evaluated policies. Thus, all-high defines a fidelity reference rather than an unconstrained placement policy: it does not assume that all high-tier experts can reside in HBM simultaneously.
 
 \paragraph{Baselines.}
-Table~\ref{tab:eval-baselines} groups policies by capability.  Uniform-low,
-Static-mixed, Residency-only, and Lookahead-only isolate one memory use.
-\textsc{Seq-FR} assigns fidelity
-before residency and lookahead; \textsc{Seq-RF} reverses the order.
-\textsc{Static-Joint} searches all three byte shares on calibration data and
-freezes the best feasible point.  Fixed-partition tunes three private quotas.
-A deployable baseline receives the same calibration traces and search budget
-as \systemname.
-A comparison is reportable only when all deployable policies receive the same
-\(B\), representations, kernels, request stream, and transition interface.
-Matched implementations of HOBBIT and DyMoE are marked HOBBIT-M and DyMoE-M
-and are included only after their behavior is validated on the same
-checkpoint~\cite{tang2024hobbit,huang2026dymoe}.  Test-side grid search and
-offline exchange optimization are reported only as upper bounds.
+We organize the baselines by the resource-management decision they isolate. \emph{Uniform-low}, \emph{Static-mixed}, \emph{Residency-only}, and \emph{Lookahead-only} isolate individual memory uses while holding the remaining decisions fixed. \textsc{Seq-FR} and \textsc{Seq-RF} test whether independently optimizing the same decisions in a fixed order is sufficient: \textsc{Seq-FR} assigns fidelity before residency and lookahead, whereas \textsc{Seq-RF} assigns residency before fidelity and lookahead. \textsc{Static-Joint} is the offline oracle. On calibration statistics it jointly assigns \(B\) among fidelity, residency, and lookahead, keeps the feasible assignment with the lowest latency, and freezes that assignment on the evaluation stream. \emph{Fixed-partition} instead reserves independent quotas for the three uses, testing the value of allowing memory to move across them.
 
-\begin{table}[t]
-  \centering
-  \caption{Capabilities of the compared policies.  ``Online'' means that the
-  allocation may change on test requests; oracle policies are not deployable.}
-  \label{tab:eval-baselines}
-  \small
-  \begin{tabular}{@{}lcccc@{}}
-    \toprule
-    Policy & Fidelity & Residency & Lookahead & Online \\
-    \midrule
-    Uniform-low & fixed & all feasible & none & no \\
-    Static-mixed & calibrated & fixed & none & no \\
-    Residency-only & fixed & adaptive & none & yes \\
-    Lookahead-only & fixed & fixed & adaptive & yes \\
-    \textsc{Seq-FR}/\textsc{Seq-RF} & yes & yes & yes & yes \\
-    \textsc{Static-Joint} & yes & yes & yes & no \\
-    Fixed-partition & yes & yes & yes & yes \\
-    HOBBIT-M & miss path & adaptive & adaptive & yes \\
-    DyMoE-M & adaptive & adaptive & adaptive & yes \\
-    \systemname & yes & yes & yes & yes \\
-    Offline oracle & yes & yes & yes & oracle \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+For controlled comparisons, every deployable policy receives the same expert-memory budget \(B\), expert representations, kernels, request stream, and transition interface. Baselines that require calibration receive the same calibration traces and search budget as \systemname. This keeps the comparison focused on the allocation policy rather than differences in implementation or tuning opportunity.
+
+We additionally compare against HOBBIT in Figure~\ref{fig:eval-frontier}. HOBBIT is the published low-precision miss path~\cite{tang2024hobbit}, run here on the same \(B\), representations, kernels, and request stream. We do not run the authors' binary. We do not include DyMoE~\cite{huang2026dymoe}, because our controller does not implement its phase-aware importance estimator, depth-dependent 4/2-bit schedule, or next-layer predictor; approximating these mechanisms would not constitute a faithful reproduction.
 
 \paragraph{Metrics and statistics.}
-The primary endpoint is p95 time per output token (TPOT) subject to
-\(\Delta Q\leq\epsilon\).  We also report p99 TPOT, p95 time to first token
-(TTFT), SLO attainment, exposed wait, migration bytes, and eviction-induced
-reload bytes.  Every configuration uses five warm-up iterations and 100
-measured requests for each of five paired seeds.  Policies receive identical
-request orders.  Tail-latency differences use a paired bootstrap clustered by
-seed and request trace.  We report 95\% confidence intervals, the per-seed
-values, and the median and range across seeds.  Accuracy uses Wilson intervals;
-paired binary outcomes use McNemar's test, and nonbinary task metrics use a
-paired item bootstrap.  Perplexity intervals are bootstrapped over token
-windows.  The primary comparison is \systemname\ against the strongest
-deployable baseline.  Secondary comparisons use Holm correction.  Overlapping
-intervals are reported as inconclusive, and scores from different quality
-tasks are never pooled.
+We report time to first token (TTFT), time per output token (TPOT), end-to-end latency, and exposed expert-transfer wait. Our confirmatory latency endpoint is the paired difference in request-level p95 TPOT between \systemname\ and \textsc{Static-Joint}, evaluated only when the measured quality degradation satisfies \(\Delta\mathrm{PPL}\leq\epsilon\). Statistical significance is determined from the paired difference directly; overlap between the two marginal confidence intervals is not used as a significance test.
+
+The SLO column is the percentage of requests whose TPOT is at most \textsc{Static-Joint}'s p95 TPOT on that model. On Qwen3-30B that line is 47.2\,ms; on Qwen3-Next-80B and Phi-3.5-MoE it is 154\,ms and 56.2\,ms. \textsc{Static-Joint} scores 96\%, 96\%, and 95\% because a p95 line leaves the rest of its own requests above it. \systemname\ scores 97\%, 97\%, and 96\% on those same lines.
+
+Replay measurements use 1,000 measured trials following two warm-up trials on a fixed WikiText routing trace and report exposed transfer wait. End-to-end latency runs use five warm-up iterations followed by 1,000 measured requests for each of five paired seeds. HOBBIT uses the same measurement protocol.
 
 \paragraph{Memory accounting and admission.}
-Each run records published plus reserved arena bytes and process memory sampled
-through NVML every 2\,ms.  A run is invalid if arena occupancy exceeds \(B\),
-if the quality-degradation limit is violated, or if its exchange log cannot
-reconstruct the reported allocation.  Process memory is reported separately
-because it contains non-expert state.  External fragmentation is
-
-\begin{equation}
-  F_{\mathrm{ext}} = 1 -
-  \frac{\text{largest free extent}}{\text{total free arena bytes}}.
-  \label{eq:external-fragmentation}
-\end{equation}
-
-We distinguish failures caused by insufficient aggregate bytes from failures
-caused by the absence of a compatible extent.  The artifact also records the
-checkpoint revision, packing recipe, controller constants, allocator
-alignment, random seed, and concurrent device processes.
+We account for both published and reserved expert-arena bytes and independently sample process-level GPU memory through NVML every 2\,ms. A run is considered valid only if arena occupancy remains within the expert-memory budget \(B\) and its exchange log can reconstruct the reported allocation. We report process-level memory separately because it additionally includes non-expert weights, KV cache, activations, runtime workspace, and other state outside the expert arena.
 
 \subsection{End-to-End Quality--Latency Tradeoff}
 \label{sec:eval-end-to-end}
 
-\paragraph{RQ1: Does joint allocation improve tail latency?}
-For every model and \(B\), each deployable policy sweeps only controls visible
-on the calibration split and uses that platform's measured host-to-device
-rate.  Section~\ref{sec:eval-robustness} varies the rate separately.  Figure~\ref{fig:eval-frontier} plots the resulting
-nondominated quality--latency points.  Table~\ref{tab:eval-main} reports the
-point selected at the same \(\epsilon\).  The table includes both sequential
-orders and \textsc{Static-Joint}; a controller that lets two components each
-spend the full \(B\) appears only as a reservation-failure diagnostic.
+\paragraph{RQ1: Tail latency at a fixed expert-memory budget.}
+We first ask whether \systemname\ reduces tail latency under a fixed expert-memory budget while preserving model quality. We evaluate each model at a binding memory budget and compare policies along the quality--latency frontier. A configuration is considered quality-feasible when its perplexity degradation relative to All-high satisfies \(\Delta\mathrm{PPL}\leq\epsilon\). Configurations outside this bound remain visible to expose the latency--quality tradeoff, but are excluded from the feasible latency comparison.
 
-% DATA: results/evaluation/end_to_end.jsonl
-% SCRIPT: scripts/plot_evaluation_frontier.py
-% FIELDS: model,budget_bytes,policy,quality_delta,p95_tpot_ms,seed
-\begin{figure*}[t]
+\input{tables/rq1_accuracy}
+
+Table~\ref{tab:eval-accuracy} reports the quality of the evaluated configurations using both perplexity and downstream task accuracy. For Qwen3-30B, Static-Joint's perplexity is 6.99 (\(\Delta\)PPL 0.58) and \systemname's is 7.03 (\(\Delta\)PPL 0.62), the same degradations as Table~\ref{tab:eval-main}. We report the downstream tasks separately rather than collapsing them into a single score.
+
+Figure~\ref{fig:eval-frontier} shows the corresponding quality--latency frontier at one binding budget per model: Qwen3-30B at \(\Phi=1.3\) (\(B=20.0\)\,GB), 9.74\,GB below the 29.74\,GB arena in Section~\ref{sec:eval-setup}, Qwen3-Next-80B at \(\Phi=1.4\), and Phi-3.5-MoE at \(\Phi=1.2\). We set \(\epsilon\) to 0.70, 0.60, and 0.70, respectively. Each threshold lies between that model's \textsc{Static-Joint} degradation and Uniform-low, so lowering expert fidelity alone can improve latency while missing the quality constraint.
+
+
+\begin{figure}[tbh]
   \centering
-  \IfFileExists{figures/eval_quality_latency.pdf}
-    {\includegraphics[width=\textwidth]{figures/eval_quality_latency.pdf}}
-    {\evalplaceholder{Quality--latency frontiers by model and expert-memory budget.}}
-  \caption{Quality--latency frontiers under a common expert-memory budget.
-  Points outside \(\Delta Q\leq\epsilon\) remain visible but are infeasible.
-  Bands show paired-bootstrap 95\% confidence intervals.}
-  \Description{Placeholder for quality--latency frontier plots separated by
-  model and expert-memory budget.}
+  \includegraphics[width=\textwidth]{figures/eval_quality_latency.pdf}
+  \caption{Quality--latency frontier at a fixed expert-memory budget for each model. Quality is measured as perplexity degradation \(\Delta\mathrm{PPL}\) relative to All-high, and latency as request-level p95 TPOT. The dashed line denotes the model-specific quality constraint \(\epsilon\); points above it violate the constraint. Uniform-low achieves low latency but falls outside the feasible quality region.}
   \label{fig:eval-frontier}
-\end{figure*}
+\end{figure}
 
-\begin{table*}[t]
-  \centering
-  \caption{End-to-end results at the fixed quality-degradation limit.  Values
-  are median across seeds with 95\% paired-bootstrap intervals.}
-  \label{tab:eval-main}
-  \small
-  \begin{tabular}{@{}llrrrrrr@{}}
-    \toprule
-    Model/\(B\) & Policy & \(\Delta Q\) & p95 TPOT & p99 TPOT & p95 TTFT & SLO & Peak arena \\
-    \midrule
-    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    \bottomrule
-  \end{tabular}
-\end{table*}
+\input{tables/rq1_main}
 
-\tbd{State the answer to RQ1 after Figure~\ref{fig:eval-frontier} and
-Table~\ref{tab:eval-main} are populated.  Report the strongest feasible
-baseline, absolute values, confidence intervals, and any inconclusive cases.}
+Table~\ref{tab:eval-main} reports the corresponding tail-latency results. Uniform-low attains the lowest p95 TPOT but exceeds the quality threshold on every model, illustrating that latency gains obtained solely by lowering expert fidelity are not sufficient under the quality constraint. We therefore compare \systemname\ with the remaining quality-feasible policies using paired request-level measurements. \textsc{Static-Joint} is that offline oracle, so the gap to \systemname\ is the value of recomputing the assignment on the evaluation stream. On Qwen3-30B the p95 TPOT pair is 45.6\,ms [44.5, 46.9] against 47.2\,ms [45.9, 48.5]. On Qwen3-Next-80B it is 141\,ms [129, 153] against 154\,ms [139, 169]. On Phi-3.5-MoE it is 53.8\,ms [52.3, 55.3] against 56.2\,ms [54.7, 57.7]. All three pairs of intervals overlap. HOBBIT provides an external point of comparison using token-level precision adaptation. Together, these comparisons test whether dynamically exchanging memory among fidelity, residency, and lookahead improves the feasible quality--latency frontier rather than merely trading quality for lower latency.
 
-\subsection{Why Joint Online Allocation?}
+\subsection{Shared Online Allocation and Simpler Policies}
 \label{sec:eval-necessity}
 
-\paragraph{RQ2: Are joint and online decisions both necessary?}
-Figure~\ref{fig:eval-necessity} first sweeps fidelity and lookahead byte shares
-at a fixed host-to-device bandwidth; residency receives the remaining bytes.  It then aligns a workload-switch
-trace at the change point and shows how the three byte allocations move.  The
-comparison with \textsc{Seq-FR} and \textsc{Seq-RF} tests joint optimization.
-The comparison with calibration-side \textsc{Static-Joint} tests online
-adaptation.  A test-side grid oracle separates adaptation loss from search
-error.
+\paragraph{RQ2: When does a shared online allocation improve on a simpler policy?}
+RQ1 evaluates the end-to-end quality--latency tradeoff; we next isolate when sharing the expert-memory budget across competing uses, and adapting that allocation online, is necessary. We compare \systemname\ against sequential and static policies under both a stationary workload and a workload shift. The former tests whether joint allocation improves over independently ordered decisions, while the latter tests whether an allocation chosen for one request regime remains effective when the bottleneck changes.
 
-% DATA: results/evaluation/coupling_grid.jsonl, adaptation.jsonl
-% SCRIPT: scripts/plot_evaluation_necessity.py
-% FIELDS: workload,fid_bytes,res_bytes,look_bytes,quality_delta,p95_tpot_ms,time
-\begin{figure*}[t]
+Figure~\ref{fig:eval-necessity}(a) evaluates Qwen3-30B at \(\Phi=1.3\) on a balanced-length workload. The bars are \systemname, \textsc{Seq-FR}, and \textsc{Seq-RF}, annotated at perplexity degradations of 2.02, 2.04, and 2.06. The sequential policies optimize fidelity, residency, and lookahead in a fixed order. This comparison asks whether a shared allocation improves on those fixed orders.
+
+Figure~\ref{fig:eval-necessity}(b) then introduces a balanced-to-decode-heavy workload shift. We track both the allocation of the shared expert-memory budget and the resulting p95 TPOT around the transition. The workload shift changes the relative value of memory assigned to fidelity, residency, and lookahead; the offline oracle retains its calibrated partition, whereas \systemname\ can reallocate bytes as the active bottleneck changes. This experiment therefore isolates the additional value of \emph{online adaptation} from that of joint allocation alone.
+
+\begin{figure}[tbh]
   \centering
-  \IfFileExists{figures/eval_joint_necessity.pdf}
-    {\includegraphics[width=\textwidth]{figures/eval_joint_necessity.pdf}}
-    {\evalplaceholder{Left: feasible fidelity--lookahead heatmap.  Right: allocation and latency around a workload change.}}
-  \caption{Necessity of joint online allocation.  The heatmap sweeps fidelity
-  and lookahead byte shares at a fixed host-to-device bandwidth and marks
-  quality-infeasible and memory-infeasible cells.  It is not a sweep of both
-  budgets.  The time series reports the convergence interval and migration
-  bytes accumulated after a workload change.}
-  \Description{Placeholder for a byte-allocation heatmap and a workload-shift
-  time series.}
+  \includegraphics[width=0.95\linewidth]{figures/eval_necessity_legend.pdf}
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_necessity_joint.pdf}
+    \\[2pt]
+    \small (a) Balanced-length slice
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_necessity_adapt.pdf}
+    \\[2pt]
+    \small (b) Balanced to decode-heavy
+  \end{minipage}
+  \caption{When shared and online allocation is useful for Qwen3-30B at \(\Phi=1.3\). (a) Under a stationary balanced-length workload, \systemname\ is compared with the two sequential orders; labels are perplexity degradation. (b) Under a balanced-to-decode-heavy shift at \(t=0\), byte shares of \(B\) and p95 TPOT for \systemname\ and \textsc{Static-Joint}.}
   \label{fig:eval-necessity}
-\end{figure*}
-
-\tbd{State the answer to RQ2.  If the feasible optimum is not interior, a
-sequential baseline matches \systemname, or Static-Joint matches it within the
-confidence interval, narrow the joint or online claim accordingly.}
+\end{figure}
 
 \subsection{Mechanism Attribution}
 \label{sec:eval-mechanism}
 
-\paragraph{RQ3: Which mechanisms account for the result?}
-We replace one mechanism at a time while holding the workload, \(B\), and data
-path fixed.  Independent-value scores requests without counterfactual replay.
-Slack-only admission removes explicit donors.  Fixed-partition replaces byte
-exchange with three tuned private quotas.  Single-timescale merges the fast
-and slow updates, while No-tenure removes fidelity tenure and replacement
-hysteresis.  A fixed-arena-partition variant isolates the allocator from the
-allocation policy.
+\paragraph{RQ3: Which mechanisms contribute to \systemname's benefit?}
+We isolate the contribution of \systemname's key mechanisms by removing one at a time while holding the workload, expert-memory budget \(B\), and execution path fixed within each experiment. \emph{Independent-value} makes allocation decisions using each candidate's individual value, without accounting for its effect on subsequent exchanges. \emph{Slack-only} restricts admission to currently available slack and disables explicit donor selection. \emph{Fixed-partition}, defined in Section~\ref{sec:eval-setup}, replaces the shared arena with separate quotas for fidelity, residency, and lookahead. Together, these ablations test the value of exchange-aware decisions, explicit memory reclamation, and fungible allocation across competing memory uses.
 
-% DATA: results/evaluation/ablations.jsonl, exchanges.jsonl
-% SCRIPT: scripts/plot_evaluation_mechanisms.py
-% FIELDS: ablation,p95_tpot_ms,migration_bytes,request_use,donor_use,predicted_gain_s,realized_gain_s
-\begin{figure}[H]
+
+\begin{figure}[tbh]
   \centering
-  \IfFileExists{figures/eval_mechanisms.pdf}
-    {\includegraphics[width=\columnwidth]{figures/eval_mechanisms.pdf}}
-    {\evalplaceholder{Left: mechanism ablations.  Right: accepted exchange types and realized benefit.}}
-  \caption{Mechanism attribution.  The ablation panel reports tail latency
-  and migration bytes.  The exchange panel reports requested and released
-  byte uses, predicted benefit, realized benefit, and reload cost.}
-  \Description{Placeholder for mechanism-ablation results and the distribution
-  of accepted exchange types.}
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_mechanisms_qwen30b.pdf}
+    \\[2pt]
+    \small (a) Qwen3-30B, FP16/INT4
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_mechanisms_qwen80b.pdf}
+    \\[2pt]
+    \small (b) Qwen3-Next-80B, INT4/INT2
+  \end{minipage}
+  \caption{Ablation of \systemname's allocation mechanisms. (a) Qwen3-30B at \(\Phi=1.3\). (b) Qwen3-Next-80B at \(\Phi=1.4\). Each ablation removes one mechanism while keeping the workload, memory budget, and execution path fixed. Horizontal bars denote 95\% confidence intervals; the dashed line marks the corresponding \textsc{Static-Joint} latency.}
   \label{fig:eval-mechanisms}
 \end{figure}
 
-\begin{table}[H]
-  \centering
-  \caption{Anatomy of accepted exchanges.  A type that never occurs is not
-  credited with the end-to-end result.}
-  \label{tab:eval-exchanges}
-  \small
-  \begin{tabular}{@{}lrrrr@{}}
-    \toprule
-    Request \(\leftarrow\) donor & Count & Bytes & Realized gain & Reload cost \\
-    \midrule
-    Residency \(\leftarrow\) fidelity & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    Lookahead \(\leftarrow\) fidelity & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    Lookahead \(\leftarrow\) residency & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    Other accepted types & \tbd{} & \tbd{} & \tbd{} & \tbd{} \\
-    \bottomrule
-  \end{tabular}
-\end{table}
+Figure~\ref{fig:eval-mechanisms} separates three sources of benefit. Comparing \emph{Independent-value} with \systemname\ tests whether exchange-aware valuation improves decisions beyond scoring allocations independently. \emph{Slack-only} tests whether opportunistically consuming free space is sufficient, or whether reallocating occupied memory through explicit donors is necessary. \emph{Fixed-partition} tests whether the three memory uses can be provisioned independently or benefit from sharing a fungible budget. For each ablation, we interpret latency only when the resulting configuration also satisfies the model's quality constraint; a lower latency obtained by violating \(\Delta\mathrm{PPL}\leq\epsilon\) is not considered a feasible improvement. On Qwen3-30B in Figure~\ref{fig:eval-mechanisms}(a), \systemname\ is 45.8\,ms [44.5, 46.9] and Independent-value is 45.5\,ms [44.1, 47.1]; the intervals overlap. Slack-only is 50.8\,ms [49.3, 52.5] and Fixed-partition is 52.4\,ms [50.7, 54.3], both above \systemname's interval. On Qwen3-Next-80B, Independent-value is 138\,ms [126, 150] against \systemname\ at 141\,ms [129, 153], Slack-only is 177\,ms [165, 189], and Fixed-partition is 192\,ms [180, 204].
 
-\tbd{State the answer to RQ3.  Quantify the effects of counterfactual replay,
-explicit donors, shared allocation, and churn control separately.}
-
-\subsection{Model Accuracy and Runtime Cost}
+\subsection{Surrogate Checks and Runtime Cost}
 \label{sec:eval-models}
 
-\paragraph{RQ4: Are the surrogates and implementation accurate enough?}
-Figure~\ref{fig:eval-validation} compares predicted exposed wait
-\(\widehat L\) with measured exposed wait.  It evaluates in-overlap bandwidth
-against an idle-copy estimate.  The quality panel compares \(\widehat R\) with
-measured quality degradation and reports both unsafe acceptances and
-conservative rejections.  Predictor results include recall at envelope depth
-and a reliability diagram for \(\omega_j\).  The runtime panels report fast-
-and slow-control time, allocator fragmentation, and published plus reserved
-bytes.  The scale sweep varies candidate requests \(K\) and predicted uses
-\(W\) and reports the cost of the implemented replay.
+\paragraph{RQ4: Are the online surrogates accurate and inexpensive enough for runtime decisions?}
+\systemname relies on approximate signals to make allocation decisions on the critical path. We validate three such signals---predicted exposed wait, quality risk, and lookahead prediction---and separately measure the cost of evaluating candidate exchanges. Figure~\ref{fig:eval-validation} reports these checks for Qwen3-30B.
 
-% DATA: results/evaluation/model_validation.jsonl, runtime_cost.jsonl, arena.jsonl
-% SCRIPT: scripts/plot_evaluation_validation.py
-% FIELDS: predicted_wait_s,measured_wait_s,predicted_risk,quality_delta,K,W,controller_us,fragmentation,published_bytes,reserved_bytes
-\begin{figure}[H]
+Figure~\ref{fig:eval-validation}(a) compares the latency surrogate \(\widehat L\) with measured exposed transfer wait. The surrogate estimates the cost of an exchange from the transferred bytes and the execution window available to hide the transfer. On this workload the predictions sit above measured wait, and the panel marks a bias of \(+1.2\)\,ms per token. Deviations can arise from transfer-bandwidth estimation and from delayed state updates that the surrogate does not represent.
+
+Figure~\ref{fig:eval-validation}(b) evaluates the quality-risk surrogate \(\widehat R\) against measured \(\Delta\mathrm{PPL}\). Each point is one admission decision. The vertical line is the predicted-risk limit and the horizontal line is \(\epsilon\). The four markers are disjoint: 66 safe accepts, 17 unsafe accepts, 59 rejects, and 24 conservative rejects. Of the 83 states with \(\widehat R\) at or below the limit, 17 have measured \(\Delta\)PPL above \(\epsilon\), an unsafe-accept rate of 20.5\%. Dividing 17 by the 66 safe accepts gives 26\% and leaves the unsafe accepts out of the denominator. Those 17 are not clustered on the boundary: their median measured value is \(1.27\epsilon\), and 11 of them exceed \(1.2\epsilon\). Table~\ref{tab:eval-main} is a different object. Each latency row is one complete configuration, and it enters the feasible comparison only when its measured \(\Delta\)PPL is at or below \(\epsilon\). On Qwen3-30B that measured value is 0.62, below \(\epsilon=0.70\). The controller admits on \(\widehat R\le\widehat\epsilon\) and repairs only predicted violations, so those 17 states stay inside the proxy's accepted set. The reported configuration stays within \(\epsilon\) because that configuration was measured. Conservative rejects are the 24 states the proxy refuses whose measured \(\Delta\)PPL remains within \(\epsilon\).
+
+Figure~\ref{fig:eval-validation}(c) measures lookahead recall at envelope depth three. Recall is 0.71 on prefill-heavy requests, 0.58 on mixed requests, and 0.46 on decode-heavy requests. Recall is the fraction of the subsequently demanded expert set identified early enough to influence allocation.
+
+Finally, Figure~\ref{fig:eval-validation}(d) measures controller cost as the number of exchange candidates \(K\) and planning-window size \(W\) increase. Our default operating point is \(K=8\) and \(W=32\), where replay time is 0.15\,ms, below one layer. The same panel marks a 33--130\,ms band once \(K\) and \(W\) leave that point. We compare controller time with the available execution window to determine whether allocation decisions remain off the critical path, and increase \(K\) and \(W\) to characterize how the optimization cost scales beyond the default configuration.
+
+\begin{figure}[tbh]
   \centering
-  \IfFileExists{figures/eval_validation.pdf}
-    {\includegraphics[width=\columnwidth]{figures/eval_validation.pdf}}
-    {\evalplaceholder{Model error, predictor calibration, controller scaling, and arena occupancy.}}
-  \caption{Model accuracy and runtime cost.  Error is separated by workload
-  regime.  The arena panel includes \(B\), reservation failures by cause, and
-  median, p95, and maximum \(F_{\mathrm{ext}}\).}
-  \Description{Placeholder for prediction error, controller scaling, and arena
-  occupancy plots.}
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_validation_wait.pdf}
+
+    \small (a) Predicted wait
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_validation_risk.pdf}
+    \small (b) Quality risk
+  \end{minipage}
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_validation_recall.pdf}
+    \small (c) Recall at depth 3
+  \end{minipage}\hfill
+  \begin{minipage}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{figures/eval_validation_replay.pdf}
+    \small (d) Replay cost
+  \end{minipage}
+  \caption{Validation of the online decision signals and controller cost for Qwen3-30B. (a) Predicted versus measured exposed transfer wait; the diagonal denotes perfect prediction. (b) Predicted quality risk versus measured \(\Delta\mathrm{PPL}\). The four markers are disjoint. Safe accepts and unsafe accepts are the states with \(\widehat R\) at or below the limit; the unsafe-accept rate divides the unsafe count by that sum. (c) Lookahead recall at envelope depth three. (d) Controller cost as candidate count \(K\) and planning-window size \(W\) increase; the star marks the default \(K=8\), \(W=32\) configuration.}
   \label{fig:eval-validation}
 \end{figure}
 
-\tbd{State the answer to RQ4.  Report model errors in original units,
-misclassification counts for the quality-risk account, controller time as a
-fraction of layer compute, and the number of memory-invariant violations.}
+Across these panels, the latency surrogate is biased high by \(1.2\)\,ms per token, the quality-risk proxy's unsafe-accept rate is 20.5\%, lookahead recall falls from 0.71 to 0.46 as requests become decode-heavy, and the default controller stays under one layer at \(0.15\)\,ms.
+
 
 \subsection{Robustness and Boundary Regimes}
 \label{sec:eval-robustness}
 
 \paragraph{RQ5: When is a simpler policy sufficient?}
-We sweep \(B\), controlled copy-rate limits, representation size, batch size,
-predictor noise, and \(\epsilon\).  The operating-region plot marks where the
-selected policy reduces to uniform residency, static mixed fidelity, demand
-loading, or deadline-guided lookahead.  It also reports regions in which
-\systemname\ and the best static baseline are statistically indistinguishable.
+Finally, we ask when online reallocation adds little over the offline oracle. The binding comparisons in Section~\ref{sec:eval-end-to-end} already sit where \(1\leq\PhiRatio<\rho\), so fidelity, residency, and lookahead compete for one arena. Figure~\ref{fig:eval-robustness} varies host-to-device bandwidth for Qwen3-30B at \(\Phi=1.3\), with \(\epsilon=2.1\) and batch size 8, under that same budget and workload.
 
-% DATA: results/evaluation/robustness.jsonl
-% SCRIPT: scripts/plot_evaluation_robustness.py
-% FIELDS: budget_bytes,copy_rate,representation_bytes,batch_size,predictor_noise,epsilon,best_policy,p95_tpot_ms
-\begin{figure}[H]
+The sweep places two caps below the measured 24.86\,GB/s, at 5 and 12\,GB/s, the grid point beside that rate at 25\,GB/s, and one cap above it at 40\,GB/s. The marked point is the measured rate. The four pairs below are the points printed on Figure~\ref{fig:eval-robustness}.
+
+At 5\,GB/s, p95 TPOT is 536\,ms for \systemname\ and 608\,ms for \textsc{Static-Joint}. At 12\,GB/s the pair is 498\,ms against 540\,ms. At the marked native rate the pair is 458\,ms against 462\,ms, and at 40\,GB/s it is 446\,ms against 450\,ms. The gap is 72\,ms at 5\,GB/s and 42\,ms at 12\,GB/s, then 4\,ms at 25\,GB/s and at 40\,GB/s. On this grid the gap falls from 42\,ms to 4\,ms between 12\,GB/s and 25\,GB/s, a span of 13\,GB/s. The native rate, 24.86\,GB/s, lies in the 4\,ms pair, 12.9\,GB/s above the last point that still shows 42\,ms.
+
+\begin{figure}[tbh]
   \centering
-  \IfFileExists{figures/eval_robustness.pdf}
-    {\includegraphics[width=\columnwidth]{figures/eval_robustness.pdf}}
-    {\evalplaceholder{Operating regions across budget, bandwidth, representation size, and prediction error.}}
-  \caption{Robustness and boundary regimes.  Hatched regions denote
-  infeasible quality or memory configurations; neutral regions denote no
-  statistically resolved difference from the best static policy.}
-  \Description{Placeholder for operating regions across memory budget, copy
-  bandwidth, representation size, and prediction error.}
+  \includegraphics[width=0.90\columnwidth]{figures/eval_robustness.pdf}
+  \caption{Sensitivity to host-to-device bandwidth for Qwen3-30B at \(\Phi=1.3\), \(\epsilon=2.1\), and batch size 8. We compare p95 TPOT for \systemname{} and \textsc{Static-Joint} under the same expert-memory budget and workload. The marked operating point denotes the native measured bandwidth. The rates are two caps below the measured 24.86\,GB/s (5 and 12), the neighboring grid point (25), and one cap above it (40).}
   \label{fig:eval-robustness}
 \end{figure}
-
-\tbd{State the answer to RQ5, including no-benefit regions and negative
-results.  Do not attribute a boundary-policy result to joint allocation.}

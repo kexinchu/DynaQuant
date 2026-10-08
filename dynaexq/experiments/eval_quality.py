@@ -172,6 +172,12 @@ def _model_device(model: torch.nn.Module) -> torch.device:
         return torch.device("cpu")
 
 
+def _evaluation_device(model: torch.nn.Module, device: Optional[str]) -> torch.device:
+    if device is None or device == "auto":
+        return _model_device(model)
+    return torch.device(device)
+
+
 def _continuation_logprobs(
     model: torch.nn.Module,
     tokenizer,
@@ -233,7 +239,7 @@ def compute_mc_accuracy(
 ) -> dict[str, Any]:
     """Score complete answer-label continuations instead of one token."""
     model.eval()
-    actual_device = torch.device(device) if device else _model_device(model)
+    actual_device = _evaluation_device(model, device)
     correct = 0
     details = []
     for request in requests:
@@ -299,7 +305,7 @@ def compute_perplexity(
             "windows": 0,
             "window_details": [],
         }
-    actual_device = torch.device(device) if device else _model_device(model)
+    actual_device = _evaluation_device(model, device)
     stride = stride or max_length
     corpus = "\n\n".join(request.prompt for request in requests)
     input_ids = tokenizer(corpus, return_tensors="pt").input_ids
@@ -382,7 +388,7 @@ def compute_generation_accuracy(
     *,
     device: Optional[str] = None,
 ) -> dict[str, Any]:
-    actual_device = torch.device(device) if device else _model_device(model)
+    actual_device = _evaluation_device(model, device)
     correct = 0
     details = []
     model.eval()
@@ -433,7 +439,7 @@ def compute_pass_at_1(
             "HumanEval executes generated code. Re-run with "
             "--allow-code-execution inside an isolated container."
         )
-    actual_device = torch.device(device) if device else _model_device(model)
+    actual_device = _evaluation_device(model, device)
     correct = 0
     details = []
     model.eval()
@@ -803,6 +809,27 @@ def main() -> None:
     )
     parser.add_argument("--output", required=True)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--max-memory-gib",
+        type=float,
+        default=None,
+        help=(
+            "Per-GPU max_memory budget for device_map=auto. Leaves room for "
+            "Transformers conversion temporaries when loading oversized FP16 "
+            "references."
+        ),
+    )
+    parser.add_argument(
+        "--cpu-offload-memory-gib",
+        type=float,
+        default=256.0,
+        help="CPU max_memory budget used with --max-memory-gib.",
+    )
+    parser.add_argument(
+        "--offload-folder",
+        default=None,
+        help="Optional Transformers offload folder for device_map=auto.",
+    )
     parser.add_argument("--n-samples", type=int, default=None)
     parser.add_argument(
         "--paper-protocol",
@@ -864,14 +891,44 @@ def main() -> None:
         revision=revision,
         trust_remote_code=True,
     )
-    model = AutoModelForCausalLM.from_pretrained(
-        args.model,
-        revision=revision,
-        dtype=dtype,
-        device_map=args.device,
-        trust_remote_code=True,
-    )
+    load_kwargs = {
+        "revision": revision,
+        "dtype": dtype,
+        "device_map": args.device,
+        "trust_remote_code": True,
+    }
+    if args.max_memory_gib is not None:
+        if args.device != "auto":
+            parser.error("--max-memory-gib is only supported with --device auto")
+        if not torch.cuda.is_available() or torch.cuda.device_count() < 1:
+            parser.error("--max-memory-gib requires at least one CUDA device")
+        load_kwargs["max_memory"] = {
+            index: f"{args.max_memory_gib:g}GiB"
+            for index in range(torch.cuda.device_count())
+        }
+        load_kwargs["max_memory"]["cpu"] = (
+            f"{args.cpu_offload_memory_gib:g}GiB"
+        )
+    if args.offload_folder is not None:
+        load_kwargs["offload_folder"] = args.offload_folder
+    model = AutoModelForCausalLM.from_pretrained(args.model, **load_kwargs)
     model.eval()
+    model_placement = {
+        "requested_device_map": args.device,
+        "resolved_device_map": getattr(model, "hf_device_map", None),
+    }
+    resolved_devices = set()
+    for parameter in model.parameters():
+        device = parameter.device
+        if device.type == "cuda":
+            resolved_devices.add(device.index if device.index is not None else 0)
+    model_placement["resolved_cuda_devices"] = sorted(resolved_devices)
+    if (
+        args.paper_protocol
+        and args.paper_model in {"qwen30b", "phi35"}
+        and paper_method == "reference_fp16"
+    ):
+        model_placement["required_cuda_device_count"] = 2
     benchmarks = [name.strip() for name in args.benchmarks.split(",") if name.strip()]
     results = evaluate(
         model,
@@ -900,6 +957,12 @@ def main() -> None:
         "method": args.method,
         "quantization": args.quantization,
         "device": args.device,
+        "model_placement": model_placement,
+        "load_options": {
+            "max_memory_gib": args.max_memory_gib,
+            "cpu_offload_memory_gib": args.cpu_offload_memory_gib,
+            "offload_folder": args.offload_folder,
+        },
         "seed": args.seed,
         "evaluation_protocol": (
             PAPER_PROTOCOL if args.paper_protocol else {"name": "custom"}

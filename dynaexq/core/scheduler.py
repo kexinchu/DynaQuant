@@ -156,6 +156,8 @@ class PrecisionScheduler:
         tracker: HotnessTracker,
         current_tiers: Optional[dict[ExpertKey, Tier]] = None,
         eligible_experts: Optional[dict[int, set[int]]] = None,
+        *,
+        force: bool = False,
     ) -> list[TransitionReq]:
         """
         Plan transitions for current step.
@@ -168,7 +170,7 @@ class PrecisionScheduler:
         Returns:
             List of TransitionReq
         """
-        if not self.should_update(step):
+        if not force and not self.should_update(step):
             return []
 
         if current_tiers is not None:
@@ -186,7 +188,26 @@ class PrecisionScheduler:
                 tracker,
                 eligible_experts,
             )
-            requests = self._order_and_limit_requests(requests)
+            if any(
+                request.reason == "repair_quality_risk"
+                for request in requests
+            ):
+                # A hard constraint repair is not a best-effort policy
+                # update.  The executor pairs its promotions and demotions
+                # into byte-neutral exchanges, so throttling the projection
+                # here would leave the published state outside the feasible
+                # region for multiple slow periods.
+                requests = sorted(
+                    requests,
+                    key=lambda request: (
+                        request.dst != Tier.HI,
+                        -request.score_gap,
+                        request.key.layer,
+                        request.key.expert,
+                    ),
+                )
+            else:
+                requests = self._order_and_limit_requests(requests)
             for req in requests:
                 self._current_tiers[req.key] = req.dst
                 self._tier_since_step[req.key] = step
@@ -325,16 +346,24 @@ class PrecisionScheduler:
             if step - self._tier_since_step.get(key, step)
             < self.min_tenure_steps
         }
-        ideal = set(protected)
-        ideal.update(
-            self._quality_risk.repair_order(weights, ideal, eligible)
-        )
-
-        target = set(current)
-        if not self._quality_risk.feasible(weights, target):
+        current_feasible = self._quality_risk.feasible(weights, current)
+        if not current_feasible:
+            # Safety overrides tenure and hysteresis.  Re-project from an
+            # empty HI set so stale protected experts can be exchanged for
+            # the minimum highest-contribution feasible prefix without
+            # increasing the fidelity-byte population.
+            target: set[ExpertKey] = set()
             target.update(
                 self._quality_risk.repair_order(weights, target, eligible)
             )
+            ideal = set(target)
+            protected = set()
+        else:
+            ideal = set(protected)
+            ideal.update(
+                self._quality_risk.repair_order(weights, ideal, eligible)
+            )
+            target = set(current)
 
         def contribution(key: ExpertKey) -> float:
             return self._quality_risk.contribution(
@@ -380,7 +409,7 @@ class PrecisionScheduler:
                     dst=Tier.HI if want_hi else Tier.LO,
                     reason=(
                         "repair_quality_risk"
-                        if want_hi
+                        if not current_feasible or want_hi
                         else "release_fidelity_bytes"
                     ),
                     issued_step=step,

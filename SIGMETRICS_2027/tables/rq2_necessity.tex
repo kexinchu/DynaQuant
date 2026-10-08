@@ -1,0 +1,70 @@
+\begin{table}[H]
+  \centering
+  \caption{\textcolor{red}{Draft layout, not a measurement.}
+  Coordinates of Figure~\ref{fig:eval-necessity}(a).
+  Qwen3-30B on the balanced-length slice at $\Phi=1.3$.
+  Brackets are placeholder 95\% intervals.
+  All three rows meet $\Delta$PPL $\leq 2.1$.}
+  \label{tab:eval-rq2-joint}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    Policy & $\Delta$PPL & p95 TPOT (ms) \\
+    \midrule
+    \systemname & 2.02 & 46 [44, 47] \\
+    Seq-FR & 2.04 & 46 [45, 48] \\
+    Seq-RF & 2.06 & 49 [48, 51] \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{\textcolor{red}{Draft layout, not a measurement.}
+  Feasible fidelity column at $\Phi=1.3$.
+  Fidelity is fixed at 70\% of $B$ and residency receives the remainder.
+  The star is the lowest p95 in this column.
+  These rows are static shares, not Seq-FR or Seq-RF.}
+  \label{tab:eval-rq2-column}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}rrrr@{}}
+    \toprule
+    Look \% & Res.\ \% & $\Delta$PPL & p95 TPOT (ms) \\
+    \midrule
+    0 & 30 & 2.04 & 492 \\
+    5 & 25 & 2.04 & 470 \\
+    10 & 20 & 2.04 & 458$^{\star}$ \\
+    15 & 15 & 2.04 & 466 \\
+    25 & 5 & 2.04 & 488 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{table}[H]
+  \centering
+  \caption{\textcolor{red}{Draft layout, not a measurement.}
+  Coordinates of Figure~\ref{fig:eval-necessity}(b).
+  The stream is the balanced-length slice until $t=0$, then the
+  decode-heavy slice.
+  Static-Joint keeps the pre-change allocation.
+  Migration is cumulative host-to-device bytes and is not plotted.
+  Oracle is the settled test-side upper bound and is not plotted.}
+  \label{tab:eval-rq2-shift}
+  \footnotesize
+  \setlength{\tabcolsep}{2.6pt}
+  \begin{tabular}{@{}rrrrrrrr@{}}
+    \toprule
+    $t$ (s) & Fid.\ \% & Res.\ \% & Look \% & \systemname & Static-Joint & Oracle & Migr.\ (GB) \\
+    \midrule
+    -30 & 70 & 20 & 10 & 458 & 462 & -- & 0.0 \\
+    -10 & 70 & 20 & 10 & 460 & 463 & -- & 0.0 \\
+    0 & 70 & 20 & 10 & 470 & 468 & -- & 0.1 \\
+    10 & 67 & 18 & 15 & 512 & 530 & -- & 0.6 \\
+    20 & 64 & 16 & 20 & 478 & 528 & -- & 1.1 \\
+    40 & 62 & 16 & 22 & 446 & 524 & -- & 1.4 \\
+    60 & 62 & 16 & 22 & 445 & 523 & 432 & 1.4 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

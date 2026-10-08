@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -89,6 +90,50 @@ def test_external_iteration_callbacks_exclude_warmup_telemetry(monkeypatch):
     assert resets == [4]
     assert len(calls) == 10
     assert len(result["samples"]) == 3
+
+
+def test_generation_keeps_only_last_logits_and_one_uncached_token(monkeypatch):
+    class Model(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.anchor = torch.nn.Parameter(torch.zeros(()))
+            self.calls = []
+            self.finished_requests = 0
+
+        def forward(
+            self,
+            input_ids,
+            attention_mask=None,
+            past_key_values=None,
+            use_cache=True,
+            logits_to_keep=0,
+        ):
+            del attention_mask, past_key_values, use_cache
+            self.calls.append((input_ids.shape[-1], logits_to_keep))
+            logits = torch.zeros(input_ids.shape[0], 1, 8)
+            return SimpleNamespace(logits=logits, past_key_values=object())
+
+        def prepare_inputs_for_generation(self, generated, **kwargs):
+            return {"input_ids": generated, **kwargs}
+
+        def finish_request(self):
+            self.finished_requests += 1
+
+    monkeypatch.setattr(eval_perf, "_sync_cuda", lambda: None)
+    monkeypatch.setattr(eval_perf, "_reset_peak_memory", lambda: None)
+    monkeypatch.setattr(eval_perf, "_peak_memory_bytes", lambda: 0)
+    monkeypatch.setattr(eval_perf, "_peak_reserved_memory_bytes", lambda: 0)
+    model = Model()
+
+    eval_perf._one_generation(
+        model,
+        torch.ones(2, 16, dtype=torch.long),
+        torch.ones(2, 16, dtype=torch.long),
+        output_length=3,
+    )
+
+    assert model.calls == [(16, 1), (1, 1), (1, 1)]
+    assert model.finished_requests == 1
 
 
 def test_sharegpt_trace_selection_is_deterministic_and_hashed(tmp_path):

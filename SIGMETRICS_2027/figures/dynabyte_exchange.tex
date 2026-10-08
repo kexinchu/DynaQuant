@@ -1,0 +1,109 @@
+% One donor-backed exchange on a shared timeline.
+% Arena width is B = 9 units at every time; live+reserved stays at 8.
+% Geometry stays inside x in [0, 13.6] cm.
+\begin{tikzpicture}[
+    x=1cm, y=1cm,
+    font=\scriptsize,
+    >=Stealth,
+    title/.style={font=\footnotesize\bfseries, anchor=west, inner sep=0pt},
+    lab/.style={font=\scriptsize, inner sep=0.6pt},
+    tiny/.style={font=\tiny, inner sep=0.4pt},
+    res/.style={draw=resC, fill=resC!28, line width=0.5pt},
+    fid/.style={draw=resC, line width=0.5pt, preaction={fill=resC!8},
+                pattern=north east lines, pattern color=resC},
+    look/.style={draw=lookC, fill=lookC!16, line width=0.6pt,
+                 dash pattern=on 1.6pt off 1.1pt},
+    xfer/.style={draw=black!65, fill=black!12, line width=0.45pt},
+    wait/.style={draw=black!75, fill=black!62, line width=0.4pt},
+    free/.style={draw=black!40, line width=0.4pt},
+    guide/.style={draw=black!18, line width=0.3pt}
+  ]
+  \definecolor{resC}{RGB}{38,92,140}
+  \definecolor{lookC}{RGB}{204,110,24}
+
+  % Shared time guides. Centers match the four arena bars.
+  \foreach \x in {2.375,5.525,8.675,11.825}
+    \draw[guide] (\x,0.78) -- (\x,5.50);
+
+  % ------------------------------------------------------- panel (a)
+  \node[title] at (0,6.42) {(a) Expert memory over time};
+  \node[lab, anchor=east] at (13.55,6.42) {width \(=B\), live \(+\) reserved \(=8\)};
+
+  \node[font=\footnotesize\bfseries] at (2.375,6.08) {\(t_0\)};
+  \node[font=\footnotesize\bfseries] at (5.525,6.08) {\(t_1\)};
+  \node[font=\footnotesize\bfseries] at (8.675,6.08) {\(t_2\)};
+  \node[font=\footnotesize\bfseries] at (11.825,6.08) {\(t_3\)};
+  \node[lab, align=center] at (2.375,5.72) {before};
+  \node[lab, align=center] at (5.525,5.72) {reclaim \(e_1\)\\[-1pt]copy \(e_2\) low};
+  \node[lab, align=center] at (8.675,5.72) {publish \(e_2\)\\[-1pt]copy \(e_4\)};
+  \node[lab, align=center] at (11.825,5.72) {publish \(e_4\)};
+
+  % t0: e1(2) free(1) e2-fid(2) e2-base(2) e3(2) = 9
+  \begin{scope}[shift={(0.925,0)}]
+    \draw[res]  (0,4.95) rectangle (0.644,5.47); \node[tiny] at (0.322,5.21) {\(e_1\)};
+    \draw[free] (0.644,4.95) rectangle (0.966,5.47);
+    \draw[fid]  (0.966,4.95) rectangle (1.611,5.47);
+    \draw[res]  (1.611,4.95) rectangle (2.255,5.47); \node[tiny] at (1.933,5.21) {\(e_2\)};
+    \draw[res]  (2.255,4.95) rectangle (2.900,5.47); \node[tiny] at (2.578,5.21) {\(e_3\)};
+    \draw[res, draw=black!45] (0,4.42) rectangle (2.578,4.60);
+    \draw[free] (2.578,4.42) rectangle (2.900,4.60);
+  \end{scope}
+  % t1: e2-low reserved(2) free(1) e2 high still live(4) e3(2)
+  \begin{scope}[shift={(4.075,0)}]
+    \draw[look] (0,4.95) rectangle (0.644,5.47); \node[tiny] at (0.322,5.21) {\(e_2\)};
+    \draw[free] (0.644,4.95) rectangle (0.966,5.47);
+    \draw[fid]  (0.966,4.95) rectangle (1.611,5.47);
+    \draw[res]  (1.611,4.95) rectangle (2.255,5.47); \node[tiny] at (1.933,5.21) {\(e_2\)};
+    \draw[res]  (2.255,4.95) rectangle (2.900,5.47); \node[tiny] at (2.578,5.21) {\(e_3\)};
+    \draw[res, draw=black!45] (0,4.42) rectangle (2.578,4.60);
+    \draw[free] (2.578,4.42) rectangle (2.900,4.60);
+  \end{scope}
+  % t2: e2 low live(2) free(1) e4 reserved(4) e3(2)
+  \begin{scope}[shift={(7.225,0)}]
+    \draw[res]  (0,4.95) rectangle (0.644,5.47); \node[tiny] at (0.322,5.21) {\(e_2\)};
+    \draw[free] (0.644,4.95) rectangle (0.966,5.47);
+    \draw[look] (0.966,4.95) rectangle (2.255,5.47); \node[tiny] at (1.85,5.21) {\(e_4\)};
+    \draw[res]  (2.255,4.95) rectangle (2.900,5.47); \node[tiny] at (2.578,5.21) {\(e_3\)};
+    \draw[res, draw=black!45] (0,4.42) rectangle (2.578,4.60);
+    \draw[free] (2.578,4.42) rectangle (2.900,4.60);
+  \end{scope}
+  % t3: e2 low(2) free(1) e4 high = base(2)+fid(2) e3(2)
+  \begin{scope}[shift={(10.375,0)}]
+    \draw[res]  (0,4.95) rectangle (0.644,5.47); \node[tiny] at (0.322,5.21) {\(e_2\)};
+    \draw[free] (0.644,4.95) rectangle (0.966,5.47);
+    \draw[res]  (0.966,4.95) rectangle (1.611,5.47);
+    \draw[fid]  (1.611,4.95) rectangle (2.255,5.47);
+    \node[tiny] at (1.15,5.21) {\(e_4\)};
+    \draw[res]  (2.255,4.95) rectangle (2.900,5.47); \node[tiny] at (2.578,5.21) {\(e_3\)};
+    \draw[res, draw=black!45] (0,4.42) rectangle (2.578,4.60);
+    \draw[free] (2.578,4.42) rectangle (2.900,4.60);
+    \draw[black!70, line width=0.7pt] (2.900,4.36) -- (2.900,4.66);
+    \node[lab, anchor=west] at (2.96,4.51) {\(B\)};
+  \end{scope}
+
+  % ------------------------------------------------------- panel (b)
+  \node[title] at (0,3.55) {(b) Migration queue on the same times};
+
+  \node[lab, anchor=east] at (0.82,2.48) {\(X\)};
+  \draw[xfer] (8.20,2.30) rectangle (10.25,2.66); \node[tiny] at (9.22,2.48) {\(e_4\)};
+  \draw[wait] (10.25,2.30) rectangle (11.45,2.66); \node[tiny, text=white] at (10.85,2.48) {wait};
+
+  \node[lab, anchor=east] at (0.82,1.48) {\(X{\oplus}x\)};
+  \draw[xfer] (4.35,1.30) rectangle (5.85,1.66); \node[tiny] at (5.10,1.48) {\(e_2\)};
+  \draw[xfer] (7.45,1.30) rectangle (9.95,1.66); \node[tiny] at (8.70,1.48) {\(e_4\)};
+  \draw[xfer] (10.85,1.30) rectangle (12.15,1.66); \node[tiny] at (11.50,1.48) {\(e_1\)};
+  \draw[wait] (12.15,1.30) rectangle (12.85,1.66);
+
+  \draw[black!75, line width=0.45pt, dash pattern=on 1.3pt off 1.0pt]
+    (10.25,1.05) -- (10.25,2.85);
+  \node[lab, anchor=south] at (10.25,2.88) {\(d_4\)};
+  \draw[black!75, line width=0.45pt, dash pattern=on 1.3pt off 1.0pt]
+    (12.15,1.05) -- (12.15,2.15);
+  \node[lab, anchor=south west] at (12.18,2.05) {\(d_1\)};
+
+  \draw[fill=black!3, draw=black!28, rounded corners=1.4pt]
+    (0.90,0.08) rectangle (13.35,0.68);
+  \node[lab] at (7.12,0.38)
+    {\(G=\Delta L_4-\Delta L_1-C_{\mathrm{move}}>0\)
+     \quad \(\widehat R+w_2q_2\le\widehat\epsilon\)};
+\end{tikzpicture}

@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "artifact_type": "remaining_cpu_tests",
+  "created_at": "2026-10-07T04:55:11.900625+00:00",
+  "not_end_to_end": true,
+  "e4": {
+    "cell": {
+      "tokens": 2048,
+      "phi": 1.0,
+      "bandwidth_gbps": 8.0,
+      "epsilon": 2.1,
+      "layer_time_ms": 38.5774811947825
+    },
+    "static_joint": {
+      "n_high": 30,
+      "n_low": 15,
+      "slots": 0,
+      "exposed_ms": [
+        161.43070919511015,
+        189.76781674742148,
+        170.5160367290823,
+        141.47083035730307,
+        175.66978409827607,
+        216.2741320885217,
+        125.72051906175852,
+        239.50065453613524,
+        194.54095124644783,
+        190.5114510292527
+      ]
+    },
+    "policies": {
+      "counterfactual": {
+        "exchanges": 36,
+        "hits": 36,
+        "misses": 0,
+        "kinds": {
+          "lookahead": 36
+        },
+        "with_donor": 36,
+        "mean_gain_ms": 0.6807485828074777,
+        "demand_bytes": 74147217408,
+        "late_prefetches": 0,
+        "prefetched_hits": 36,
+        "exposed_ms": [
+          161.43070919511015,
+          189.12190825436326,
+          167.16420696302902,
+          131.16790651976712,
+          164.78533616313842,
+          205.43329600898434,
+          115.31995586907779,
+          232.0324868906566,
+          179.5782490503554,
+          176.22312564198643
+        ]
+      },
+      "independent": {
+        "exchanges": 116,
+        "hits": 113,
+        "misses": 3,
+        "kinds": {
+          "lookahead": 116
+        },
+        "with_donor": 116,
+        "mean_gain_ms": 0.06992200340349308,
+        "demand_bytes": 73796272128,
+        "late_prefetches": 0,
+        "prefetched_hits": 113,
+        "exposed_ms": [
+          161.43070919511015,
+          181.4510457115424,
+          153.9962311856024,
+          117.72891188088792,
+          154.39980687390135,
+          195.16673007819014,
+          109.678345506001,
+          219.52663172478543,
+          175.41555036884853,
+          171.94253717050734
+        ]
+      }
+    },
+    "duplicate_credit_candidates": 109,
+    "counterfactual_only": 29,
+    "definition": "An independent lookahead of (trial, layer, expert) that the counterfactual walk did not admit. All recorded exchanges are lookahead."
+  },
+  "e6c": {
+    "width": 105,
+    "precision": 0.9422817460317461,
+    "recall": 0.9462054950090654,
+    "wasted_bytes": 7292141568,
+    "late_bytes": 6768230400,
+    "true_positive_experts": 47491,
+    "false_positive_experts": 2909,
+    "false_negative_experts": 2700,
+    "note": "Width is the mean active-set size on warmup prefill layers, not a token-level top-8. The trace stores one expert set per layer for the whole block, so this score is not the manuscript recall triple."
+  },
+  "paired_exposed_wait": {
+    "counterfactual_minus_static": {
+      "n": 10,
+      "mean_delta_ms": -8.31457045328407,
+      "mean_ci95_ms": [
+        -11.342906634176558,
+        -5.092700461426042
+      ],
+      "mean_covers_zero": false,
+      "p95_delta_ms": -7.468167645478668,
+      "p95_delta_ci95_ms": [
+        -14.288325387266292,
+        -5.419042992084567
+      ],
+      "p95_covers_zero": false,
+      "note": "Paired bootstrap over the ten trials. Exposed wait, not TPOT. The p95 interval resamples p95(left)-p95(right)."
+    },
+    "independent_minus_static": {
+      "n": 10,
+      "mean_delta_ms": -16.46663853939326,
+      "mean_ci95_ms": [
+        -20.1211785252175,
+        -11.7806677687958
+      ],
+      "mean_covers_zero": false,
+      "p95_delta_ms": -19.97402281134983,
+      "p95_delta_ci95_ms": [
+        -21.107402010331565,
+        -13.08990553490541
+      ],
+      "p95_covers_zero": false,
+      "note": "Paired bootstrap over the ten trials. Exposed wait, not TPOT. The p95 interval resamples p95(left)-p95(right)."
+    },
+    "independent_minus_counterfactual": {
+      "n": 10,
+      "mean_delta_ms": -8.152068086109187,
+      "mean_ci95_ms": [
+        -10.747002559038405,
+        -5.433269895471576
+      ],
+      "mean_covers_zero": false,
+      "p95_delta_ms": -12.50585516587116,
+      "p95_delta_ci95_ms": [
+        -12.50585516587116,
+        -4.28058847147908
+      ],
+      "p95_covers_zero": false,
+      "note": "Paired bootstrap over the ten trials. Exposed wait, not TPOT. The p95 interval resamples p95(left)-p95(right)."
+    }
+  },
+  "blocked": {
+    "E1": "No 1,000-request TPOT run. The short-window target was withdrawn by E2. This file's paired interval is exposed wait on 10 trials at 8 GB/s.",
+    "E1b": "The replay has no arrival process, queue, or concurrency.",
+    "E3": "No HOBBIT or DyMoE implementation is in the tree.",
+    "E5": "qwen30b_routing_active_set_trace.json contains one WikiText-103 routing stream. No second phase exists to switch.",
+    "E6": "The replay admits with the offline perplexity curve, not a per-decision risk score, so it cannot form a confusion matrix."
+  }
+}

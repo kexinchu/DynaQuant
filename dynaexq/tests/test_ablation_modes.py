@@ -28,10 +28,14 @@ class _SchedulerMustNotRun:
 
 
 class _SchedulerRuns:
+    def __init__(self) -> None:
+        self.force_values: list[bool] = []
+
     def should_update(self, step: int) -> bool:
         return True
 
     def plan(self, **kwargs) -> list:
+        self.force_values.append(bool(kwargs.get("force", False)))
         return []
 
 
@@ -46,6 +50,20 @@ class _Observer:
 
 class _Registry:
     def tier_snapshot(self) -> dict:
+        return {}
+
+
+class _BoundaryRiskController:
+    quality_risk = object()
+
+    def __init__(self) -> None:
+        self.checks = 0
+
+    def quality_risk_feasible(self) -> bool:
+        self.checks += 1
+        return self.checks >= 2
+
+    def snapshot(self) -> dict:
         return {}
 
 
@@ -122,6 +140,25 @@ def test_wrapper_records_raw_scheduler_control_plane_samples():
     assert stats["scheduler_p99_ms"] == stats["scheduler_mean_ms"]
 
 
+def test_request_boundary_forces_quality_repair_and_records_its_cost():
+    scheduler = _SchedulerRuns()
+    controller = _BoundaryRiskController()
+    wrapper = MoEWrapper(
+        model=torch.nn.Identity(),
+        router_observer=_Observer(),  # type: ignore[arg-type]
+        hotness_tracker=_Tracker(),  # type: ignore[arg-type]
+        scheduler=scheduler,  # type: ignore[arg-type]
+        registry=_Registry(),  # type: ignore[arg-type]
+        residency_controller=controller,  # type: ignore[arg-type]
+    )
+
+    wrapper._repair_quality_risk_at_request_boundary()
+
+    assert scheduler.force_values == [True]
+    assert controller.checks == 2
+    assert wrapper.get_stats()["scheduler_update_count"] == 1
+
+
 def test_ablation_paper_metrics_are_derived_from_raw_results():
     quality = {
         name: {"score": score, "failed": 0}
@@ -151,7 +188,16 @@ def test_runtime_overhead_metrics_are_derived_from_raw_telemetry():
             "transient_expert_bytes": 100_000_000,
             "host_cache": {"host_packed_bytes": 3_000_000_000},
         },
-        {"scheduler_mean_ms": 1.5, "scheduler_p99_ms": 2.5},
+        {
+            "scheduler_mean_ms": 1.5,
+            "scheduler_p99_ms": 2.5,
+            "residency_controller": {
+                "fast_control_mean_us": 30.0,
+                "fast_control_max_us": 90.0,
+                "counterfactual_mean_us": 20.0,
+                "counterfactual_candidates": 12,
+            },
+        },
         {
             "total_promotions": 3,
             "total_demotions": 4,
@@ -173,6 +219,10 @@ def test_runtime_overhead_metrics_are_derived_from_raw_telemetry():
         "transferred_gb": 0.5,
         "scheduler_mean_ms": 1.5,
         "scheduler_p99_ms": 2.5,
+        "fast_controller_mean_us": 30.0,
+        "fast_controller_max_us": 90.0,
+        "counterfactual_mean_us": 20.0,
+        "counterfactual_candidates": 12,
         "pinned_expert_cache_gb": 3.0,
     }
     with pytest.raises(RuntimeError, match="HBM high-water"):
@@ -182,7 +232,16 @@ def test_runtime_overhead_metrics_are_derived_from_raw_telemetry():
                 "transient_expert_bytes": 100_000_000,
                 "host_cache": {"host_packed_bytes": 3_000_000_000},
             },
-            {"scheduler_mean_ms": 1.5, "scheduler_p99_ms": 2.5},
+            {
+                "scheduler_mean_ms": 1.5,
+                "scheduler_p99_ms": 2.5,
+                "residency_controller": {
+                    "fast_control_mean_us": 30.0,
+                    "fast_control_max_us": 90.0,
+                    "counterfactual_mean_us": 20.0,
+                    "counterfactual_candidates": 12,
+                },
+            },
             {
                 "total_promotions": 3,
                 "total_demotions": 4,

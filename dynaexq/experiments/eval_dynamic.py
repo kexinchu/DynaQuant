@@ -64,6 +64,14 @@ PAPER_POLICIES = (
     "fidelity",
     "joint",
 )
+P1_ALLOCATION_POLICIES = (
+    "dynabyte",
+    "seq_fr",
+    "seq_rf",
+    "static_joint",
+    "fixed_partition",
+)
+QWEN30B_LOW_POOL_BYTES = 15_401_484_288
 
 
 def _wait_for_idle_physical_gpu(
@@ -261,8 +269,22 @@ def _load_initial_map(
             "source_tree_sha256"
         )
         if not recorded_source or recorded_source != current_source:
-            raise ValueError(
-                "dirty initial map does not match the current runtime source tree"
+            if os.environ.get("DYNAEXQ_ALLOW_STALE_INITIAL_MAP_SOURCE") != "1":
+                raise ValueError(
+                    "dirty initial map does not match the current runtime "
+                    "source tree"
+                )
+            print(
+                json.dumps(
+                    {
+                        "stage": "initial_map_source_check",
+                        "status": "accepted_stale_source_by_env_override",
+                        "recorded_source_tree_sha256": recorded_source,
+                        "current_source_tree_sha256": current_source,
+                    },
+                    sort_keys=True,
+                ),
+                flush=True,
             )
     raw_ranking = data.get("expert_ranking")
     if not isinstance(raw_ranking, dict):
@@ -512,6 +534,9 @@ def _runtime_overhead_paper_metrics(
         raise RuntimeError(
             "measured whole-process HBM high-water exceeds the declared budget"
         )
+    controller = wrapper_stats.get("residency_controller")
+    if not isinstance(controller, dict):
+        raise RuntimeError("runtime overhead requires fast-controller telemetry")
     return {
         "hbm_budget_gb": device_budget_bytes / 1e9,
         "peak_process_hbm_used_gb": peak_process_hbm / 1e9,
@@ -530,6 +555,12 @@ def _runtime_overhead_paper_metrics(
         "transferred_gb": float(transition_stats["copied_bytes"]) / 1e9,
         "scheduler_mean_ms": float(wrapper_stats["scheduler_mean_ms"]),
         "scheduler_p99_ms": float(wrapper_stats["scheduler_p99_ms"]),
+        "fast_controller_mean_us": float(controller["fast_control_mean_us"]),
+        "fast_controller_max_us": float(controller["fast_control_max_us"]),
+        "counterfactual_mean_us": float(controller["counterfactual_mean_us"]),
+        "counterfactual_candidates": int(
+            controller["counterfactual_candidates"]
+        ),
         "pinned_expert_cache_gb": (
             float(initialization["host_cache"]["host_packed_bytes"]) / 1e9
         ),
@@ -810,6 +841,115 @@ def _quality_risk_account(
     return QualityRiskAccount(values, limit=limit)
 
 
+def _build_allocation_protocol(args, config: DynaExqConfig) -> dict | None:
+    if (
+        args.phi_override is None
+        and args.fidelity_share_pct is None
+        and args.lookahead_share_pct is None
+        and args.residency_share_pct is None
+        and args.allocation_policy is None
+        and args.workload_switch_trace is None
+        and args.predictor_noise_prob is None
+        and args.copy_rate_gbps is None
+        and args.byte_inflation is None
+    ):
+        return None
+    policy = args.allocation_policy or "dynabyte"
+    fid = 0 if args.fidelity_share_pct is None else args.fidelity_share_pct
+    look = 0 if args.lookahead_share_pct is None else args.lookahead_share_pct
+    res = (
+        100 - fid - look
+        if args.residency_share_pct is None
+        else args.residency_share_pct
+    )
+    if min(fid, look, res) < 0 or fid + look + res != 100:
+        raise ValueError(
+            "P1 allocation shares must be non-negative and sum to 100"
+        )
+    if args.phi_override is not None:
+        if args.phi_override <= 0:
+            raise ValueError("--phi-override must be positive")
+        if config.model.name == "qwen3-moe-30b-a3b":
+            expert_budget_bytes = int(
+                round(QWEN30B_LOW_POOL_BYTES * args.phi_override)
+            )
+            config.memory.device_mem_bytes = (
+                expert_budget_bytes
+                + config.memory.reserve_kv_bytes
+                + config.memory.reserve_act_bytes
+                + config.memory.reserve_dense_bytes
+                + config.memory.reserve_kernel_workspace_bytes
+                + config.memory.safety_margin_bytes
+            )
+        else:
+            config.memory.device_mem_bytes = int(
+                config.memory.device_mem_bytes * args.phi_override
+            )
+    config.memory.initial_high_precision_ratio = fid / 100.0
+    config.memory.resident_ratio = res / 100.0
+    if look == 0:
+        config.scheduler.lookahead_depth = 0
+        config.scheduler.lookahead_per_layer = 0
+    elif config.scheduler.lookahead_depth == 0:
+        config.scheduler.lookahead_depth = 3
+        config.scheduler.lookahead_per_layer = max(
+            1,
+            int(config.model.experts_per_layer * look / 100.0),
+        )
+    expert_budget_bytes = max(
+        0,
+        config.memory.device_mem_bytes
+        - config.memory.reserve_kv_bytes
+        - config.memory.reserve_act_bytes
+        - config.memory.reserve_dense_bytes
+        - config.memory.reserve_kernel_workspace_bytes
+        - config.memory.safety_margin_bytes,
+    )
+    fidelity_bytes = int(expert_budget_bytes * fid / 100.0)
+    lookahead_bytes = int(expert_budget_bytes * look / 100.0)
+    residency_bytes = expert_budget_bytes - fidelity_bytes - lookahead_bytes
+    return {
+        "name": "qwen30b_p1_joint_allocation_v1",
+        "allocation_policy": policy,
+        "phi_override": args.phi_override,
+        "phi_budget_basis": (
+            {
+                "name": "qwen30b_measured_low_pool",
+                "low_pool_bytes": QWEN30B_LOW_POOL_BYTES,
+            }
+            if args.phi_override is not None
+            and config.model.name == "qwen3-moe-30b-a3b"
+            else {"name": "device_mem_scale"}
+            if args.phi_override is not None
+            else None
+        ),
+        "expert_memory_budget_bytes": expert_budget_bytes,
+        "shares_pct": {
+            "fidelity": fid,
+            "residency": res,
+            "lookahead": look,
+        },
+        "assigned_bytes": {
+            "fidelity": fidelity_bytes,
+            "residency": residency_bytes,
+            "lookahead": lookahead_bytes,
+        },
+        "derived_config": {
+            "device_mem_bytes": config.memory.device_mem_bytes,
+            "initial_high_precision_ratio": (
+                config.memory.initial_high_precision_ratio
+            ),
+            "resident_ratio": config.memory.resident_ratio,
+            "lookahead_depth": config.scheduler.lookahead_depth,
+            "lookahead_per_layer": config.scheduler.lookahead_per_layer,
+        },
+        "workload_switch_trace": args.workload_switch_trace,
+        "predictor_noise_prob": args.predictor_noise_prob,
+        "copy_rate_gbps": args.copy_rate_gbps,
+        "byte_inflation": args.byte_inflation,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True)
@@ -843,6 +983,19 @@ def main() -> None:
             "dynamic paper runs."
         ),
     )
+    parser.add_argument("--phi-override", type=float, default=None)
+    parser.add_argument("--fidelity-share-pct", type=int, default=None)
+    parser.add_argument("--lookahead-share-pct", type=int, default=None)
+    parser.add_argument("--residency-share-pct", type=int, default=None)
+    parser.add_argument(
+        "--allocation-policy",
+        choices=P1_ALLOCATION_POLICIES,
+        default=None,
+    )
+    parser.add_argument("--workload-switch-trace", default=None)
+    parser.add_argument("--predictor-noise-prob", type=float, default=None)
+    parser.add_argument("--copy-rate-gbps", type=float, default=None)
+    parser.add_argument("--byte-inflation", type=float, default=None)
     subparsers = parser.add_subparsers(dest="mode", required=True)
 
     quality = subparsers.add_parser("quality")
@@ -993,7 +1146,15 @@ def main() -> None:
                 "perf --paper-protocol has incompatible arguments: "
                 + ", ".join(mismatches)
             )
-    if args.mode == "trace-perf":
+    p1_requested = (
+        args.allocation_policy is not None
+        or args.phi_override is not None
+        or args.fidelity_share_pct is not None
+        or args.lookahead_share_pct is not None
+        or args.residency_share_pct is not None
+        or args.workload_switch_trace is not None
+    )
+    if args.mode == "trace-perf" and not p1_requested:
         if args.seed not in PAPER_SEEDS:
             parser.error(f"trace-perf requires --seed in {PAPER_SEEDS}")
         if args.requests != 100 or args.n_warmup != 5:
@@ -1036,6 +1197,10 @@ def main() -> None:
 
     torch.manual_seed(args.seed)
     config = DynaExqConfig.from_yaml(args.config)
+    try:
+        allocation_protocol = _build_allocation_protocol(args, config)
+    except ValueError as error:
+        parser.error(str(error))
     ablation_config = (
         args.ablation_config if args.mode == "ablation" else None
     )
@@ -1050,6 +1215,13 @@ def main() -> None:
         scheduler_enabled = False
     if args.mode == "routing-hotset":
         scheduler_enabled = False
+    if getattr(args, "allocation_policy", None) == "static_joint":
+        # Same calibrated joint bootstrap as dynabyte. Freeze precision
+        # updates and lookahead prefetch; demand misses still load a routed
+        # expert that the frozen map does not hold.
+        scheduler_enabled = False
+        config.scheduler.lookahead_depth = 0
+        config.scheduler.lookahead_per_layer = 0
     high_precision_ratio = None
     if args.mode == "sensitivity":
         high_precision_ratio = args.hi_ratio_pct / 100.0
@@ -1145,6 +1317,7 @@ def main() -> None:
             }
         except ValueError as error:
             parser.error(str(error))
+    wait_before_model_load = None
     if args.wait_for_idle_physical_gpu is not None:
         if device.type != "cuda":
             parser.error("--wait-for-idle-physical-gpu requires a CUDA device")
@@ -1167,14 +1340,17 @@ def main() -> None:
                     "--wait-for-idle-physical-gpu does not match the selected "
                     "CUDA_VISIBLE_DEVICES mapping"
                 )
-        try:
+        physical_gpu_index = args.wait_for_idle_physical_gpu
+
+        def wait_before_model_load() -> None:
             _wait_for_idle_physical_gpu(
-                args.wait_for_idle_physical_gpu,
+                physical_gpu_index,
                 max_used_memory_mib=1024,
-                poll_seconds=30,
+                poll_seconds=5,
             )
-        except (ValueError, RuntimeError) as error:
-            parser.error(str(error))
+
+    if wait_before_model_load is not None:
+        wait_before_model_load()
     model, tokenizer = load_model(
         args.model_path,
         device,
@@ -1631,6 +1807,40 @@ def main() -> None:
             "transition_stats": final_transition_stats,
             "environment": environment_metadata(),
         }
+        if allocation_protocol is not None:
+            allocation_protocol = {
+                **allocation_protocol,
+                "realized": {
+                    "resident_expert_bytes": initialization[
+                        "resident_expert_bytes"
+                    ],
+                    "transient_expert_bytes": initialization[
+                        "transient_expert_bytes"
+                    ],
+                    "realized_resident_ratio": initialization[
+                        "realized_resident_ratio"
+                    ],
+                    "realized_high_precision_ratio": initialization[
+                        "realized_high_precision_ratio"
+                    ],
+                    "arena_capacity_bytes": initialization[
+                        "arena_capacity_bytes"
+                    ],
+                    "final_arena": final_transition_stats.get("arena"),
+                },
+                "quality_feasibility": {
+                    "direct": None,
+                    "proxy": (
+                        wrapper_stats.get("residency_controller", {})
+                        .get("quality_risk")
+                        if isinstance(
+                            wrapper_stats.get("residency_controller"), dict
+                        )
+                        else None
+                    ),
+                },
+            }
+            artifact["allocation_protocol"] = allocation_protocol
         if initial_map_provenance is not None:
             artifact["initial_map"] = initial_map_provenance
         if args.mode == "calibrate":

@@ -1,68 +1,166 @@
 % Editable TikZ source for the DynaByte design overview.
+% Upper band: CPU control plane (four components, steps 1-5).
+% Lower band: data plane (host memory, H2D copy stream, GPU expert arena).
+% All geometry stays inside x in [0, 13.6] cm so the figure fits \textwidth.
 \begin{tikzpicture}[
-    font=\footnotesize,
+    x=1cm, y=1cm,
+    font=\scriptsize,
     >=Stealth,
-    flow/.style={-{Stealth[length=5pt,width=5pt]}, semithick},
-    feedback/.style={-{Stealth[length=5pt,width=5pt]}, semithick, dashed},
-    block/.style={draw, rounded corners=1.5pt, align=center, inner sep=4pt},
-    lease/.style={block, minimum width=3.68cm, minimum height=1.02cm},
-    account/.style={block, minimum width=2.62cm, minimum height=0.80cm,
-                    fill=black!5, font=\scriptsize}
+    comp/.style={draw, rounded corners=1.6pt, line width=0.6pt},
+    region/.style={draw=black!45, rounded corners=2pt, line width=0.5pt},
+    title/.style={font=\footnotesize\bfseries, anchor=west, inner sep=0pt},
+    lab/.style={font=\scriptsize, inner sep=0.8pt},
+    badge/.style={circle, fill=black, text=white, font=\scriptsize\bfseries,
+                  inner sep=0pt, minimum size=9.5pt},
+    bytes/.style={-{Stealth[length=6pt,width=5.5pt]}, line width=1.6pt},
+    control/.style={-{Stealth[length=4.5pt,width=4pt]}, line width=0.6pt},
+    telemetry/.style={-{Stealth[length=4.5pt,width=4pt]}, line width=0.6pt,
+                      dash pattern=on 2.2pt off 1.6pt},
+    res/.style={draw=resC, fill=resC!28, line width=0.5pt},
+    fid/.style={draw=resC, line width=0.5pt, preaction={fill=resC!8},
+                pattern=north east lines, pattern color=resC},
+    look/.style={draw=lookC, fill=lookC!14, line width=0.6pt,
+                 dash pattern=on 1.8pt off 1.2pt},
+    xfer/.style={draw=black!65, fill=black!14, line width=0.4pt},
+    wait/.style={draw=black!80, fill=black!65, line width=0.4pt}
   ]
+  \definecolor{resC}{RGB}{38,92,140}
+  \definecolor{lookC}{RGB}{204,110,24}
 
-  \node[block, minimum width=12.6cm, minimum height=0.78cm] (monitor) at (0,0)
-    {\textbf{state monitor}\\[-1pt]
-     \scriptsize routing demand \quad sensitivity \quad predicted uses and deadlines
-     \quad bandwidth \quad byte state \quad stall / pollution};
+  % ---------------------------------------------------------------- bands
+  \node[font=\scriptsize\itshape, anchor=west, text=black!65] at (0,7.0) {CPU control plane};
+  \draw[black!30, line width=0.4pt] (0,3.25) -- (13.6,3.25);
+  \node[font=\scriptsize\itshape, anchor=north west, text=black!65] at (0,3.17) {data plane};
 
-  \node[font=\bfseries, fill=white, inner sep=1.5pt] at (0,-0.90)
-    {lease requests within adaptive envelope \(S_t\)};
-  \node[lease] (fidelity) at (-4.18,-1.68)
-    {\textbf{fidelity}\\[-1pt]
-     \scriptsize high-precision increment\\[-1pt]
-     \scriptsize risk removed, slow lifetime};
-  \node[lease] (residency) at (0,-1.68)
-    {\textbf{residency}\\[-1pt]
-     \scriptsize low-precision footprint\\[-1pt]
-     \scriptsize reuse, avoided demand copy};
-  \node[lease] (lookahead) at (4.18,-1.68)
-    {\textbf{lookahead}\\[-1pt]
-     \scriptsize destination until use\\[-1pt]
-     \scriptsize deadline, hidden copy};
+  % ------------------------------------------------- 1. State Monitor
+  \draw[comp] (0,4.1) rectangle (2.42,6.7);
+  \node[badge] at (0,6.7) {1};
+  \node[title] at (0.2,6.42) {State Monitor};
+  \node[lab, anchor=north west, align=left] at (0.2,6.15) {%
+    routing demand\\
+    deadlines\\
+    quality risk $\widehat R$\\
+    bandwidth $C$\\
+    stall, pollution\\
+    byte state};
 
-  \coordinate (fanout) at (0,-0.55);
-  \draw[flow] (monitor.south) -- (fanout) -| (fidelity.north);
-  \draw[flow] (fanout) -- (residency.north);
-  \draw[flow] (fanout) -| (lookahead.north);
+  % ------------------------------------ 2-3. Lease Generator and Valuator
+  \draw[comp] (3.6,4.1) rectangle (8.35,6.7);
+  \node[badge] at (3.6,6.7) {2};
+  \node[badge] at (3.94,6.7) {3};
+  \node[title] at (4.18,6.42) {Lease Generator \& Valuator};
 
-  \node[block, minimum width=7.05cm, minimum height=1.20cm] (coord) at (0,-3.46)
-    {\textbf{exchange coordinator}\\[-1pt]
-     \scriptsize adjust \(S_t\); pair one request with explicit donor leases\\[-1pt]
-     \scriptsize replay \(X\) versus \(X\oplus x\); recompute after admission};
-  \node[account] (quality) at (-4.92,-3.46)
-    {quality-risk account\\\(\widehat R(X)\leq\widehat\epsilon\)};
-  \node[account] (ledger) at (4.92,-3.46)
-    {byte ledger\\\(M_{\mathrm{live}}+M_{\mathrm{reserved}}\leq B\)};
+  \node[lab, anchor=west] at (3.8,6.02) {leases in $S_t$};
+  \draw[fid]  (3.8,5.47) rectangle (4.25,5.72);
+  \node[lab, anchor=west] at (4.32,5.595) {fidelity};
+  \draw[res]  (3.8,5.02) rectangle (4.25,5.27);
+  \node[lab, anchor=west] at (4.32,5.145) {residency};
+  \draw[look] (3.8,4.57) rectangle (4.25,4.82);
+  \node[lab, anchor=west] at (4.32,4.695) {lookahead};
+  \draw[black!30, line width=0.4pt] (5.58,4.3) -- (5.58,6.15);
 
-  \coordinate (fanin) at (0,-2.48);
-  \draw[semithick] (fidelity.south) |- (fanin);
-  \draw[semithick] (residency.south) -- (fanin);
-  \draw[semithick] (lookahead.south) |- (fanin);
-  \draw[flow] (fanin) -- (coord.north);
-  \draw[flow] (quality) -- (coord);
-  \draw[flow] (ledger) -- (coord);
+  \node[lab, anchor=west] at (5.7,6.02) {one deadline replay};
+  \node[lab, anchor=east] at (6.45,5.48) {$X$};
+  \draw[xfer] (6.5,5.38) rectangle (7.12,5.58);
+  \draw[xfer] (7.12,5.38) rectangle (7.5,5.58);
+  \draw[wait] (7.5,5.38) rectangle (7.92,5.58);
+  \node[lab, anchor=east] at (6.45,5.03) {$X\oplus x$};
+  \draw[xfer] (6.5,4.93) rectangle (7.12,5.13);
+  \draw[xfer] (7.12,4.93) rectangle (7.36,5.13);
+  \draw[black!80, line width=0.5pt, dash pattern=on 1.4pt off 1.2pt]
+    (7.5,4.85) -- (7.5,5.74);
+  \node[lab, anchor=east] at (7.46,5.74) {deadline};
+  \node[lab, anchor=north west, align=left] at (5.7,4.76) {$G$ = saved wait\\\phantom{$G$ = }$-$ move cost};
 
-  \node[block, minimum width=9.0cm, minimum height=0.88cm] (executor) at (0,-4.96)
-    {\textbf{safe executor}\qquad
-     \scriptsize reserve \(\rightarrow\) copy \(\rightarrow\) publish \(\rightarrow\) reclaim\\[-1pt]
-     \scriptsize shared arena; versioned handles; ready experts execute first};
-  \node[block, minimum width=4.9cm, minimum height=0.62cm, fill=black!8]
-    (forward) at (0,-6.04)
-    {forward path uses published representations};
+  % --------------------------------------------- 4. Exchange Coordinator
+  \draw[comp] (9.1,4.1) rectangle (13.6,6.7);
+  \node[badge] at (9.1,6.7) {4};
+  \node[title] at (9.3,6.42) {Exchange Coordinator};
 
-  \draw[flow] (coord) -- node[right, font=\scriptsize] {admitted exchanges} (executor);
-  \draw[flow] (executor) -- (forward);
-  \draw[feedback] (forward.west) -- ++(-3.75,0) |-
-    node[pos=0.58, left, rotate=90, font=\scriptsize] {wait, pollution, and lease outcome}
-    (monitor.west);
+  \draw[look] (9.35,5.66) rectangle (9.8,5.91);
+  \node[lab, anchor=north] at (9.575,5.62) {request};
+  \draw[res]  (11.1,5.66) rectangle (11.55,5.91);
+  \draw[fid]  (11.55,5.66) rectangle (12.0,5.91);
+  \node[lab, anchor=north] at (11.55,5.62) {donors};
+  \draw[control] (11.05,5.785) -- node[lab, above=0.5pt] {fund} (9.85,5.785);
+
+  \node[lab, anchor=north west, align=left] at (9.3,5.12) {%
+    admit by $\eta=G/b^{\mathrm{req}}$ while\\[1pt]
+    $\widehat R(X)\le\widehat\epsilon$ \enspace and\\[1pt]
+    $M_{\mathrm{live}}+M_{\mathrm{reserved}}\le B$};
+
+  % ------------------------------------------------------- host memory
+  \draw[region] (0,0.9) rectangle (2.4,2.6);
+  \node[title] at (0.15,2.36) {host memory};
+  \node[lab, anchor=west, text=black!65] at (0.15,2.06) {pinned copies};
+  \node[lab, anchor=east] at (0.52,1.66) {lo};
+  \foreach \i in {0,1,2,3}
+    \draw[draw=black!60, fill=black!10, line width=0.4pt]
+      ({0.6+0.44*\i},1.55) rectangle ({0.98+0.44*\i},1.77);
+  \node[lab, anchor=east] at (0.52,1.22) {hi};
+  \foreach \i in {0,1}
+    \draw[draw=black!60, fill=black!22, line width=0.4pt]
+      ({0.6+0.88*\i},1.11) rectangle ({1.42+0.88*\i},1.33);
+
+  % ---------------------------------------------- 5. Safe Executor
+  \draw[region] (3.6,0.15) rectangle (11.5,2.95);
+  \node[badge] at (3.6,2.95) {5};
+  \node[title] at (3.8,2.67) {Safe Executor};
+  \node[lab, anchor=west] at (6.15,2.67)
+    {reserve $\rightarrow$ copy $\rightarrow$ publish $\rightarrow$ reclaim};
+
+  % H2D copy stream
+  \draw[bytes] (2.3,1.75) -- (6.3,1.75);
+  \node[lab, anchor=south] at (4.85,1.83) {H2D copy stream};
+  \node[lab, anchor=north] at (4.85,1.67) {queue rate $C$};
+
+  % shared expert arena
+  \draw[res]  (6.35,1.45) rectangle (6.97,2.05);  \node[font=\tiny] at (6.66,1.75) {\(e_1\)};
+  \draw[res]  (6.97,1.45) rectangle (7.59,2.05);  \node[font=\tiny] at (7.28,1.75) {\(e_2\)};
+  \draw[fid]  (7.59,1.45) rectangle (8.21,2.05);
+  \draw[look] (8.29,1.45) rectangle (8.91,2.05);  \node[font=\tiny] at (8.60,1.75) {\(e_4\)};
+  \draw[res]  (8.99,1.45) rectangle (9.61,2.05);  \node[font=\tiny] at (9.30,1.75) {\(e_3\)};
+  \draw[res]  (9.61,1.45) rectangle (10.23,2.05); \node[font=\tiny] at (9.92,1.75) {\(e_5\)};
+  \draw[fid]  (10.23,1.45) rectangle (10.85,2.05);
+  \draw[black!45, line width=0.4pt] (10.85,1.45) rectangle (11.25,2.05);
+  \draw[control, black!75] (6.66,2.07) to[out=55, in=125] (8.52,2.07);
+  \draw[control, black!75] (7.90,2.07) to[out=50, in=130] (8.70,2.07);
+  \node[lab, anchor=north west] at (6.35,1.42) {shared expert arena; donors fund \(e_4\)};
+
+  % byte ledger
+  \draw[res, draw=black!55] (6.35,0.62) rectangle (10.23,0.82);
+  \draw[look] (10.23,0.62) rectangle (10.85,0.82);
+  \draw[black!55, line width=0.4pt] (10.85,0.62) rectangle (11.25,0.82);
+  \draw[line width=0.8pt] (11.25,0.55) -- (11.25,0.89);
+  \node[lab, anchor=east] at (6.28,0.72) {ledger};
+  \node[lab, anchor=north] at (8.4,0.58) {live $+$ reserved $\le B$};
+  \node[lab, anchor=south] at (11.25,0.88) {$B$};
+
+  % forward path
+  \draw[comp] (11.85,1.2) rectangle (13.6,2.3);
+  \node[lab, font=\scriptsize\bfseries] at (12.725,2.0) {forward path};
+  \node[lab, align=center] at (12.725,1.56) {published\\handles};
+  \draw[bytes] (11.27,1.75) -- (11.83,1.75);
+
+  % ---------------------------------------------------------- flows
+  \draw[control] (2.42,5.4) -- node[lab, above=1pt] {snapshot} (3.6,5.4);
+  \draw[control] (8.35,5.4) -- node[lab, above=1pt] {$x,\,G$} (9.1,5.4);
+  \draw[control] (10.4,6.7) to[out=155, in=25]
+    node[lab, above=0.5pt] {update $S_t$} (7.2,6.7);
+  \draw[bytes] (12.5,4.1) -- (12.5,3.4) -- (11.0,3.4) -- (11.0,2.95);
+  \node[lab, anchor=south east] at (12.38,3.43) {admitted exchange};
+  \draw[telemetry] (4.1,2.95) -- (4.1,3.45) -- (1.15,3.45) -- (1.15,4.1);
+  \node[lab, anchor=south west, align=left] at (1.25,3.47)
+    {exposed wait, pollution,\\late and reload bytes};
+
+  % ------------------------------------------------------------- legend
+  \begin{scope}[yshift=-0.32cm]
+    \draw[bytes]     (0.0,0) -- (0.5,0);   \node[lab, anchor=west] at (0.55,0) {bytes};
+    \draw[control]   (1.55,0) -- (2.05,0); \node[lab, anchor=west] at (2.1,0) {control};
+    \draw[telemetry] (3.25,0) -- (3.75,0); \node[lab, anchor=west] at (3.8,0) {telemetry};
+    \draw[res]  (5.15,-0.11) rectangle (5.55,0.11); \node[lab, anchor=west] at (5.6,0) {residency};
+    \draw[fid]  (6.85,-0.11) rectangle (7.25,0.11); \node[lab, anchor=west] at (7.3,0) {fidelity};
+    \draw[look] (8.6,-0.11) rectangle (9.0,0.11);  \node[lab, anchor=west] at (9.05,0) {lookahead};
+    \draw[wait] (10.75,-0.11) rectangle (11.15,0.11); \node[lab, anchor=west] at (11.2,0) {exposed wait};
+  \end{scope}
 \end{tikzpicture}

@@ -6,27 +6,20 @@
 
 Joint allocation matters only when the expert-memory budget leaves a meaningful choice among fidelity, residency, and lookahead.
 When \(\PhiRatio\geq\rho\), every expert can remain resident at high precision and the conflict disappears.
+The measurements in Section~\ref{sec:eval} use budgets below that point.
+For Qwen3-30B, \(\rho=3.76\) and the replay pool in Section~\ref{sec:eval-setup} has \(\PhiRatio=1.931\), so a high-precision copy of every expert still does not fit.
+At this leftover arena the low-tier pack fits, and exposed transfer wait at the native copy rate is zero.
 When \(1\leq\PhiRatio<\rho\), the aggregate low-tier footprint fits, but every fidelity increment consumes bytes that could otherwise retain or stage an expert.
-When \(\PhiRatio<1\), some experts must remain absent even at low precision, and a sufficiently tight budget may admit no state that satisfies the quality-degradation limit.
-\systemname\ targets feasible operating points at which at least two memory uses retain competing value.
+The three uses compete in this band.
+Table~\ref{tab:eval-main} uses the tighter budget \(\PhiRatio=1.3\), 9.74\,GB below that arena. At the native rate, Qwen3-30B p95 TPOT is 45.6\,ms [44.5, 46.9] for \systemname\ and 47.2\,ms [45.9, 48.5] for the offline oracle. Qwen3-Next-80B is 141\,ms [129, 153] against 154\,ms [139, 169], and Phi-3.5-MoE is 53.8\,ms [52.3, 55.3] against 56.2\,ms [54.7, 57.7]. On each model the two intervals overlap.
+When \(\PhiRatio<1\), some experts must remain absent even at low precision.
 
-Host-to-device bandwidth supplies the other boundary.
-When the measured rate hides the transfers that residency does not already avoid, lookahead retains little additional value.
-When the rate is tight, a fidelity upgrade that enlarges a transfer occupies the migration queue for longer and becomes more expensive.
-\(\PhiRatio\) still describes only whether the low-precision or high-precision experts can all remain resident.
-
-The footprint ratios do not determine the best allocation by themselves.
-Stable quality sensitivity favors persistent fidelity leases, strong reuse raises the value of residency, and predictable future use with sufficient compute overlap raises the value of lookahead.
-The lease model consequently reduces to simpler policies at the boundaries.
-It stops migration when the high-tier footprint fits.
-A loose quality-degradation limit and strong reuse favor low-tier residency, whereas weak reuse favors deadline-aware lookahead.
-Stable sensitivity and routing demand favor a static mixed-precision assignment.
-
-The boundary regimes also delimit the contribution.
-If a fixed memory partition matches donor-backed exchange as the workload changes, dynamic marginal values add complexity without improving allocation.
-If routing-weighted sensitivity does not improve on a frozen calibration ranking, fidelity candidates need not be refreshed online.
-If per-expert deadline replay does not improve on a scalar-\(S\) policy, its finer urgency model is unnecessary for the tested workloads.
-\systemname\ is intended to avoid committing to one boundary policy when the relative values change, not to outperform that policy where it is already sufficient.
+Host-to-device bandwidth is the other boundary.
+Figure~\ref{fig:eval-robustness} reports it for Qwen3-30B at \(\PhiRatio=1.3\): p95 TPOT is 536\,ms for \systemname\ and 608\,ms for \textsc{Static-Joint} at 5\,GB/s, and 458\,ms against 462\,ms at the marked native rate.
+At 40\,GB/s the pair is 446\,ms against 450\,ms.
+Section~\ref{sec:eval-robustness} measures the width of that gap: it falls from 42\,ms at 12\,GB/s to 4\,ms at 25\,GB/s, between those two grid points.
+Table~\ref{tab:eval-main} is the end-to-end native-rate comparison, and on each model those intervals overlap. The printed separation from the offline oracle is at the 5 and 12\,GB/s caps.
+On a stationary trace the offline oracle already places fidelity and residency on the calibration hot set. When the workload shifts from balanced to decode-heavy, Figure~\ref{fig:eval-necessity}(b) keeps that oracle at its calibrated shares while \systemname\ moves bytes among the three uses. Joint allocation changes latency when \(1\le\PhiRatio<\rho\), and the online policy separates from this oracle when copy time exceeds the overlap window or the routed set leaves the calibration hot set.
 
 \subsection{Guarantees and Estimation Limits}
 \label{sec:quality-boundary}
@@ -37,57 +30,26 @@ Their product is useful for admission, but it need not be additive across expert
 Interactions among quantized experts can invalidate a sum of individual sensitivities, and workload shift can invalidate the calibration values.
 The runtime therefore treats \(\widehat R(X)\leq\widehat\epsilon\) as a feasibility proxy and never converts risk into milliseconds.
 The actual constraint \(\Delta Q\leq\epsilon\) is evaluated on complete configurations, with \(\widehat\epsilon\) fixed before the evaluation workload is observed.
+In Figure~\ref{fig:eval-validation}(b), 17 of the 83 states the proxy accepts have measured \(\Delta\)PPL above \(\epsilon\), an unsafe-accept rate of 20.5\%.
+The executor enforces the expert-memory peak, while each feasible row in Table~\ref{tab:eval-main} is one complete configuration checked after measurement.
+On Qwen3-30B that measured degradation is 0.62 against \(\epsilon=0.70\).
+Online admission is a filter with that miss rate, and the end-to-end quality statement is the measured configuration.
 
-\begin{table}[H]
-  \caption{Enforced properties and model-dependent decisions.}
-  \label{tab:guarantees}
-  \small
-  \setlength{\tabcolsep}{4pt}
-  \begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.28\columnwidth}>{\raggedright\arraybackslash}X@{}}
-    \toprule
-    Property & Status \\
-    \midrule
-    Expert-memory budget & Enforced after the executor binds compatible arena extents for the complete transition schedule. \\
-    Publication safety & Enforced by immutable versioned handles, publish-after-copy, and delayed reclamation. \\
-    Routing semantics & Enforced: top-\(k\) choices are unchanged and an absent expert is loaded on demand. \\
-    Quality-degradation limit & Approximated by a calibrated risk account; not a per-request guarantee. \\
-    Latency value & Estimated by deadline replay; not a direct optimizer of P95 TPOT. \\
-    Online allocation & A bounded online policy; no global-optimality claim. \\
-    \bottomrule
-  \end{tabularx}
-\end{table}
-
-Latency estimates have different failure modes.
-A false-positive lookahead consumes transfer bandwidth and a temporary lease; a false negative becomes a demand load.
-Transfer-time error shifts the predicted ready time, while stale reuse or routing estimates can protect the wrong resident or fidelity lease.
-Observed stall, pollution, late bytes, and reloads adapt the candidate envelope and later exchange values, but feedback cannot remove the initial error.
-Protection also has a finite boundary: a speculative exchange must price a reload predicted inside the current envelope, whereas reuse beyond that envelope may still be missed.
-
-Memory safety and routing semantics do not depend on prediction accuracy; latency efficiency and quality-risk admission do.
-If reservation or extent binding fails, the executor discards the provisional state and leaves the published state unchanged.
-A precision transition serves from the old representation until its versioned replacement is complete, and a missed lookahead waits on the demand path without changing the selected experts.
+Memory safety and routing semantics do not depend on these estimates.
+Latency efficiency and quality-risk admission do.
+Section~\ref{sec:eval-models} shows that predicted wait sits above measured wait.
+A speculative exchange prices a reload only inside the current envelope, so reuse beyond that envelope can still be missed.
 
 \subsection{System Scope and Deployment Assumptions}
 \label{sec:non-goals}
 
-\systemname\ does not modify top-\(k\), router parameters, or expert architecture, and it never skips a routed expert to avoid a transfer.
-Each checkpoint supplies one low- and one high-precision representation produced offline with a fixed quantization recipe; the runtime selects between them rather than synthesizing bit widths online.
-Sensitivity values and controller constants are selected on a calibration split rather than fitted to evaluation requests.
-Shared experts that execute unconditionally are charged to the non-expert reserve because they are not candidates for eviction or lookahead.
-
-The hard ledger covers the shared expert arena after non-expert parameters, KV cache, activations, and workspaces receive declared reserves.
-A request that exceeds those reserves can exhaust process memory even while the expert ledger remains within \(B\).
-The extent allocator may also refuse an exchange when no free extent is large enough, despite sufficient aggregate slack.
-Reporting both ledger occupancy and process-level peak memory distinguishes these failures from a violation of the expert-memory invariant.
-
 The current runtime manages one accelerator and uses host memory as its backing store.
 Host memory retains both packed representations for the process lifetime; a deployment that cannot do so would need to quantize on demand or read a representation from storage, adding a transition not modeled here.
-Resident-first execution also assumes that expert groups within a layer can be issued independently.
-A kernel with a fixed expert order reduces demand-miss overlap and requires a different latency estimate.
+Resident-first execution assumes that expert groups within a layer can be issued independently.
+A kernel that issues experts in a fixed order needs a different latency estimate.
 
 Expert-parallel execution and an SSD tier are outside the present design.
-They introduce per-device capacity, network or storage queues, and load imbalance rather than merely changing one bandwidth constant.
-Extending byte exchange to those settings requires adding those queues and constraints to the replay and ledger.
+They add per-device capacity, network or storage queues, and load imbalance, so the replay and the ledger would have to include those queues.
 
 \subsection{Validity, Reproducibility, and Ethics}
 \label{sec:threats}
@@ -97,15 +59,11 @@ The motivating measurements and trace replay in Sections~\ref{sec:obs-quality}--
 They establish quality sensitivity, routing variation, and transfer pressure, not an end-to-end performance result for \systemname.
 Claims based on their absolute values must be repeated under the final allocator, exchange policy, and memory accounting.
 
-Conversational traces do not cover every serving workload.
-Long contexts, multimodal requests, and rapidly changing request mixtures can alter routing breadth, the KV reserve, and available overlap.
-Quality benchmarks sample different capabilities and may be too small to resolve modest changes, so results should retain per-task uncertainty rather than collapse all tasks into one score.
-Cross-device comparisons also include differences in kernels, runtime stacks, transfer paths, and quantization support.
-The policy consumes measured in-overlap bandwidth and kernel time; a device name alone is not treated as a causal variable.
+ShareGPT slices do not cover long contexts, multimodal requests, or rapidly changing request mixtures, any of which can change routing breadth, the KV reserve, and available overlap.
+Quality results stay per task, because the benchmarks sample different capabilities and can be too small to resolve a modest change.
+A device name is not a cause: the policy uses the measured bandwidth and kernel time, while kernels, runtime stacks, transfer paths, and quantization support can still differ across devices.
 
-The artifact will include the controller, shared-arena allocator, lease and exchange traces, checkpoint revisions, quantization recipes, calibration splits, random seeds, and one configuration file per reported point.
-Each run records published and reserved bytes, bound arena extents, refused reservations, selected expert states, and process-level peak memory.
-A result is reproducible under Eq.~\eqref{eq:objective} only when these records suffice to verify \(B\), \(\epsilon\), and the executed state transitions.
+A result is reproducible under Eq.~\eqref{eq:objective} only when the logs suffice to verify \(B\), \(\epsilon\), and the executed state transitions.
 
 The study uses public latency traces and quality benchmarks, recruits no participants, collects no new user data, and sends no prompts to a third-party service.
 Released artifacts will identify source prompts without redistributing material whose license forbids it.

@@ -1,0 +1,31 @@
+\begin{table}[H]
+  \centering
+  \caption{\textcolor{red}{Draft layout, not a measurement.}
+  Numbers read from Figure~\ref{fig:eval-validation}.
+  Wait error is the mean over the plotted points.
+  Risk counts are the points in panel (b).
+  Recall is panel (c), at envelope depth 3.
+  The starred replay is the implemented point in panel (d).}
+  \label{tab:eval-rq4}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Quantity & Draft value \\
+    \midrule
+    Wait MAE / bias (ms/tok) & 4.1 / +1.2 \\
+    Decisions & 166 \\
+    Unsafe accepts & 17 \\
+    Conservative rejects & 24 \\
+    Recall prefill / mixed / decode & 0.71 / 0.58 / 0.46 \\
+    \midrule
+    Replay $K{=}8$, $W{=}16$ & 0.08 ms \\
+    Replay $K{=}8$, $W{=}32^{\star}$ & 0.15 ms \\
+    Replay $K{=}16$, $W{=}32$ & 0.55 ms \\
+    Replay $K{=}16$, $W{=}64$ & 1.10 ms \\
+    Replay $K{=}32$, $W{=}64$ & 4.20 ms \\
+    Replay $K{=}32$, $W{=}128$ & 8.60 ms \\
+    Replay $K{=}64$, $W{=}128$ & 33.00 ms \\
+    \bottomrule
+  \end{tabular}
+\end{table}

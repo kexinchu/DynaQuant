@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "artifact_type": "e8_host_arena",
+  "created_at": "2026-10-07T05:01:58.603275+00:00",
+  "lease_invariants": {
+    "returncode": 0,
+    "stdout": ".....................                                                    [100%]\n=============================== warnings summary ===============================\n../miniconda3/lib/python3.13/site-packages/torch/cuda/__init__.py:65\n  /home/kec23008/miniconda3/lib/python3.13/site-packages/torch/cuda/__init__.py:65: FutureWarning: The pynvml package is deprecated. Please install nvidia-ml-py instead. If you did not install pynvml directly, please report this to the maintainers of the package that installed pynvml for you.\n    import pynvml  # type: ignore[import]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n21 passed, 1 warning in 2.24s\n",
+    "stderr": ""
+  },
+  "arena_stress": {
+    "capacity_bytes": 15394406400,
+    "reserved_bytes": 0,
+    "published_bytes": 1036615680,
+    "reclaim_pending_bytes": 0,
+    "free_bytes": 14357790720,
+    "largest_free_extent_bytes": 14356168704,
+    "external_fragmentation": 0.00011297114100849992,
+    "allocation_count": 267,
+    "segment_count": 1,
+    "allocate_failures": 0,
+    "peak_external_fragmentation": 0.0008102397899529823
+  },
+  "pack": {
+    "model_path": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507",
+    "load_seconds": 737.9424671237357,
+    "initialize_seconds": 482.91369035001844,
+    "rss_kb_before": 530584,
+    "rss_max_kb": 127404292,
+    "note": "ru_maxrss is KB on Linux. initialize_seconds includes packing both tiers and the device arena."
+  }
+}

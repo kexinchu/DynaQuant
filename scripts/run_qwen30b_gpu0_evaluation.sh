@@ -12,6 +12,7 @@ calibration_map="${output_root}/calibration_wikitext103_256x2048.json"
 mkdir -p "${output_root}"
 
 wait_for_gpu0_idle() {
+    local poll_seconds="${1:-10}"
     local consecutive=0
     local used_memory_mib
     local utilization_pct
@@ -22,7 +23,7 @@ wait_for_gpu0_idle() {
             --format=csv,noheader,nounits)"; then
             echo "[gpu-gate] unable to query physical GPU 0; retrying"
             consecutive=0
-            sleep 30
+            sleep "${poll_seconds}"
             continue
         fi
         IFS=',' read -r used_memory_mib utilization_pct <<< "${sample}"
@@ -36,7 +37,7 @@ wait_for_gpu0_idle() {
             echo "[gpu-gate] busy memory_mib=${used_memory_mib} util_pct=${utilization_pct}"
         fi
         if (( consecutive < 3 )); then
-            sleep 30
+            sleep "${poll_seconds}"
         fi
     done
 }
@@ -54,9 +55,30 @@ foreign_gpu0_pids() {
         done
 }
 
-run_artifact() {
+own_gpu0_memory_mib() {
+    local own_pid="$1"
+    nvidia-smi --id=0 \
+        --query-compute-apps=pid,used_gpu_memory \
+        --format=csv,noheader,nounits 2>/dev/null \
+        | awk -F, -v target="${own_pid}" '
+            {
+                pid=$1; memory=$2
+                gsub(/[[:space:]]/, "", pid)
+                gsub(/[[:space:]]/, "", memory)
+                if (pid == target) { print memory; found=1; exit }
+            }
+            END { if (!found) print 0 }
+        '
+}
+
+run_artifact() (
     local output_path="$1"
     shift
+    # GPU0 and GPU1 eventually visit some of the same fallback points.  Hold
+    # one advisory lock across resume validation, execution, and publication
+    # so that two evaluators can never write the same artifact concurrently.
+    exec 9>"${output_path}.lock"
+    flock 9
     if [[ -s "${output_path}" ]]; then
         if python scripts/validate_qwen30b_artifact.py "${output_path}"; then
             echo "[resume] keeping ${output_path}"
@@ -69,7 +91,6 @@ run_artifact() {
     local failure_path="${output_path}.failed"
     rm -f "${failure_path}"
     while true; do
-        wait_for_gpu0_idle
         set +e
         CUDA_VISIBLE_DEVICES=0 \
         PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
@@ -77,6 +98,7 @@ run_artifact() {
             --model-path "${model_path}" \
             --output "${output_path}" \
             --device cuda:0 \
+            --wait-for-idle-physical-gpu 0 \
             "$@" &
         local eval_pid=$!
         local contended=0
@@ -84,8 +106,17 @@ run_artifact() {
             local foreign_pids
             foreign_pids="$(foreign_gpu0_pids "${eval_pid}")"
             if [[ -n "${foreign_pids}" ]]; then
+                local own_mib
+                own_mib="$(own_gpu0_memory_mib "${eval_pid}")"
+                if [[ "${own_mib}" =~ ^[0-9]+$ ]] && (( own_mib <= 1024 )); then
+                    # The evaluator performs its own sustained-idle gate after
+                    # CPU host-cache construction and before model.to/arena.
+                    # Foreign work is therefore harmless during this phase.
+                    sleep 2
+                    continue
+                fi
                 contended=1
-                echo "[gpu-watch] foreign GPU0 PID(s) ${foreign_pids//$'\n'/,}; retrying ${output_path}"
+                echo "[gpu-watch] foreign GPU0 PID(s) ${foreign_pids//$'\n'/,} after arena initialization; retrying ${output_path}"
                 kill -TERM "${eval_pid}" 2>/dev/null
                 break
             fi
@@ -101,6 +132,15 @@ run_artifact() {
                 mv "${output_path}" "${contended_path}"
                 echo "[gpu-watch] archived contaminated output as ${contended_path}"
             fi
+            rm -f "${failure_path}"
+            continue
+        fi
+        if (( status == 143 )); then
+            # The daily local GPU service sends SIGTERM to same-user compute
+            # processes before taking both cards.  Preserve the formal point:
+            # after the evaluator's idle gate becomes available, rerun this
+            # artifact instead of advancing the matrix with a missing row.
+            echo "[interrupted] ${output_path} received SIGTERM; retrying"
             rm -f "${failure_path}"
             continue
         fi
@@ -120,7 +160,7 @@ run_artifact() {
         echo "[failed] ${output_path} failed post-run validation; continuing matrix"
         return 0
     done
-}
+)
 
 # One independent calibration map is shared by every policy run.
 run_artifact "${calibration_map}" \

@@ -224,6 +224,52 @@ def test_quality_risk_limit_derives_variable_hi_count() -> None:
     assert _residents_after(second, first_state) == {0}
 
 
+def test_infeasible_risk_projection_overrides_tenure_and_rate_limit() -> None:
+    sched, tracker = _make_scheduler(
+        scores_per_layer=[[0.1, 0.8, 0.1]],
+        n_hi=[1],
+        rate_limit=1,
+        min_tenure_steps=100,
+    )
+    keys = [ExpertKey(0, expert) for expert in range(3)]
+    sched.set_quality_risk(
+        QualityRiskAccount({key: 1.0 for key in keys}, limit=0.25)
+    )
+    current = {keys[0]: Tier.HI, keys[1]: Tier.LO, keys[2]: Tier.LO}
+
+    requests = sched.plan(step=1, tracker=tracker, current_tiers=current)
+
+    assert len(requests) == 2
+    assert {request.reason for request in requests} == {"repair_quality_risk"}
+    assert _residents_after(requests, current) == {1}
+
+
+def test_forced_projection_bypasses_period_without_advancing_regular_tick() -> None:
+    tracker = _tracker_with_scores([[0.1, 0.8, 0.1]])
+    sched = PrecisionScheduler(
+        num_layers=1,
+        experts_per_layer=3,
+        n_hi=[1],
+        update_period_steps=50,
+    )
+    keys = [ExpertKey(0, expert) for expert in range(3)]
+    sched.set_quality_risk(
+        QualityRiskAccount({key: 1.0 for key in keys}, limit=0.25)
+    )
+    current = {keys[0]: Tier.HI, keys[1]: Tier.LO, keys[2]: Tier.LO}
+
+    assert sched.plan(step=7, tracker=tracker, current_tiers=current) == []
+    requests = sched.plan(
+        step=7,
+        tracker=tracker,
+        current_tiers=current,
+        force=True,
+    )
+
+    assert {request.reason for request in requests} == {"repair_quality_risk"}
+    assert _residents_after(requests, current) == {1}
+
+
 # ---------------------------------------------------------------------------
 # δ blocks small swaps (the whole point of hysteresis)
 # ---------------------------------------------------------------------------

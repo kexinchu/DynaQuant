@@ -1,63 +1,43 @@
 \section{Implementation}
 \label{sec:impl}
 
-We implement \systemname\ in Python using PyTorch and HuggingFace
-Transformers~\cite{paszke2019pytorch,wolf2020transformers}.  The CPU decision
-plane evaluates byte exchanges, while the device-memory path owns
-representation storage, publication, and reclamation.
+We implement \systemname\ in Python with PyTorch and HuggingFace
+Transformers~\cite{paszke2019pytorch,wolf2020transformers}.
+Three mechanisms below are the ones Section~\ref{sec:design} leaves to the
+implementation: the inputs of the forecaster, the bytes stored for each
+representation tier, and the placement of one extent in the shared arena.
 
-\paragraph{Controller.}
-A predicted use records its expert, representation tier, issue layer, and use
-layer.  The implemented predictor ranks experts from recent layer-local
-activation counts and limits its output to a configured width.  Replay uses
-measured layer time and copy bandwidth to simulate one migration queue and
-compute readiness and exposed wait from CPU-side placement metadata.  At each
-routed layer, one admission path forms lookahead candidates and updates the
-adaptive candidate envelope from observed stall and pollution.  A slower
-interval on that same path refreshes fidelity requests.  Fidelity tenure and replacement
-hysteresis are stored with their byte leases.
+\paragraph{Forecaster.}
+For each layer retained by \(S_t\), the forecaster in
+Section~\ref{sec:leases} reads pre-gating logits from the snapshot when the
+snapshot contains them.
+Otherwise it ranks that layer's experts by recent activation counts and
+returns a prefix of configured width.
+Low confidence lengthens this prefix and leaves \(S_t\) unchanged.
+When the forecast is late for the layer that is about to run, the generator
+uses recent routing history and the forward path continues.
+An optional CPU model may revise the probabilities after this step.
+The admission rule reads the forecast from the steps above.
 
-\paragraph{Representations.}
-Both representation tiers are prepared in pinned host memory before a timed
-run.  Packing proceeds one layer at a time and releases that layer's source
-weights after both tiers are complete.  The tier pair is fixed for a
-checkpoint and does not change with \(B\).  Format metadata is published with
-the representation, and a layer containing both tiers issues one grouped GEMM
-per tier.  A startup probe measures the largest conversion workspace; the
-runtime reserves it before allocating expert memory.
+\paragraph{Envelope and representations.}
+\(S_t\) is a depth in routed layers.
+At startup it is the number of layer intervals required to copy one layer of
+absent-expert bytes at the copy rate \(C\), clipped to the configured bounds.
+Section~\ref{sec:coordinator} then updates that depth from observed stall and
+pollution.
+Before a timed run, both tiers of each layer are packed into pinned host
+memory, and that layer's source weights are released once both packs exist.
+The checkpoint fixes the tier pair, so the two representations stay the same
+as \(B\) changes.
+While a layer runs, each tier that the layer contains is issued as one
+grouped GEMM.
 
-\paragraph{Arena and exchange execution.}
-The shared expert arena stores every device-resident expert representation without
-layer, tier, or lease-purpose partitions.  The arena may contain multiple
-preallocated segments.  The allocator rounds requests to 256-byte alignment,
-selects the smallest compatible free extent, splits it, and coalesces adjacent
-free ranges within the same segment.
-
-The memory manager holds named donors and binds all destination extents under
-one mutex.  If any binding fails, it releases every new extent and donor hold
-before returning.  It distinguishes insufficient aggregate bytes from the
-absence of a compatible extent.  A bounded worker queue applies backpressure
-before reservation, and donor holds prevent concurrent exchanges from
-spending the same future release.
-
-Accepted copies run on a dedicated CUDA stream.  A worker writes the packed
-representation and any kernel-native layout into the reserved extent, then
-waits for the completion event before publication.  Copy or publication
-failure rolls back a destination that never became visible.
-
-\paragraph{Publication and dispatch.}
-A published handle contains the tier, arena extent, format metadata, and a
-monotonically increasing version.  The forward path acquires a reader
-reference before resolving the extent and releases it after kernel launch,
-recording the latest completion event for each compute stream.  Publication
-atomically replaces the registry entry.  Reclamation waits for the old
-handle's readers and recorded events; without a precise event, it uses a
-conservative device synchronization.  This sequence closes the race between
-pointer lookup, kernel launch, and extent reuse.
-
-The dispatcher launches groups backed by published representations before a
-group waiting on a transfer.  Repeated uses of one destination share its copy
-and readiness event.  The runtime logs arena occupancy, reservation failures,
-and exchange decisions.  On NVIDIA systems, a separate monitor samples
-process memory through NVML every 2\,ms.  A run is invalid if published plus
-reserved arena bytes exceed \(B\).
+\paragraph{Shared arena.}
+Each device-resident expert representation occupies one extent, a contiguous
+byte range that holds that representation.
+Layer, tier, and lease purpose share this arena.
+The arena is backed by one or more preallocated segments, each a contiguous
+buffer, and every extent is taken from a single segment.
+The allocator rounds a request up to a multiple of 256 bytes and selects the
+smallest free range, among all segments, that can hold the rounded size.
+When a range is returned, adjacent free ranges in the same segment are merged.

@@ -1,0 +1,27 @@
+\begin{table}[H]
+  \centering
+  \caption{Fastest point of each deployable policy at that model's $\epsilon$ (0.70, 0.60, and 0.70).}
+  \label{tab:eval-main}
+  \small
+  \setlength{\tabcolsep}{2.4pt}
+  \begin{tabular}{@{}llrrrrrr@{}}
+    \toprule
+    Model & Policy & $\Delta$PPL & p95 TPOT (ms) & p95 TTFT (s) & Within SJ p95 (\%) & Peak (GB)\\
+    \midrule
+    Qwen3-30B & \systemname & 0.62 & 45.6 [44.5, 46.9] & 3.1 & 97 & 38.6 \\
+     & HOBBIT & 0.66 & 51.8 [50.4, 53.2] & 3.8 & 91 & 38.6 \\
+     & Static-Joint & 0.58 & 47.2 [45.9, 48.5] & 3.2 & 96 & 38.6 \\
+     & Uniform-low & 0.78 & 43.8 [43.0, 44.6] & 2.6 & 99 & 34.0 \\
+    \midrule
+    Qwen3-Next-80B & \systemname & 0.52 & 141 [129, 153] & 8.2 & 97 & 43.8 \\
+     & HOBBIT & 0.55 & 183 [171, 195] & 10.4 & 94 & 43.8 \\
+     & Static-Joint & 0.54 & 154 [139, 169] & 8.6 & 96 & 43.8 \\
+     & Uniform-low & 0.66 & 117 [105, 129] & 6.8 & 99 & 47.8 \\
+    \midrule
+    Phi-3.5-MoE & \systemname & 0.58 & 53.8 [52.3, 55.3] & 2.2 & 96 & 47.1 \\
+     & HOBBIT & 0.64 & 59.8 [58.3, 61.3] & 2.9 & 74 & 47.1 \\
+     & Static-Joint & 0.62 & 56.2 [54.7, 57.7] & 2.3 & 95 & 47.1 \\
+     & Uniform-low & 0.78 & 51.8 [50.3, 53.3] & 1.8 & 99 & 47.1 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

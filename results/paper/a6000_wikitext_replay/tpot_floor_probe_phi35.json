@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "artifact_type": "tpot_floor_probe",
+  "created_at": "2026-10-07T22:50:44.918276+00:00",
+  "device": "NVIDIA RTX A6000",
+  "cuda_visible_devices": "1",
+  "model_path": "/home/kec23008/Models/Phi-3.5-MoE-instruct",
+  "config": "dynaexq/configs/phi35_moe.yaml",
+  "policy": "uniform_low",
+  "high_precision_ratio": 0.0,
+  "scheduler_enabled": false,
+  "definition": "model_tpot_ms is (e2e - ttft) / (output_tokens - 1) inside one greedy request. It is not a 1,000-request p95 and it is not the Table 4 cell.",
+  "initialization_pool_bytes": null,
+  "points": [
+    {
+      "batch_size": 1,
+      "input_tokens": 128,
+      "output_tokens": 32,
+      "decode_steps": 31,
+      "warmup_iterations": 1,
+      "measured_iterations": 5,
+      "model_tpot_ms": {
+        "mean": 62.828922361856506,
+        "p50": 59.35501271197873,
+        "p95": 78.74933302763009,
+        "p99": 78.74933302763009,
+        "min": 57.80898258390446,
+        "max": 78.74933302763009
+      },
+      "model_ttft_ms": {
+        "mean": 236.87292886897922,
+        "p50": 215.42462427169085,
+        "p95": 272.68202835693955,
+        "p99": 272.68202835693955,
+        "min": 211.8163062259555,
+        "max": 272.68202835693955
+      },
+      "model_e2e_ms": {
+        "mean": 2184.569522086531,
+        "p50": 2052.2583429701626,
+        "p95": 2713.911352213472,
+        "p99": 2713.911352213472,
+        "min": 2007.503084372729,
+        "max": 2713.911352213472
+      },
+      "e2e_throughput_tokens_s": {
+        "mean": 14.840218845436175,
+        "p50": 15.592578833758086,
+        "p95": 15.940199668484606,
+        "p99": 15.940199668484606,
+        "min": 11.791099946540527,
+        "max": 15.940199668484606
+      },
+      "decode_throughput_tokens_s_from_mean_tpot": 15.916236701317366,
+      "peak_allocated_bytes": {
+        "mean": 32916801536.0,
+        "p50": 32916801536.0,
+        "p95": 32916801536.0,
+        "p99": 32916801536.0,
+        "min": 32916801536.0,
+        "max": 32916801536.0
+      },
+      "status": "measured"
+    },
+    {
+      "batch_size": 8,
+      "input_tokens": 128,
+      "output_tokens": 32,
+      "decode_steps": 31,
+      "warmup_iterations": 1,
+      "measured_iterations": 5,
+      "model_tpot_ms": {
+        "mean": 57.62348711310375,
+        "p50": 57.4859605741597,
+        "p95": 57.98410735423526,
+        "p99": 57.98410735423526,
+        "min": 57.26597857691588,
+        "max": 57.98410735423526
+      },
+      "model_ttft_ms": {
+        "mean": 806.6792152822018,
+        "p50": 807.276685256511,
+        "p95": 808.8878407143056,
+        "p99": 808.8878407143056,
+        "min": 804.612847045064,
+        "max": 808.8878407143056
+      },
+      "model_e2e_ms": {
+        "mean": 2593.007315788418,
+        "p50": 2589.3414630554616,
+        "p95": 2602.120175026357,
+        "p99": 2602.120175026357,
+        "min": 2582.936489023268,
+        "max": 2602.120175026357
+      },
+      "e2e_throughput_tokens_s": {
+        "mean": 98.72790788960904,
+        "p50": 98.86683685894258,
+        "p95": 99.11199949666816,
+        "p99": 99.11199949666816,
+        "min": 98.38131322947332,
+        "max": 99.11199949666816
+      },
+      "decode_throughput_tokens_s_from_mean_tpot": 138.83227830862697,
+      "peak_allocated_bytes": {
+        "mean": 33092976640.0,
+        "p50": 33092976640.0,
+        "p95": 33092976640.0,
+        "p99": 33092976640.0,
+        "min": 33092976640.0,
+        "max": 33092976640.0
+      },
+      "status": "measured"
+    }
+  ]
+}

@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DynaByte — SIGMETRICS Revision Recommendations</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #5f6b7a;
+      --paper: #ffffff;
+      --page: #f4f6f8;
+      --line: #d9dee7;
+      --soft: #eef2f7;
+      --accent: #2156a5;
+      --danger: #9d2525;
+      --danger-bg: #fff0f0;
+      --warning: #7a4d00;
+      --warning-bg: #fff7e6;
+      --good: #17613a;
+      --good-bg: #edf8f1;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 16px/1.58 -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+    main {
+      max-width: 1120px;
+      margin: 32px auto;
+      padding: 42px 54px 64px;
+      background: var(--paper);
+      border: 1px solid var(--line);
+    }
+    h1, h2, h3, h4 { line-height: 1.25; }
+    h1 { margin: 0 0 8px; font-size: 2.15rem; }
+    h2 {
+      margin: 44px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--ink);
+      font-size: 1.55rem;
+    }
+    h3 { margin: 28px 0 8px; font-size: 1.18rem; }
+    h4 { margin: 20px 0 6px; font-size: 1rem; }
+    p { margin: 8px 0 12px; }
+    ul, ol { margin: 8px 0 14px; padding-left: 24px; }
+    li { margin: 5px 0; }
+    a { color: var(--accent); }
+    code {
+      padding: 1px 5px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--soft);
+      font-size: .92em;
+    }
+    .subtitle { color: var(--muted); font-size: 1.05rem; }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 20px 0 26px;
+    }
+    .badge {
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--soft);
+      font-size: .88rem;
+      font-weight: 650;
+    }
+    .badge.reject { color: var(--danger); background: var(--danger-bg); border-color: #efb9b9; }
+    .toc {
+      margin: 24px 0;
+      padding: 18px 22px;
+      background: var(--soft);
+      border-left: 4px solid var(--accent);
+    }
+    .toc strong { display: block; margin-bottom: 7px; }
+    .toc ol {
+      margin: 0;
+      columns: 2;
+      column-gap: 36px;
+    }
+    .callout {
+      margin: 18px 0;
+      padding: 14px 17px;
+      border: 1px solid var(--line);
+      border-left-width: 5px;
+    }
+    .callout strong { display: block; margin-bottom: 4px; }
+    .critical { border-left-color: var(--danger); background: var(--danger-bg); }
+    .warning { border-left-color: #c47c00; background: var(--warning-bg); }
+    .positive { border-left-color: var(--good); background: var(--good-bg); }
+    .priority {
+      display: inline-block;
+      min-width: 36px;
+      margin-right: 7px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      color: white;
+      background: var(--danger);
+      font-size: .78rem;
+      font-weight: 750;
+      text-align: center;
+    }
+    .p1 { background: #b96800; }
+    .p2 { background: #55708c; }
+    table {
+      width: 100%;
+      margin: 14px 0 22px;
+      border-collapse: collapse;
+      font-size: .93rem;
+    }
+    th, td {
+      padding: 10px 11px;
+      border: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: var(--soft); font-weight: 700; }
+    tr:nth-child(even) td { background: #fafbfc; }
+    .compact th, .compact td { padding: 7px 9px; }
+    .quote {
+      margin: 10px 0 16px;
+      padding: 13px 16px;
+      color: #28364d;
+      background: #f7f9fc;
+      border-left: 3px solid #7e92b2;
+      font-family: Georgia, serif;
+    }
+    .checklist { list-style: none; padding-left: 0; }
+    .checklist li { padding-left: 27px; position: relative; }
+    .checklist li::before {
+      content: "□";
+      position: absolute;
+      left: 2px;
+      font-size: 1.15rem;
+      line-height: 1.25;
+    }
+    .decision {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin: 18px 0;
+    }
+    .decision > div {
+      padding: 15px;
+      border: 1px solid var(--line);
+      background: #fafbfc;
+    }
+    .decision b { display: block; margin-bottom: 5px; }
+    .small { color: var(--muted); font-size: .88rem; }
+    .page-break { break-before: page; }
+    @media (max-width: 760px) {
+      main { margin: 0; padding: 28px 20px 48px; border: 0; }
+      .toc ol { columns: 1; }
+      .decision { grid-template-columns: 1fr; }
+      table { display: block; overflow-x: auto; }
+    }
+    @media print {
+      body { background: white; font-size: 10.5pt; }
+      main { max-width: none; margin: 0; padding: 0; border: 0; }
+      a { color: inherit; text-decoration: none; }
+      h2, h3 { break-after: avoid; }
+      table, .callout, .decision { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>DynaByte: Detailed Revision Recommendations</h1>
+    <p class="subtitle">Author-facing SIGMETRICS/POMACS review memo for improving technical credibility, measurement quality, and claim alignment</p>
+    <div class="meta">
+      <span class="badge reject">Current assessment: 2/5 — Reject</span>
+      <span class="badge">Confidence: 4/5</span>
+      <span class="badge">Primary risk: central claim not demonstrated</span>
+      <span class="badge">Manuscript reviewed: 23 pages</span>
+    </div>
+  </header>
+
+  <div class="callout critical">
+    <strong>Do not submit the current artifact before resolving evidence provenance.</strong>
+    The PDF presents polished confidence intervals, but <code>tables/rq2_necessity.tex</code>
+    explicitly says that its brackets are “placeholder 95% intervals.” In addition,
+    <code>FIGURE_PROVENANCE.md</code> marks several reused empirical assets as
+    <code>EVIDENCE_MISSING</code>. Every number in the submitted PDF must resolve to raw,
+    immutable experimental output and a reproduction command. Placeholder or reconstructed
+    empirical values are an immediate rejection risk independent of the paper’s technical merit.
+  </div>
+
+  <nav class="toc">
+    <strong>Contents</strong>
+    <ol>
+      <li><a href="#summary">Executive assessment</a></li>
+      <li><a href="#gates">Acceptance-critical gates</a></li>
+      <li><a href="#weaknesses">Detailed weaknesses</a></li>
+      <li><a href="#experiments">Required experiment plan</a></li>
+      <li><a href="#statistics">Statistics and measurement</a></li>
+      <li><a href="#writing">Claim and writing revisions</a></li>
+      <li><a href="#sections">Section-by-section actions</a></li>
+      <li><a href="#questions">Likely reviewer questions</a></li>
+      <li><a href="#checklist">Pre-submission checklist</a></li>
+    </ol>
+  </nav>
+
+  <section id="summary">
+    <h2>1. Executive assessment</h2>
+    <p>
+      DynaByte has a strong systems idea: expert precision, residency, and lookahead consume
+      the same GPU-memory and transfer resources, so they should be admitted through a shared
+      allocator rather than independent quotas. The donor-backed exchange, transition-peak
+      accounting, and publish-after-copy protocol are coherent and potentially publishable.
+    </p>
+    <p>
+      The current evaluation, however, supports a narrower claim than the title and framing.
+      It shows that shared capacity and explicit donor admission outperform fixed partitions
+      and slack-only admission. It does <em>not</em> yet establish that online joint optimization
+      beats a well-tuned frozen joint assignment, that counterfactual replay is necessary, or
+      that the stated quality limit is enforced.
+    </p>
+
+    <div class="decision">
+      <div>
+        <b>Strongly supported</b>
+        Safe shared memory accounting; donor-aware admission; improvement over fixed partitions;
+        publish-after-copy execution.
+      </div>
+      <div>
+        <b>Partially supported</b>
+        Improvement over HOBBIT-M; adaptation after one workload switch; low mean replay overhead.
+      </div>
+      <div>
+        <b>Not yet supported</b>
+        Stable gain over Static-Joint; necessity of counterfactual replay; hard quality guarantee;
+        generality across platforms and realistic serving loads.
+      </div>
+    </div>
+
+    <div class="callout positive">
+      <strong>Most defensible paper if no new separated gain is found</strong>
+      Reposition DynaByte as a safe shared-budget runtime with donor-aware exchanges. Make online
+      adaptation and counterfactual replay secondary mechanisms, report their unresolved gains
+      honestly, and center the empirical claim on fixed-partition/slack-only improvements.
+    </div>
+  </section>
+
+  <section id="gates">
+    <h2>2. Acceptance-critical revision gates</h2>
+
+    <h3><span class="priority">P0</span>Gate A — Replace every placeholder with registered evidence</h3>
+    <p><strong>Problem.</strong> The source identifies placeholder confidence intervals, while the PDF presents them as results. The provenance file also distinguishes rendered assets from underlying evidence and records missing evidence for multiple empirical figures.</p>
+    <p><strong>Required action.</strong></p>
+    <ul>
+      <li>Delete all placeholder values from publication paths.</li>
+      <li>Create a manifest entry for every table row and plotted point: raw file hash, command, code commit, machine configuration, model revision, seed, and timestamp.</li>
+      <li>Generate LaTeX tables and figures directly from registered result files; do not manually copy values.</li>
+      <li>Add a CI/check script that fails if “placeholder,” “TBD,” unregistered figure assets, or manually entered headline numbers remain.</li>
+      <li>Rerun any legacy figure whose raw inputs cannot be verified.</li>
+    </ul>
+    <p><strong>Success criterion.</strong> A third party can start from the manifest, reproduce every empirical PDF/table, and obtain the manuscript values without manual editing.</p>
+
+    <h3><span class="priority">P0</span>Gate B — Establish or narrow the central claim</h3>
+    <p><strong>Problem.</strong> Table 4 gives DynaByte versus Static-Joint differences of only 4 ms on all three models, and the manuscript calls these comparisons inconclusive. Figure 8(a) reports that Seq-FR overlaps DynaByte. Figure 9 reports that Independent-value overlaps DynaByte. Thus, the distinctive joint-online and counterfactual mechanisms do not have separated gains.</p>
+    <p><strong>Required action.</strong> Choose one of two defensible paths:</p>
+    <ol>
+      <li><strong>Evidence path:</strong> find preregistered operating regimes where workload changes cause meaningful reallocations and show paired, statistically resolved gains over Static-Joint and Seq-FR.</li>
+      <li><strong>Claim-narrowing path:</strong> change the title, abstract, RQ2/RQ3, and contributions so the paper claims a safe shared-budget allocator, not demonstrated superiority of online joint optimization.</li>
+    </ol>
+    <p><strong>Success criterion.</strong> Every title/abstract claim maps to a result with an effect size and paired confidence interval, or is explicitly labeled as a design capability rather than a measured benefit.</p>
+
+    <h3><span class="priority">P0</span>Gate C — Resolve the quality-constraint contradiction</h3>
+    <p><strong>Problem.</strong> The introduction repeatedly says “quality-degradation limit,” Equation 2 presents a constrained optimization problem, and evaluation validity requires that the quality limit not be violated. Yet Figure 10(b) reports 17 unsafe accepts, with the farthest around 1.8 times the limit. Section 6.2 later calls the account only a feasibility proxy.</p>
+    <p><strong>Required action.</strong></p>
+    <ul>
+      <li>Stop describing the runtime proxy as a hard quality constraint unless the controller actually enforces one.</li>
+      <li>Introduce a calibrated safety margin, uncertainty-aware upper bound, periodic validation, or rollback/repair policy and measure its violation rate.</li>
+      <li>Separate three concepts throughout: target quality bound, estimated admission risk, and measured post-hoc quality.</li>
+      <li>Report false-safe and false-reject rates across all models, workloads, and budget points—not only Qwen3-30B.</li>
+    </ul>
+    <p><strong>Success criterion.</strong> Either unsafe accepts are bounded at a preregistered rate with confidence intervals, or the paper consistently calls the mechanism “risk-guided admission” and avoids guarantee language.</p>
+
+    <h3><span class="priority p1">P1</span>Gate D — Make the systems result representative</h3>
+    <p><strong>Problem.</strong> The study uses one RTX A6000 and excludes queueing, transport, tokenization, and serialization. Arrival rate, continuous batching, concurrency, and load are insufficiently specified. At the deployed budget, lookahead is never admitted and accepted exchanges have zero realized gain.</p>
+    <p><strong>Required action.</strong> Add at least one second platform and end-to-end serving experiments under controlled offered load. Ensure the headline operating points actually activate fidelity, residency, and lookahead competition.</p>
+  </section>
+
+  <section id="weaknesses" class="page-break">
+    <h2>3. Detailed weaknesses and how to fix them</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Weakness</th>
+          <th>Why a reviewer will object</th>
+          <th>Revision needed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>DynaByte does not beat Static-Joint conclusively</strong></td>
+          <td>The strongest deployable baseline is unresolved on every model. Beating HOBBIT-M does not prove the proposed online allocator is needed.</td>
+          <td>Report paired difference CIs over broader regimes and repeated shifts, or narrow the central claim.</td>
+        </tr>
+        <tr>
+          <td><strong>Sequential allocation can match DynaByte</strong></td>
+          <td>Seq-FR overlaps DynaByte, so “joint decisions are necessary” is too strong.</td>
+          <td>Explain the structural condition under which ordering fails and test multiple workloads where that condition occurs.</td>
+        </tr>
+        <tr>
+          <td><strong>Counterfactual replay is not empirically attributed</strong></td>
+          <td>Independent-value overlaps DynaByte on both reported models.</td>
+          <td>Show decision-level errors and end-to-end effects in regimes with conflicting residency/prefetch credit; otherwise present replay as correctness-oriented accounting.</td>
+        </tr>
+        <tr>
+          <td><strong>Quality proxy admits unsafe states</strong></td>
+          <td>A constrained optimization claim is incompatible with large observed violations.</td>
+          <td>Use uncertainty-aware admission or change “constraint” to “empirical risk target.”</td>
+        </tr>
+        <tr>
+          <td><strong>Downstream quality lacks uncertainty</strong></td>
+          <td>Several task scores change in coarse increments, suggesting limited sample sizes; the “Avg.” mixes incomparable task percentages.</td>
+          <td>Report sample counts, task-level confidence intervals, significance/paired tests, and remove the pooled average unless justified.</td>
+        </tr>
+        <tr>
+          <td><strong>Online quality measurement is unclear</strong></td>
+          <td>Static-Joint and DynaByte have identical PPL but different downstream scores. It is unclear how changing expert assignments are replayed during quality evaluation.</td>
+          <td>Document the exact state sequence, warm-up, adaptation, prompt ordering, and whether quality is measured on the actual online policy trajectory.</td>
+        </tr>
+        <tr>
+          <td><strong>HOBBIT-M is not auditable</strong></td>
+          <td>The “-M” modification may materially alter the published system, but implementation provenance and tuning space are not given.</td>
+          <td>Describe every deviation, validate against published behavior, and release configuration/search logs.</td>
+        </tr>
+        <tr>
+          <td><strong>Closest related system is omitted</strong></td>
+          <td>DyMoE appears closest in mechanism and timing; implementation difficulty does not resolve novelty or comparative performance.</td>
+          <td>Implement it, obtain author code, or provide a faithful component-level reconstruction and clearly limit comparative claims.</td>
+        </tr>
+        <tr>
+          <td><strong>Tail sample is small</strong></td>
+          <td>With 100 requests per seed, p95 is determined by very few order statistics.</td>
+          <td>Use substantially more requests and report sensitivity of p95/p99 to sample size.</td>
+        </tr>
+        <tr>
+          <td><strong>Marginal interval overlap is used as the decision rule</strong></td>
+          <td>Paired experiments should analyze the distribution of paired differences directly; overlap of marginal CIs is not the correct test.</td>
+          <td>Report Δp95, its paired clustered-bootstrap CI, relative effect, and raw per-request distributions.</td>
+        </tr>
+        <tr>
+          <td><strong>Latency surrogate is poorly calibrated</strong></td>
+          <td>The controller assumes 20 GB/s and 1 ms/layer while the measured machine gives 24.9 GB/s and 8.0–8.5 ms/layer; MAE is 4.1 ms/token.</td>
+          <td>Explain why deliberately mismatched constants are used, recalibrate online, and compare decisions under calibrated and stale models.</td>
+        </tr>
+        <tr>
+          <td><strong>Decode predictor recall is low</strong></td>
+          <td>Recall falls to 0.46 in decode, where deadlines are shortest.</td>
+          <td>Report precision, bytes wasted, late-byte rate, and end-to-end sensitivity to predictor quality.</td>
+        </tr>
+        <tr>
+          <td><strong>Slow updates conflict with rapid adaptation</strong></td>
+          <td>Updates take seconds on average and nearly one minute in the tail, yet online adaptation is a key motivation.</td>
+          <td>Include update latency in workload-shift timelines and report stale-state duration and quality/latency impact.</td>
+        </tr>
+        <tr>
+          <td><strong>Memory safety evidence is limited</strong></td>
+          <td>Four fixed-length runs with one seed are insufficient to validate a hard safety mechanism and allocator behavior under fragmentation.</td>
+          <td>Add stress tests, adversarial transition sequences, long runs, multiple seeds, and invariant-check logs.</td>
+        </tr>
+        <tr>
+          <td><strong>Host memory and preparation costs are omitted</strong></td>
+          <td>Both packed representations remain pinned for the process lifetime, potentially requiring very large CPU memory and startup time.</td>
+          <td>Report host footprint, packing time, pinning overhead, NUMA placement, and startup amortization.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="experiments">
+    <h2>4. Recommended experiment plan</h2>
+
+    <h3>4.1 Minimum experiment matrix for the central claim</h3>
+    <table class="compact">
+      <thead>
+        <tr>
+          <th>Axis</th>
+          <th>Minimum coverage</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Memory ratio Φ</td>
+          <td>At least three feasible points spanning tight, competitive, and residency-dominant regimes</td>
+          <td>Show where all three uses compete and where DynaByte appropriately degenerates.</td>
+        </tr>
+        <tr>
+          <td>Copy bandwidth</td>
+          <td>Throttled low, measured native, and high-bandwidth points</td>
+          <td>Separate genuine scheduling benefit from one-machine PCIe behavior.</td>
+        </tr>
+        <tr>
+          <td>Workload</td>
+          <td>Prefill-heavy, decode-heavy, balanced, long-context, and bursty mixed streams</td>
+          <td>Exercise different routing breadth and deadline structures.</td>
+        </tr>
+        <tr>
+          <td>Dynamics</td>
+          <td>Repeated A→B→A switches plus randomized phase durations</td>
+          <td>Measure adaptation benefit, convergence, hysteresis, and migration debt.</td>
+        </tr>
+        <tr>
+          <td>Platform</td>
+          <td>A6000 plus one datacenter or newer PCIe GPU</td>
+          <td>Validate portability of the bandwidth/deadline model.</td>
+        </tr>
+        <tr>
+          <td>Load</td>
+          <td>Several offered-load/concurrency points up to saturation</td>
+          <td>Measure queueing, throughput, SLO attainment, and tail behavior.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>4.2 Baseline set</h3>
+    <ul>
+      <li><strong>Static-Joint-Cal:</strong> selected only on calibration data.</li>
+      <li><strong>Phase-aware Static:</strong> one deployable configuration per recognized phase, with phase detection cost included.</li>
+      <li><strong>Seq-FR and Seq-RF:</strong> both orders, fully tuned under the same search budget.</li>
+      <li><strong>Fixed-partition and Slack-only:</strong> isolate shared capacity and explicit donor value.</li>
+      <li><strong>Independent-value:</strong> isolate counterfactual replay.</li>
+      <li><strong>HOBBIT:</strong> official behavior where possible; clearly separate faithful reproduction from HOBBIT-M adaptation.</li>
+      <li><strong>DyMoE or faithful reconstruction:</strong> closest mechanism-level comparison.</li>
+      <li><strong>Oracle-Grid-Test:</strong> clearly labeled non-deployable upper bound.</li>
+      <li><strong>Offline exchange oracle:</strong> quantify remaining decision-quality gap on short traces.</li>
+    </ul>
+
+    <h3>4.3 Workload-switch experiment that would be convincing</h3>
+    <ol>
+      <li>Preregister the phase sequence and durations before running tests.</li>
+      <li>Use at least several independent routing/request traces, not one plotted switch.</li>
+      <li>Plot instantaneous and cumulative latency cost, allocation shares, migrated bytes, unsafe-risk events, and convergence time.</li>
+      <li>Report the area under the latency-over-time curve for the entire transition, not only the settled endpoint.</li>
+      <li>Compare against Static-Joint-Cal, phase-aware static, Seq-FR, and the test oracle.</li>
+      <li>Repeat at operating points where all three mechanisms are active; explicitly report admission counts by lease type.</li>
+    </ol>
+
+    <h3>4.4 Quality experiment that would support the constraint story</h3>
+    <ol>
+      <li>Run the actual online policy trajectory during benchmark evaluation.</li>
+      <li>Record the representation used for every expert invocation and make the trace auditable.</li>
+      <li>Calibrate on disjoint prompts/tasks and test under workload shift.</li>
+      <li>Report the measured quality distribution, proxy prediction, false-safe rate, false-reject rate, and confidence intervals.</li>
+      <li>Sweep a conservative admission margin to show the latency–violation tradeoff.</li>
+      <li>Avoid averaging unrelated task percentages into one headline statistic.</li>
+    </ol>
+  </section>
+
+  <section id="statistics">
+    <h2>5. Statistics and measurement revisions</h2>
+
+    <h3>Primary endpoint</h3>
+    <p>Declare one confirmatory comparison before looking at the final test data, for example:</p>
+    <div class="quote">
+      Primary endpoint: paired difference in request-level p95 TPOT between DynaByte and
+      Static-Joint-Cal on the preregistered balanced→decode workload at Φ = 1.3 and native
+      copy bandwidth, conditional on measured quality remaining within the declared tolerance.
+    </div>
+
+    <h3>What to report</h3>
+    <ul>
+      <li>Absolute p95 TPOT for each policy.</li>
+      <li>Paired absolute difference in milliseconds and relative difference in percent.</li>
+      <li>Clustered-bootstrap 95% CI for the <em>difference</em>.</li>
+      <li>Request count, token count, number of traces, seeds, and bootstrap replicates.</li>
+      <li>p50, p90, p95, and p99 or a full empirical CDF, with p95 kept as the preregistered primary metric.</li>
+      <li>Throughput and SLO attainment with the SLO threshold explicitly defined.</li>
+      <li>Quality uncertainty and violation-rate confidence intervals.</li>
+    </ul>
+
+    <h3>Sampling guidance</h3>
+    <p>
+      One hundred requests per seed is weak for p95. Increase the request count until the
+      bootstrap CI stabilizes; for a systems paper, thousands of requests per key configuration
+      are preferable when practical. Do not create certainty by adding many seeds to tiny traces:
+      preserve clustering by workload trace and report the effective independent sample units.
+    </p>
+
+    <h3>Avoid these statistical statements</h3>
+    <ul>
+      <li>Do not equate overlap of marginal 95% CIs with a paired test result.</li>
+      <li>Do not claim superiority from a numerically lower point estimate when the paired difference is unresolved.</li>
+      <li>Do not use downstream-score averages without a defined estimand.</li>
+      <li>Do not choose ε, budgets, or workload transitions after inspecting the test outcomes.</li>
+    </ul>
+  </section>
+
+  <section id="writing" class="page-break">
+    <h2>6. Claim and writing revisions</h2>
+
+    <h3>6.1 Recommended title if evidence remains unresolved</h3>
+    <div class="quote">
+      DynaByte: Safe Shared-Budget Management of Expert Precision, Residency, and Prefetching
+      for Memory-Constrained MoE Inference
+    </div>
+    <p>This title describes the demonstrated systems contribution without implying a resolved online tail-latency advantage.</p>
+
+    <h3>6.2 Replace “hard quality limit” language</h3>
+    <p><strong>Current implication:</strong> DynaByte optimizes latency subject to a runtime-enforced quality constraint.</p>
+    <p><strong>More accurate wording:</strong></p>
+    <div class="quote">
+      DynaByte enforces a hard expert-memory bound and uses a calibrated quality-risk target
+      to guide representation changes. The memory bound is guaranteed by construction; the
+      quality target is an empirical admission surrogate whose violations are measured
+      separately.
+    </div>
+
+    <h3>6.3 Rewrite the contribution claims around proven outcomes</h3>
+    <p>A safer contribution structure is:</p>
+    <ol>
+      <li><strong>Problem/formulation:</strong> identify precision, residency, and prefetch timing as consumers of one byte and transfer account.</li>
+      <li><strong>Mechanism:</strong> donor-closed byte exchanges compare requested value with displaced value and preserve transition-peak safety.</li>
+      <li><strong>Runtime:</strong> one arena and publish-after-copy protocol enforce memory safety and executable representation state.</li>
+      <li><strong>Measured result:</strong> shared donor-aware admission beats fixed partitions and slack-only admission; comparison with Static-Joint is unresolved at native bandwidth.</li>
+    </ol>
+
+    <h3>6.4 Remove or justify “joint allocation is necessary”</h3>
+    <p>Because Seq-FR overlaps DynaByte, change RQ2 from:</p>
+    <div class="quote">Are joint and online decisions both necessary?</div>
+    <p>to:</p>
+    <div class="quote">
+      When does shared online allocation improve over sequential or frozen assignments, and
+      when is a simpler policy sufficient?
+    </div>
+    <p>This version matches the boundary-regime evidence and remains valuable even when some comparisons are unresolved.</p>
+
+    <h3>6.5 Clarify the objective/surrogate relationship</h3>
+    <p>
+      Equation 2 optimizes p95 TPOT, while Equation 5 is an expected exposed-wait surrogate.
+      Explain why reducing the surrogate should improve the tail, how calibration is performed,
+      and when the relationship fails. Report rank correlation and decision regret—not only MAE.
+    </p>
+  </section>
+
+  <section id="sections">
+    <h2>7. Section-by-section action list</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Section</th>
+          <th>Required revision</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Abstract</td>
+          <td>State that the Static-Joint comparison is unresolved; distinguish hard memory safety from quality-risk guidance; avoid implying all three mechanisms are active at the deployed point.</td>
+        </tr>
+        <tr>
+          <td>Introduction</td>
+          <td>Narrow “quality-degradation limit” language; revise contribution bullets so negative ablations do not appear as contributions; make the strongest supported empirical result explicit.</td>
+        </tr>
+        <tr>
+          <td>Background</td>
+          <td>Keep clear labels on frozen sweeps, oracle lookahead, and trace replay. Replace any motivation asset lacking raw evidence.</td>
+        </tr>
+        <tr>
+          <td>Design</td>
+          <td>State formal guarantees separately: memory/representation safety are guarantees; latency and quality are estimates. Add complexity bounds and failure behavior for allocator fragmentation and stale snapshots.</td>
+        </tr>
+        <tr>
+          <td>Implementation</td>
+          <td>Add versions, model revisions, packing format, kernel source, pinned-host footprint, startup cost, stream synchronization, and continuous-batching integration.</td>
+        </tr>
+        <tr>
+          <td>Evaluation setup</td>
+          <td>Define trace construction, arrival process, concurrency, batching, TPOT aggregation, SLO threshold, baseline search spaces, and exact calibration/test split.</td>
+        </tr>
+        <tr>
+          <td>RQ1</td>
+          <td>Report paired differences against the strongest baseline. Include more than one binding memory point and quality uncertainty.</td>
+        </tr>
+        <tr>
+          <td>RQ2</td>
+          <td>Use repeated shifts, cumulative transition cost, confidence bands, and phase-aware static comparison. Replace placeholder intervals.</td>
+        </tr>
+        <tr>
+          <td>RQ3</td>
+          <td>Do not claim counterfactual replay explains the latency result unless it separates. Add decision-level error analysis or reframe it as accounting discipline.</td>
+        </tr>
+        <tr>
+          <td>RQ4</td>
+          <td>Lead with the unsafe-accept rate and mitigation. Explain timing-model mismatch and minute-scale update tails.</td>
+        </tr>
+        <tr>
+          <td>RQ5</td>
+          <td>Define “simpler policy” algorithmically. Expand the sweep to a two-dimensional memory × bandwidth regime map.</td>
+        </tr>
+        <tr>
+          <td>Discussion</td>
+          <td>Retain the candid limitations, but do not use discussion caveats to repair stronger abstract/introduction claims. Add concrete deployment costs.</td>
+        </tr>
+        <tr>
+          <td>Related work</td>
+          <td>Sharpen novelty relative to HOBBIT and DyMoE at the level of decision variables, objective, quality handling, and transition safety.</td>
+        </tr>
+        <tr>
+          <td>Conclusion</td>
+          <td>Conclude only what is empirically resolved. State that online gain over Static-Joint remains unresolved if that remains true after reruns.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="questions">
+    <h2>8. Likely reviewer questions and the evidence needed</h2>
+    <table class="compact">
+      <thead>
+        <tr>
+          <th>Reviewer question</th>
+          <th>Best answer must contain</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Where is evidence that online DynaByte beats Static-Joint?</td>
+          <td>Preregistered repeated shifts, paired Δp95 CI, cumulative cost, and more than one operating point.</td>
+        </tr>
+        <tr>
+          <td>If Seq-FR matches DynaByte, why is joint allocation necessary?</td>
+          <td>A structural explanation plus measured regimes where ordering causes statistically resolved regret.</td>
+        </tr>
+        <tr>
+          <td>What does counterfactual replay add?</td>
+          <td>Decision-level duplicate-credit/reload errors and a downstream effect—or a narrowed correctness/accounting claim.</td>
+        </tr>
+        <tr>
+          <td>How can this be a quality constraint with unsafe accepts?</td>
+          <td>Calibrated uncertainty control and violation bounds, or explicit risk-target terminology.</td>
+        </tr>
+        <tr>
+          <td>How was online-policy perplexity measured?</td>
+          <td>Exact state trajectory, prompt ordering, adaptation protocol, and invocation-level representation logs.</td>
+        </tr>
+        <tr>
+          <td>Is HOBBIT-M faithful?</td>
+          <td>Code provenance, modifications, validation, tuning space, and comparison to published behavior.</td>
+        </tr>
+        <tr>
+          <td>Why omit DyMoE?</td>
+          <td>A faithful comparison or carefully limited novelty/performance claims.</td>
+        </tr>
+        <tr>
+          <td>Are p95 results reliable with 100 requests?</td>
+          <td>Larger runs, stability analysis, raw distributions, and paired-difference bootstrap details.</td>
+        </tr>
+        <tr>
+          <td>Where are all three mechanisms simultaneously active?</td>
+          <td>Per-operating-point lease/admission counts and byte shares over time.</td>
+        </tr>
+        <tr>
+          <td>What is the real deployment cost?</td>
+          <td>Pinned-host memory, startup packing time, control overhead tails, throughput, and end-to-end load results.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section id="checklist">
+    <h2>9. Pre-submission checklist</h2>
+
+    <h3>Evidence integrity</h3>
+    <ul class="checklist">
+      <li>No placeholder or manually invented confidence interval remains.</li>
+      <li>Every empirical value maps to raw output, code commit, and reproduction command.</li>
+      <li>All legacy figures with missing evidence have been rerun or removed.</li>
+      <li>Manuscript tables/figures are generated automatically from registered results.</li>
+    </ul>
+
+    <h3>Claims</h3>
+    <ul class="checklist">
+      <li>Title, abstract, contributions, and conclusion state only resolved findings.</li>
+      <li>Hard memory guarantees are clearly separated from quality and latency estimates.</li>
+      <li>“Necessary,” “improves,” and “under a quality limit” have direct supporting evidence.</li>
+    </ul>
+
+    <h3>Evaluation</h3>
+    <ul class="checklist">
+      <li>Primary comparison and operating point were preregistered.</li>
+      <li>Paired difference confidence intervals and effect sizes are reported.</li>
+      <li>Key p95 results use enough requests for stable tail estimates.</li>
+      <li>Quality metrics include sample counts and uncertainty.</li>
+      <li>Workload arrival, batching, concurrency, TPOT aggregation, and SLO are defined.</li>
+      <li>Baseline implementations and tuning budgets are auditable.</li>
+      <li>At least one experiment activates all three allocation mechanisms.</li>
+      <li>A second platform and end-to-end offered-load result are included.</li>
+    </ul>
+
+    <h3>Recommended decision rule</h3>
+    <div class="callout warning">
+      <strong>If DynaByte still overlaps Static-Joint after rigorous reruns:</strong>
+      do not hide the result or continue adding complexity. Narrow the paper to the safe
+      shared-budget exchange runtime, emphasize the clearly separated fixed-partition and
+      slack-only results, and make the boundary-regime analysis a central contribution.
+      A precise, honest systems paper is stronger than a broad claim unsupported by its own data.
+    </div>
+  </section>
+
+  <footer>
+    <p class="small">
+      Prepared from <code>main.pdf</code> and the corresponding LaTeX/provenance files in
+      <code>SIGMETRICS_2027</code>. This memo is an author revision aid, not an official
+      SIGMETRICS review.
+    </p>
+  </footer>
+</main>
+</body>
+</html>

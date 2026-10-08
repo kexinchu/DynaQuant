@@ -4,10 +4,11 @@
 A Mixture-of-Experts (MoE) layer routes each token to a small subset of expert subnetworks, allowing model capacity to grow without a proportional increase in per-token computation~\cite{shazeer2017outrageously,fedus2022switch,lepikhin2021gshard}.
 The memory footprint remains large because every expert representation must still be stored or made available at inference time.
 Models such as Mixtral, DeepSeek-V2, and Qwen3 contain tens to hundreds of billions of parameters while activating only a fraction of them for each token~\cite{jiang2024mixtral,deepseekv2,qwen3technicalreport}.
+GLaM scales the same sparse pattern to a trillion-parameter language model~\cite{du2022glam}.
 On a single accelerator, expert weights compete with non-expert parameters, the KV cache, activations, and runtime workspaces for device memory.
 When experts cannot all remain at the desired precision, the system must both compress them and move them across the host-to-device link.
 
-How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency under a quality-degradation limit?
+How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency while the expert-memory peak stays within budget?
 
 These two budgets meet in three uses.
 Precision spends expert-memory bytes on a higher-precision representation and increases the size of any later transfer.
@@ -22,27 +23,19 @@ Expert caches and prefetchers decide which experts to keep and when to transfer 
 Mixed-precision offloading systems demonstrate that lower-precision transfers, caching, and prefetching can coexist~\cite{tang2024hobbit,huang2026dymoe}.
 The right assignment still changes with the workload: expert sensitivity sets the value of precision, routing locality sets the value of residency, and transfer deadlines set the value of lookahead.
 A fixed partition or a fixed priority among the three uses cannot express these changing opportunity costs.
-These systems show that the three mechanisms can operate together, yet they do not allocate expert memory and transfer bandwidth jointly among precision, residency, and lookahead under one quality-degradation limit.
+These systems show that the three mechanisms can operate together, yet they do not admit precision, residency, and lookahead through one exchange on one byte ledger.
 
-\systemname\ answers this question.
-Under a hard expert-memory budget \(B\) and a quality-degradation limit \(\epsilon\), it selects expert precision, residency, and prefetch timing to reduce tail latency.
-The decision unit is a byte exchange: a requested expert state together with the precision, residency, or lookahead claim that would fund it.
-Its value is the change in predicted exposed wait per requested byte after applying the complete exchange.
-Quality risk is a feasibility constraint on that resulting state, rather than a latency reward.
-\systemname\ represents each memory claim as a time-bounded \emph{byte lease} that records its owner, size, purpose, and expected lifetime.
-A state monitor tracks routing demand, reuse, transfer deadlines, and quality-risk estimates.
-It also measures \emph{in-overlap bandwidth}, the copy rate observed while expert computation is active.
-A joint coordinator pairs requested leases with explicit \emph{donor leases}, the existing claims released to fund a request, and replays the deadline-ordered transfer queue before and after each exchange.
-It admits only exchanges that improve predicted exposed wait while satisfying the quality-risk and peak-memory accounts.
-Residency and lookahead refresh on a short time scale, and precision on a longer window, so that a precision change can amortize its migration cost.
-Both rates use one admission path and the same byte ledger, which records published and reserved expert bytes. Neither rate receives a private quota.
-The executor reserves memory before a copy begins, publishes a new expert representation only after the copy completes, and reclaims the old representation after its readers finish.
+\systemname\ answers this question under a hard expert-memory budget \(B\).
+Admission checks a quality-risk target \(\widehat\epsilon\); measured \(\Delta Q\) is reported against \(\epsilon\).
+The decision is a byte exchange: a requested expert state together with the precision, residency, or lookahead claim that funds it.
+Residency, lookahead, and precision share one admission path and one byte ledger, with no private quota.
+The executor publishes a representation only after its copy completes, and the expert-memory peak stays within \(B\).
 
 We make three contributions.
 \begin{itemize}
-  \item To answer this question, we formulate the joint allocation of expert memory and host-to-device transfer bandwidth among precision, residency, and lookahead. The objective is tail latency under a quality-degradation limit and a peak expert-memory budget. The formulation exposes opportunity costs hidden by independent precision, caching, and prefetch policies.
-  \item We develop a byte-lease exchange policy that names the memory displaced by each request and counterfactually replays the resulting deadline schedule. Joint replay prevents residency and lookahead from receiving credit for the same avoided transfer and charges precision choices for their transfer cost.
-  \item We design a runtime with one byte ledger and a publish-after-copy protocol. It admits transitions only when their peak footprint fits and never exposes an incomplete representation to the forward path.
+  \item We formulate the joint allocation of expert memory and host-to-device bandwidth among precision, residency, and lookahead. On Qwen3-30B, p95 TPOT is 45.6\,ms against 51.8\,ms for HOBBIT, with HOBBIT outside \systemname\ on all three models, and the \systemname\ interval overlaps \textsc{Static-Joint}.
+  \item We develop a byte-lease exchange that names the memory each request displaces. On Qwen3-30B, separate quotas raise p95 TPOT from 45.8\,ms [44.5, 46.9] to 52.4\,ms [50.7, 54.3], and admission without an explicit donor raises it to 50.8\,ms [49.3, 52.5]. Scoring exchanges without the counterfactual replay leaves p95 TPOT at 45.5\,ms [44.1, 47.1], which overlaps \systemname.
+  \item We design a runtime with one byte ledger and a publish-after-copy protocol. At the implemented point, deadline replay averages 0.15\,ms, against about 8.3\,ms for one layer, and a transition is published only after its copy completes.
 \end{itemize}
 
 % Upon acceptance, we will release the controller, runtime, routing-trace tools, and configurations for the reported experiments in a long-lived archive.

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "artifact_type": "e2_layer_window_probe",
+  "created_at": "2026-10-07T04:02:04.365283+00:00",
+  "device": "NVIDIA RTX A6000",
+  "cuda_visible_devices": "1",
+  "model_path": "/home/kec23008/Models/Qwen3-30B-A3B-Instruct-2507",
+  "config": "dynaexq/configs/qwen30b_uniform_low_a6000.yaml",
+  "policy": "uniform_low",
+  "high_precision_ratio": 0.0,
+  "note": "Resident low-tier prefill. This is the compute overlap window, not the offload-inflated TTFT in qwen30b_dynaexq_bs1.json.",
+  "initialization_pool_bytes": null,
+  "points": [
+    {
+      "input_tokens": 128,
+      "ttft_ms": {
+        "mean": 1790.3702778276056,
+        "p50": 1739.843082614243,
+        "p95": 2130.8132209815085,
+        "p99": 2130.8132209815085,
+        "min": 1594.1414418630302,
+        "max": 2130.8132209815085
+      },
+      "layer_time_ms": 37.29938078807512,
+      "layer_time_source": "measured_ttft_over_layers",
+      "warmup_iterations": 2,
+      "measured_iterations": 10,
+      "output_tokens": 1,
+      "linear_scale_from_this_2048_ms": 3.018121880874484
+    },
+    {
+      "input_tokens": 512,
+      "ttft_ms": {
+        "mean": 2300.604137405753,
+        "p50": 2033.3155146799982,
+        "p95": 3679.2020741850138,
+        "p99": 3679.2020741850138,
+        "min": 1816.3230400532484,
+        "max": 3679.2020741850138
+      },
+      "layer_time_ms": 47.929252862619855,
+      "layer_time_source": "measured_ttft_over_layers",
+      "warmup_iterations": 2,
+      "measured_iterations": 10,
+      "output_tokens": 1,
+      "linear_scale_from_this_2048_ms": 12.072487523497935
+    },
+    {
+      "input_tokens": 2048,
+      "ttft_ms": {
+        "mean": 2317.9176045116037,
+        "p50": 2231.2903869897127,
+        "p95": 3421.7392266727984,
+        "p99": 3421.7392266727984,
+        "min": 1826.0699729435146,
+        "max": 3421.7392266727984
+      },
+      "layer_time_ms": 48.28995009399174,
+      "layer_time_source": "measured_ttft_over_layers",
+      "warmup_iterations": 2,
+      "measured_iterations": 10,
+      "output_tokens": 1,
+      "linear_scale_from_this_2048_ms": 48.28995009399174
+    }
+  ]
+}

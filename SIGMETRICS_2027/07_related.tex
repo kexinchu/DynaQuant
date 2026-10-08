@@ -5,7 +5,9 @@ Prior systems control expert precision, residency, or transfer timing, often whi
 We group them by that control decision, then compare \systemname\ directly with systems that already combine the mechanisms.
 
 \paragraph{Precision assignment.}
-GPTQ, AWQ, SmoothQuant, and LLM.int8() fix representations before serving~\cite{frantar2022gptq,lin2024awq,xiao2023smoothquant,dettmers2022gptint8}.
+GPTQ, AWQ, SmoothQuant, LLM.int8(), OmniQuant, and SqueezeLLM fix representations before serving~\cite{frantar2022gptq,lin2024awq,xiao2023smoothquant,dettmers2022gptint8,shao2024omniquant,kim2024squeezellm}.
+ZeroQuant and AQLM are further offline compressors for transformer weights~\cite{yao2022zeroquant,egiazarian2024aqlm}.
+QMoE compresses MoE weights below one bit per parameter~\cite{frantar2023qmoepracticalsub1bitcompression}.
 MoE-specific methods use expert sensitivity, activation frequency, or router statistics to assign precision under a memory or quality target~\cite{kim2023mixturequantizedexpertsmoqe,duanmu2025mxmoe,zhang2025moqe,chitty2025mopeq,chowdhury2026efficient}.
 Such methods improve fidelity for a chosen footprint but commonly evaluate the assignment under fixed placement and transfer policies.
 \systemname\ can use their packed representations and offline sensitivities; its additional question is whether a fidelity increment is worth the residency or lookahead displaced at runtime.
@@ -13,8 +15,12 @@ Mixed-precision kernels such as MxMoE remain complementary~\cite{duanmu2025mxmoe
 
 \paragraph{Residency and placement.}
 Expert caches retain recently or frequently used experts and select victims using routing history, layer position, or co-activation~\cite{xue2024moe,li2023adaptive,yi2023edgemoe,zhong2024adapmoe,kong2024swapmoe,cao2024moe}.
-They primarily estimate residency value with a fixed expert representation.
-Placement methods instead colocate co-activated experts or map them according to topology and load~\cite{yao2024exploiting,dai2024deepseekmoe}; their multi-device communication objective is outside our single-accelerator implementation.
+These caches primarily estimate residency value with a fixed expert representation.
+Fiddler evaluates experts that are absent from GPU memory on the CPU, and SiDA builds a data-aware plan for serving large MoE models in limited accelerator memory~\cite{kamahori2025fiddler,du2024sida}.
+PowerInfer keeps frequently activated neurons of sparse feed-forward layers on the GPU and evaluates the remaining neurons on the CPU~\cite{song2024powerinfer}.
+Placement methods colocate co-activated experts or map them according to topology and load~\cite{yao2024exploiting,dai2024deepseekmoe}; their multi-device communication objective is outside our single-accelerator implementation.
+DeepSpeed-MoE and Tutel run expert-parallel training and inference across devices~\cite{rajbhandari2022deepspeed,hwang2023tutel}.
+MegaBlocks supplies grouped sparse kernels for MoE training~\cite{gale2023megablocks}.
 In \systemname, a residency lease is valued together with the fidelity or lookahead request that would displace it, so eviction cost belongs to the complete exchange rather than to an independent cache policy.
 
 \paragraph{Prefetch and mixed-precision offloading.}
@@ -23,14 +29,15 @@ ExpertFlow coordinates expert scheduling and movement under offload~\cite{shen20
 Their principal control variable is transfer timing for a given expert size and quality policy.
 
 HOBBIT combines dynamic mixed-precision loading, adaptive prefetching, and a multi-level cache; its low-precision miss path reduces transfer cost for experts judged less critical~\cite{tang2024hobbit}.
-DyMoE combines online expert importance, depth-aware mixed precision, caching, and lookahead prefetching, including configurations that retain low-bit experts or omit selected experts~\cite{huang2026dymoe}.
-Their designs establish that mixed precision, caching, and prefetching can coexist, so component composition is not a novelty claim for \systemname.
-The distinction is whether one exchange, under one quality-degradation limit, decides both which bytes occupy expert memory and which transfers occupy the migration queue.
-\systemname\ preserves top-\(k\) semantics and represents all three uses as byte leases.
-Each request names its donor leases, and one deadline replay compares the resulting states under the quality-risk and byte accounts.
-Matched-policy evaluation must establish this distinction; terminology or device class cannot.
+DyMoE combines online expert importance, depth-aware mixed precision, caching, and lookahead prefetching, and some configurations omit selected experts~\cite{huang2026dymoe}.
+These systems establish that the three mechanisms can coexist.
+The distinction is whether one exchange decides both which bytes occupy expert memory and which transfers occupy the migration queue.
+Measured quality is reported separately from the risk target used at admission.
+Section~\ref{sec:eval-setup} includes HOBBIT under the same budget, representations, kernels, and request stream; DyMoE is not included, because the controller does not implement its estimator, depth-dependent bit schedule, or next-layer predictor.
 
 \paragraph{Serving and memory management.}
-vLLM and SGLang manage request scheduling and KV-cache memory, while FlexGen schedules dense-model computation and transfers across a memory hierarchy~\cite{kwon2023vllm,zheng2024sglang,sheng2023flexgen}.
+Orca, vLLM, and SGLang schedule requests and manage KV-cache memory~\cite{yu2022orca,kwon2023vllm,zheng2024sglang}.
+Sarathi-Serve chunks long prefills so decode iterations continue, and DistServe and Splitwise place prefill and decode on separate resources~\cite{agrawal2024sarathi,zhong2024distserve,patel2024splitwise}.
+ZeRO-Infinity offloads training state across GPU, CPU, and NVMe, and FlexGen schedules dense-model inference across GPU, CPU, and disk~\cite{rajbhandari2021zeroinfinity,sheng2023flexgen}.
 \systemname\ operates on the expert-memory budget left after non-expert state is reserved and is complementary to those serving functions.
 Because a serving engine can outgrow its declared KV or activation reserve, we report the runtime ledger and process-level peak separately.

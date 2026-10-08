@@ -79,9 +79,6 @@ class RuntimeExchangePlanner:
         keys = [request.key for request in requests]
         if len(keys) != len(set(keys)):
             raise ValueError("precision unit repeats an expert")
-        layers = {key.layer for key in keys}
-        if len(layers) != 1:
-            raise ValueError("one precision unit must stay within one layer")
         if len(requests) > 2:
             raise ValueError("a precision unit contains at most one swap pair")
 
@@ -314,6 +311,10 @@ class RuntimeResidencyStats:
     realized_lookahead_gain_s: float = 0.0
     eviction_reload_bytes: int = 0
     eviction_reload_cost_s: float = 0.0
+    fast_control_events: int = 0
+    fast_control_time_s: float = 0.0
+    fast_control_max_s: float = 0.0
+    counterfactual_time_s: float = 0.0
 
 
 class RuntimeResidencyController:
@@ -377,16 +378,27 @@ class RuntimeResidencyController:
         *,
         issued_step: int,
     ) -> None:
-        selected = {
-            int(expert)
-            for expert in topk_indices.detach().reshape(-1).cpu().tolist()
-        }
-        with self._lock:
-            self._latest_step = issued_step
-            self.stats.route_events += 1
-            self.stats.selected_experts += len(selected)
-            self._adapt_lookahead_depth()
-            self._issue_lookahead(layer, issued_step=issued_step)
+        started = time.perf_counter()
+        try:
+            selected = {
+                int(expert)
+                for expert in topk_indices.detach().reshape(-1).cpu().tolist()
+            }
+            with self._lock:
+                self._latest_step = issued_step
+                self.stats.route_events += 1
+                self.stats.selected_experts += len(selected)
+                self._adapt_lookahead_depth()
+                self._issue_lookahead(layer, issued_step=issued_step)
+        finally:
+            elapsed = time.perf_counter() - started
+            with self._lock:
+                self.stats.fast_control_events += 1
+                self.stats.fast_control_time_s += elapsed
+                self.stats.fast_control_max_s = max(
+                    self.stats.fast_control_max_s,
+                    elapsed,
+                )
 
     def ensure_selected(
         self,
@@ -430,6 +442,15 @@ class RuntimeResidencyController:
         if not feasible:
             self.stats.quality_risk_rejected += 1
         return feasible
+
+    def quality_risk_feasible(self) -> bool:
+        """Check the published state after a completed slow-loop repair."""
+        if self.quality_risk is None:
+            return True
+        return self.quality_risk.feasible(
+            self._routing_weights(),
+            self._high_experts(),
+        )
 
     def precision_extra_donors(
         self,
@@ -595,12 +616,21 @@ class RuntimeResidencyController:
                 key=lambda expert: (-float(scores[expert]), expert),
             )
             issued = 0
+            evaluated = 0
             for expert in ranking:
                 if issued >= self.lookahead_per_layer:
                     break
                 key = ExpertKey(future, expert)
                 if self.registry.get_handle(key) is not None or key in self._prefetching:
                     continue
+                # ``lookahead_per_layer`` bounds decision work as well as
+                # admitted copies.  Candidates are already ordered by the
+                # routing predictor, so a rejected top-k candidate must not
+                # turn one route event into a scan and full-forward replay
+                # for every expert in the layer.
+                if evaluated >= self.lookahead_per_layer:
+                    break
+                evaluated += 1
                 nbytes = self.weight_store.get_byte_size(key, Tier.LO)
                 donor_key = None
                 donor_tier = None
@@ -636,7 +666,11 @@ class RuntimeResidencyController:
                     and counterfactual_state is None
                 ):
                     counterfactual_state = self._counterfactual_state()
+                valuation_started = time.perf_counter()
                 gain = self._exchange_gain(exchange, state=counterfactual_state)
+                self.stats.counterfactual_time_s += (
+                    time.perf_counter() - valuation_started
+                )
                 if gain is None or gain <= 0:
                     self.stats.counterfactual_rejected += 1
                     continue
@@ -675,6 +709,19 @@ class RuntimeResidencyController:
             return
         submitted = self.stats.prefetch_submitted
         if submitted < 8:
+            # A stream of candidates with no positive counterfactual value is
+            # stronger evidence than a low hit rate: there is nothing to
+            # execute or learn from.  Retire the search envelope instead of
+            # replaying the same losing decision at every routed layer.
+            if (
+                submitted == 0
+                and self.stats.counterfactual_candidates >= 8
+                and self.stats.counterfactual_rejected
+                == self.stats.counterfactual_candidates
+                and self._effective_depth > 0
+            ):
+                self._effective_depth -= 1
+                self.stats.depth_decreases += 1
             return
         hit_rate = self.stats.prefetched_hits / submitted
         if hit_rate < 0.25 and self._effective_depth > 0:
@@ -849,8 +896,24 @@ class RuntimeResidencyController:
         return self.quality_risk.feasible(self._routing_weights(), high)
 
     def snapshot(self) -> dict:
+        mean_fast_control_us = (
+            1e6
+            * self.stats.fast_control_time_s
+            / self.stats.fast_control_events
+            if self.stats.fast_control_events
+            else 0.0
+        )
         snapshot = {
             **vars(self.stats),
+            "fast_control_mean_us": mean_fast_control_us,
+            "fast_control_max_us": 1e6 * self.stats.fast_control_max_s,
+            "counterfactual_mean_us": (
+                1e6
+                * self.stats.counterfactual_time_s
+                / self.stats.counterfactual_candidates
+                if self.stats.counterfactual_candidates
+                else 0.0
+            ),
             "lookahead_depth": self.lookahead_depth,
             "effective_lookahead_depth": self._effective_depth,
             "lookahead_per_layer": self.lookahead_per_layer,

@@ -14,6 +14,7 @@ import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 import torch
 
@@ -160,6 +161,7 @@ def initialize_dynaexq(
     high_precision_ratio: float | None = None,
     initial_expert_ranking: dict[int, list[int]] | None = None,
     initial_fidelity_ranking: dict[int, list[int]] | None = None,
+    before_device_allocation: Callable[[], None] | None = None,
 ) -> tuple[
     RouterObserver,
     HotnessTracker,
@@ -204,6 +206,12 @@ def initialize_dynaexq(
         config.model.layers,
         config.model.experts_per_layer,
     )
+    # Host-cache construction is CPU-only and can safely overlap unrelated
+    # GPU work. Shared-machine evaluators install a gate here so the dense
+    # model move, shared-arena allocation, and bootstrap begin only after the
+    # selected physical GPU has been idle for a sustained interval.
+    if before_device_allocation is not None:
+        before_device_allocation()
     released_source_bytes = host_cache["released_native_expert_bytes"]
     dense_parameter_bytes = sum(
         parameter.numel() * parameter.element_size()

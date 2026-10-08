@@ -75,6 +75,38 @@ def test_initialize_materializes_every_expert_and_detaches_native_sources():
         engine.shutdown()
 
 
+def test_device_allocation_gate_runs_after_host_cache_detaches_sources():
+    model = _Model()
+    config = DynaExqConfig(
+        model=ModelConfig(
+            name="tiny",
+            layers=1,
+            experts_per_layer=2,
+            topk=1,
+        ),
+        precision=PrecisionConfig(hi="fp16", lo="int4"),
+        memory=MemoryConfig(device_mem_bytes=100_000, max_inflight=1),
+    )
+    observations = []
+
+    def gate() -> None:
+        observations.append(
+            [expert.weight.numel() for expert in model.layers[0].experts]
+        )
+
+    (*_, engine, _budget, metadata) = initialize_dynaexq(
+        config,
+        model,
+        torch.device("cpu"),
+        before_device_allocation=gate,
+    )
+    try:
+        assert observations == [[0, 0]]
+        assert metadata["host_cache"]["entries"] == 4
+    finally:
+        engine.shutdown()
+
+
 def test_checkpoint_architecture_must_match_runtime_yaml():
     model = _Model()
     model.config = SimpleNamespace(
