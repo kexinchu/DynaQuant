@@ -1,0 +1,18 @@
+\begin{table}[tbh]
+  \centering
+  \caption{Qwen3-30B at $\Phi=0.7$ ($B=10.78$\,GB), below the low-tier pack of $15.40$\,GB. The quality line is $\epsilon=0.70$. Brackets are the 95\% intervals defined in Section~\ref{sec:eval-setup} and apply only to p95 TPOT. TTFT is a point estimate. Every row fills $B$, and the process high-water mark is $29.4$\,GB. These rows are not points of Figure~\ref{fig:eval-frontier}.}
+  \label{tab:eval-phi07}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Policy & $\Delta$PPL & p95 TPOT (ms) & p95 TTFT (s) \\
+    \midrule
+    \systemname & 0.88 & 47.0 [45.8, 48.2] & 3.3 \\
+    HOBBIT & 0.88 & 53.6 [52.2, 55.0] & 4.1 \\
+    Static-Joint & 0.88 & 50.9 [49.6, 52.2] & 3.4 \\
+    Static-mixed & 0.88 & 47.9 [47.1, 48.7] & 2.9 \\
+    Uniform-low & 0.88 & 48.4 [47.6, 49.2] & 3.0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

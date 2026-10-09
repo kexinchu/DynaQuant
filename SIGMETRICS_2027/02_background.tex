@@ -22,11 +22,31 @@ The host-to-device bandwidth budget is the measured copy rate \(C\) of the migra
 Representation size, whether the expert stays resident, and when its transfer occupies the queue decide which transfers consume this rate.
 
 The same expert-memory bytes have three uses.
-The extra bytes of a higher-precision representation are \emph{fidelity}, and the rest of the paper uses fidelity for this use.
+The extra bytes of a higher-precision representation are \emph{fidelity}.
 \emph{Residency} keeps an expert on the device so that a later access requires no transfer.
 \emph{Lookahead} stages an absent expert early enough for its transfer to overlap preceding computation.
 Lookahead is a timed transition from absence to residency.
 It is not a separate representation.
+Table~\ref{tab:glossary} is the name used for each of these objects in the rest of the paper.
+
+\begin{table}[t]
+  \caption{Names used after this section. Precision denotes a stored tier, low or high.}
+  \label{tab:glossary}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{0.2\columnwidth}X@{}}
+    \toprule
+    Term & Meaning \\
+    \midrule
+    Fidelity & Extra bytes of the high-precision representation, \(\delta m_i^{\mathrm{fid}}=m_i^{\mathrm{hi}}-m_i^{\mathrm{lo}}\). \\
+    Lease & \(z=(u,i,b,[t_s,t_f))\), with use \(u\in\{\mathrm{fid},\mathrm{res},\mathrm{look}\}\). \\
+    Donor & A lease released to fund another lease. \\
+    Closure & Attaching a donor set \(D\) to a lease, forming the exchange \(x=(Z^{+},D,\mathcal{T})\). \\
+    Envelope \(S_t\) & Maximum routed-layer depth for candidate generation. It reserves no memory or bandwidth. \\
+    \(\epsilon\), \(\widehat\epsilon\) & \(\epsilon\) bounds measured \(\Delta\)PPL. \(\widehat\epsilon\) bounds the admission quantity \(\widehat R\). \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
 
 \subsection{Fidelity Has a Quality Price and a Transfer Cost}
 \label{sec:obs-quality}
@@ -144,8 +164,8 @@ Residents follow the frequency ranking from warm-up traces.
 Lookahead has oracle knowledge of the measured active set, and its staging slots and the measured transfer window limit how many experts it can stage.
 This replay is not an end-to-end \systemname\ result.
 
-At 25\% high precision, 12 staging slots leave 96 low-precision residents per layer and reduce exposed transfer to 0.44\,ms/request.
-At 40\% high precision, exposed transfer is minimized at eight slots with 43 low-precision residents, then rises because additional staging displaces residents.
+At a 25\% high-precision share, 12 staging slots leave 96 low-precision residents per layer and reduce exposed transfer to 0.44\,ms/request.
+At a 40\% high-precision share, exposed transfer is minimized at eight slots with 43 low-precision residents, then rises because additional staging displaces residents.
 Raising the high-precision share from 25\% to 40\% therefore changes both residency and the staging depth that reduces exposed transfer.
 Host-to-device bandwidth stays at the measured rate of this trace.
 
@@ -153,7 +173,7 @@ Host-to-device bandwidth stays at the measured rate of this trace.
   \centering
   \includegraphics[width=0.75\linewidth]{figures/background_joint_allocation.pdf}
   \Description{Two curves plot replayed exposed transfer time against lookahead staging slots for the 25 and 40 percent high-precision allocations. The 25 percent curve reaches the joint best point at 12 slots with 96 low-precision residents. The 40 percent curve reaches its minimum at 8 slots with 43 low-precision residents and then rises as additional staging displaces residents.}
-  \caption{Trace replay of the two quality- and memory-feasible precision allocations on Qwen3-30B, at the measured host-to-device bandwidth of this trace.
+  \caption{Trace replay of the two quality- and memory-feasible fidelity allocations on Qwen3-30B, at the measured host-to-device bandwidth of this trace.
   Increasing the high-precision share from 25\% to 40\% reduces residency and moves the best staging allocation from 12 to 8 slots.
   Bandwidth is not swept.
   Lookahead uses oracle knowledge of the measured active set; this is not an end-to-end \systemname\ result.}
@@ -162,15 +182,14 @@ Host-to-device bandwidth stays at the measured rate of this trace.
 
 \subsection{Motivation and Design Challenges}
 
-Together, the four measurements are one allocation problem.
+The four measurements are the inputs of Eq.~\eqref{eq:objective}.
 Quantization, caching, and prefetching can coexist in one system.
 A fixed quota or a fixed priority cannot compare the opportunity cost of fidelity, residency, and lookahead as the workload changes.
 
-\paragraph{Challenge 1: heterogeneous value under a quality-risk target.}
-Fidelity reduces quality risk, residency avoids a future transfer, and lookahead reduces the exposed portion of a transfer that still occurs.
-These benefits have different units and last for different amounts of time.
-Admission checks estimated risk, and measured \(\Delta Q\) is reported against \(\epsilon\).
-Risk is not converted into milliseconds or added to the latency objective.
+\paragraph{Challenge 1: heterogeneous value.}
+The three uses are measured in different units and last for different amounts of time.
+Admission checks \(\widehat R(X)\le\widehat\epsilon\), and measured \(\Delta Q\) is reported against \(\epsilon\).
+\(\widehat R\) is not converted into milliseconds or added to the latency objective.
 
 \paragraph{Challenge 2: future-dependent value at different time scales.}
 Routing locality and deadlines change faster than the quality evidence required to justify a fidelity transition.

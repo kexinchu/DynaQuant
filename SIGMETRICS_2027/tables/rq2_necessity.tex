@@ -4,7 +4,8 @@
   Coordinates of Figure~\ref{fig:eval-necessity}(a).
   Qwen3-30B on the balanced-length slice at $\Phi=1.3$.
   Brackets are placeholder 95\% intervals.
-  All three rows meet $\Delta$PPL $\leq 2.1$.}
+  DynaByte repeats the Table~\ref{tab:eval-main} point.
+  Sequential $\Delta$PPL values are not on that scale and are not plotted.}
   \label{tab:eval-rq2-joint}
   \footnotesize
   \setlength{\tabcolsep}{4pt}
@@ -12,9 +13,9 @@
     \toprule
     Policy & $\Delta$PPL & p95 TPOT (ms) \\
     \midrule
-    \systemname & 2.02 & 46 [44, 47] \\
-    Seq-FR & 2.04 & 46 [45, 48] \\
-    Seq-RF & 2.06 & 49 [48, 51] \\
+    \systemname & 0.62 & 45.8 [44.5, 46.9] \\
+    Seq-FR & 2.04 & 46.4 [45.1, 47.7] \\
+    Seq-RF & 2.06 & 49.2 [48.0, 50.6] \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -33,11 +34,11 @@
     \toprule
     Look \% & Res.\ \% & $\Delta$PPL & p95 TPOT (ms) \\
     \midrule
-    0 & 30 & 2.04 & 492 \\
-    5 & 25 & 2.04 & 470 \\
-    10 & 20 & 2.04 & 458$^{\star}$ \\
-    15 & 15 & 2.04 & 466 \\
-    25 & 5 & 2.04 & 488 \\
+    0 & 30 & 2.04 & 49.2 \\
+    5 & 25 & 2.04 & 47.0 \\
+    10 & 20 & 2.04 & 45.8$^{\star}$ \\
+    15 & 15 & 2.04 & 46.6 \\
+    25 & 5 & 2.04 & 48.8 \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -58,13 +59,13 @@
     \toprule
     $t$ (s) & Fid.\ \% & Res.\ \% & Look \% & \systemname & Static-Joint & Oracle & Migr.\ (GB) \\
     \midrule
-    -30 & 70 & 20 & 10 & 458 & 462 & -- & 0.0 \\
-    -10 & 70 & 20 & 10 & 460 & 463 & -- & 0.0 \\
-    0 & 70 & 20 & 10 & 470 & 468 & -- & 0.1 \\
-    10 & 67 & 18 & 15 & 512 & 530 & -- & 0.6 \\
-    20 & 64 & 16 & 20 & 478 & 528 & -- & 1.1 \\
-    40 & 62 & 16 & 22 & 446 & 524 & -- & 1.4 \\
-    60 & 62 & 16 & 22 & 445 & 523 & 432 & 1.4 \\
+    -30 & 64 & 26 & 10 & 45.8 & 48.6 & -- & 0.0 \\
+    -10 & 64 & 26 & 10 & 46.0 & 48.7 & -- & 0.0 \\
+    0 & 64 & 26 & 10 & 47.0 & 49.2 & -- & 0.1 \\
+    10 & 61 & 24 & 15 & 51.2 & 55.4 & -- & 0.6 \\
+    20 & 58 & 22 & 20 & 47.8 & 55.2 & -- & 1.1 \\
+    40 & 56 & 22 & 22 & 44.6 & 54.8 & -- & 1.4 \\
+    60 & 56 & 22 & 22 & 44.5 & 54.7 & 43.2 & 1.4 \\
     \bottomrule
   \end{tabular}
 \end{table}

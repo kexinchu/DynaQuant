@@ -1,41 +1,36 @@
 \section{Introduction}
 \label{sec:intro}
 
-A Mixture-of-Experts (MoE) layer routes each token to a small subset of expert subnetworks, allowing model capacity to grow without a proportional increase in per-token computation~\cite{shazeer2017outrageously,fedus2022switch,lepikhin2021gshard}.
-The memory footprint remains large because every expert representation must still be stored or made available at inference time.
-Models such as Mixtral, DeepSeek-V2, and Qwen3 contain tens to hundreds of billions of parameters while activating only a fraction of them for each token~\cite{jiang2024mixtral,deepseekv2,qwen3technicalreport}.
-GLaM scales the same sparse pattern to a trillion-parameter language model~\cite{du2022glam}.
-On a single accelerator, expert weights compete with non-expert parameters, the KV cache, activations, and runtime workspaces for device memory.
-When experts cannot all remain at the desired precision, the system must both compress them and move them across the host-to-device link.
+A Mixture-of-Experts (MoE) layer routes each token to a small subset of experts, so capacity can grow without a proportional increase in per-token computation~\cite{shazeer2017outrageously,fedus2022switch,lepikhin2021gshard}.
+The expert weights still have to be stored or fetched.
+Models from Mixtral and Qwen3 to DeepSeek-V2 and GLaM keep tens to hundreds of billions of parameters, and in the largest case a trillion, while activating only a fraction of them per token~\cite{jiang2024mixtral,qwen3technicalreport,deepseekv2,du2022glam}.
+On one GPU those weights compete with non-expert parameters, the KV cache, activations, and runtime workspaces.
+When the experts cannot all remain at the desired precision, the system has to compress them and move them across the host-to-device link.
 
-How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency while the expert-memory peak stays within budget?
+How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among fidelity, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency, keeps measured quality within \(\epsilon\), and holds the expert-memory peak within budget?
+These two budgets meet in three uses, defined in Section~\ref{sec:serving}.
+A byte assigned to fidelity cannot also retain another expert or stage a future one, and host-to-device bandwidth decides whether that early transfer finishes before its deadline.
 
-These two budgets meet in three uses.
-Precision spends expert-memory bytes on a higher-precision representation and increases the size of any later transfer.
-Residency spends bytes to keep an expert on the device so that a later access requires no transfer.
-Lookahead spends both bytes and bandwidth to stage an absent expert early enough that an otherwise unavoidable transfer overlaps preceding computation.
-A byte assigned to precision cannot also retain another expert or stage a future one.
-Host-to-device bandwidth determines whether that early transfer finishes before its deadline.
-
-Prior work has developed effective policies for parts of this problem.
+Prior work has effective policies for parts of this problem.
 Quantization and mixed-precision methods choose expert representations under a memory or accuracy target~\cite{lin2024awq,frantar2022gptq,duanmu2025mxmoe}.
 Expert caches and prefetchers decide which experts to keep and when to transfer missing experts, commonly under a fixed representation size~\cite{song2024promoe,eliseev2023fast,xue2024moe,shen2025expertflow}.
-Mixed-precision offloading systems demonstrate that lower-precision transfers, caching, and prefetching can coexist~\cite{tang2024hobbit,huang2026dymoe}.
-The right assignment still changes with the workload: expert sensitivity sets the value of precision, routing locality sets the value of residency, and transfer deadlines set the value of lookahead.
-A fixed partition or a fixed priority among the three uses cannot express these changing opportunity costs.
-These systems show that the three mechanisms can operate together, yet they do not admit precision, residency, and lookahead through one exchange on one byte ledger.
+Mixed-precision offloading shows that lower-precision transfers, caching, and prefetching can run in one system~\cite{tang2024hobbit,huang2026dymoe}.
 
-\systemname\ answers this question under a hard expert-memory budget \(B\).
-Admission checks a quality-risk target \(\widehat\epsilon\); measured \(\Delta Q\) is reported against \(\epsilon\).
-The decision is a byte exchange: a requested expert state together with the precision, residency, or lookahead claim that funds it.
-Residency, lookahead, and precision share one admission path and one byte ledger, with no private quota.
-The executor publishes a representation only after its copy completes, and the expert-memory peak stays within \(B\).
+Section~\ref{sec:bg} measures four facts that a fixed policy does not absorb.
+Perplexity rises as more experts move to the lower tier, and the higher tier is the larger copy.
+WikiText, GSM8K, and HumanEval dispatch different experts at the same layer.
+Prefill and decode push the traffic that lookahead cannot hide in opposite directions.
+Raising the high-precision share changes both how many experts can stay resident and which staging depth hides their transfers.
+
+These measurements are one allocation.
+Fidelity, residency, and lookahead spend the same expert-memory bytes and the same host-to-device queue.
+Section~\ref{sec:design} specifies the controller that allocates them.
 
 We make three contributions.
 \begin{itemize}
-  \item We formulate the joint allocation of expert memory and host-to-device bandwidth among precision, residency, and lookahead. On Qwen3-30B, p95 TPOT is 45.6\,ms against 51.8\,ms for HOBBIT, with HOBBIT outside \systemname\ on all three models, and the \systemname\ interval overlaps \textsc{Static-Joint}.
-  \item We develop a byte-lease exchange that names the memory each request displaces. On Qwen3-30B, separate quotas raise p95 TPOT from 45.8\,ms [44.5, 46.9] to 52.4\,ms [50.7, 54.3], and admission without an explicit donor raises it to 50.8\,ms [49.3, 52.5]. Scoring exchanges without the counterfactual replay leaves p95 TPOT at 45.5\,ms [44.1, 47.1], which overlaps \systemname.
-  \item We design a runtime with one byte ledger and a publish-after-copy protocol. At the implemented point, deadline replay averages 0.15\,ms, against about 8.3\,ms for one layer, and a transition is published only after its copy completes.
+  \item We observe that expert memory and host-to-device bandwidth form one budget with three uses. A byte spent on fidelity cannot retain another expert or stage a future one, and a transfer that lookahead starts still has to finish before it is used (Section~\ref{sec:bg}). A fixed partition or a fixed priority cannot compare these costs as the routed experts and the prefill--decode mix change, and systems that already combine quantization, caching, and prefetching still admit the three uses separately.
+  \item We design \systemname, which allocates this budget by admitting one exchange at a time. The executor holds every transition's expert-memory peak within a hard budget \(B\). The exchange names the lease it requests and the leases released to fund it, and the controller admits it only when that release lowers predicted exposed wait and \(\widehat R\le\widehat\epsilon\). That quality test estimates \(\Delta Q\le\epsilon\); it is not a measured-quality guarantee. Fidelity, residency, and lookahead share that path and one byte account, and a representation is published only after its copy completes.
+  \item We evaluate \systemname\ on one GPU with Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE. Latency replays a fixed order of MMLU-Pro, GPQA, AIME25, GSM8K, and HumanEval, split by input/output length, at batch size 8. Quality uses WikiText-2 together with the same five tasks, weighted by sample size (200, 198, 30, 200, and 164). \systemname's score is 1.18\%, 0.64\%, and 1.03\% below the all-high reference on Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE (Table~\ref{tab:eval-accuracy}). Under the same expert-memory budget, p95 TPOT is 11.6\% lower than HOBBIT on Qwen3-30B, 23\% lower on Qwen3-Next-80B, and 27.1\% lower on Phi-3.5-MoE (Table~\ref{tab:eval-main}).
 \end{itemize}
 
 % Upon acceptance, we will release the controller, runtime, routing-trace tools, and configurations for the reported experiments in a long-lived archive.

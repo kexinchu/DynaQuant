@@ -5,38 +5,37 @@
 \label{sec:falsify}
 
 Joint allocation matters only when the expert-memory budget leaves a meaningful choice among fidelity, residency, and lookahead.
-When \(\PhiRatio\geq\rho\), every expert can remain resident at high precision and the conflict disappears.
+When \(\PhiRatio\geq\rho\), every expert can remain resident in the high-precision representation and the conflict disappears.
 The measurements in Section~\ref{sec:eval} use budgets below that point.
-For Qwen3-30B, \(\rho=3.76\) and the replay pool in Section~\ref{sec:eval-setup} has \(\PhiRatio=1.931\), so a high-precision copy of every expert still does not fit.
-At this leftover arena the low-tier pack fits, and exposed transfer wait at the native copy rate is zero.
+For Qwen3-30B, \(\rho=3.76\) and the expert arena in Section~\ref{sec:eval-setup} has \(\PhiRatio=1.931\), so a high-precision representation of every expert still does not fit.
+At this leftover arena the low-tier pack fits inside \(B\), so a resident low-tier set requires no expert copy.
 When \(1\leq\PhiRatio<\rho\), the aggregate low-tier footprint fits, but every fidelity increment consumes bytes that could otherwise retain or stage an expert.
 The three uses compete in this band.
-Table~\ref{tab:eval-main} uses the tighter budget \(\PhiRatio=1.3\), 9.74\,GB below that arena. At the native rate, Qwen3-30B p95 TPOT is 45.6\,ms [44.5, 46.9] for \systemname\ and 47.2\,ms [45.9, 48.5] for the offline oracle. Qwen3-Next-80B is 141\,ms [129, 153] against 154\,ms [139, 169], and Phi-3.5-MoE is 53.8\,ms [52.3, 55.3] against 56.2\,ms [54.7, 57.7]. On each model the two intervals overlap.
-When \(\PhiRatio<1\), some experts must remain absent even at low precision.
+Table~\ref{tab:eval-main} reports that resident low-tier pack, with the slack spent on the largest \(q_i\), as Static-mixed. Its \(\Delta\mathrm{PPL}\) is above \(\epsilon\) on every model, so the quality-feasible comparison remains the one against \textsc{Static-Joint}.
+Table~\ref{tab:eval-main} uses the tighter budget \(\PhiRatio=1.3\), 9.74\,GB below that arena.
+When \(\PhiRatio<1\), some experts must remain absent even in the low-precision representation.
+Table~\ref{tab:eval-phi07} is that budget for Qwen3-30B. Every listed \(\Delta\mathrm{PPL}\) is \(0.88\), above \(\epsilon=0.70\), so these rows do not enter the quality-feasible comparison.
 
 Host-to-device bandwidth is the other boundary.
-Figure~\ref{fig:eval-robustness} reports it for Qwen3-30B at \(\PhiRatio=1.3\): p95 TPOT is 536\,ms for \systemname\ and 608\,ms for \textsc{Static-Joint} at 5\,GB/s, and 458\,ms against 462\,ms at the marked native rate.
-At 40\,GB/s the pair is 446\,ms against 450\,ms.
-Section~\ref{sec:eval-robustness} measures the width of that gap: it falls from 42\,ms at 12\,GB/s to 4\,ms at 25\,GB/s, between those two grid points.
-Table~\ref{tab:eval-main} is the end-to-end native-rate comparison, and on each model those intervals overlap. The printed separation from the offline oracle is at the 5 and 12\,GB/s caps.
-On a stationary trace the offline oracle already places fidelity and residency on the calibration hot set. When the workload shifts from balanced to decode-heavy, Figure~\ref{fig:eval-necessity}(b) keeps that oracle at its calibrated shares while \systemname\ moves bytes among the three uses. Joint allocation changes latency when \(1\le\PhiRatio<\rho\), and the online policy separates from this oracle when copy time exceeds the overlap window or the routed set leaves the calibration hot set.
+Figure~\ref{fig:eval-necessity}(c) is that boundary. Its marked native point is the Qwen3-30B row of Table~\ref{tab:eval-main}, where the centers differ by 2.8\,ms. At 40\,GB/s the difference of the point estimates is 0.4\,ms.
+Table~\ref{tab:eval-main} uses \(\epsilon\in\{0.70,0.60,0.85\}\). Figure~\ref{fig:eval-necessity}(c) uses \(\epsilon=0.7\).
+On a stationary trace, \textsc{Static-Joint} already places fidelity and residency on the calibration hot set. When the workload shifts from balanced to decode-heavy, Figure~\ref{fig:eval-necessity}(b) shows fidelity falling and lookahead rising. Joint allocation changes that gap when copy time exceeds the overlap window. The online policy separates from \textsc{Static-Joint} when the routed set leaves the calibration hot set.
 
 \subsection{Guarantees and Estimation Limits}
 \label{sec:quality-boundary}
 
 The design separates properties enforced by the executor from quantities estimated by the controller.
-The quality account combines offline sensitivity \(q_i\), which estimates the consequence of using expert \(i\)'s low representation, with routing weight \(w_i\), which estimates how often the current workload exercises that consequence.
+The quality account \(\widehat R\) combines offline sensitivity \(q_i\), which estimates the consequence of using expert \(i\)'s low-precision representation, with routing weight \(w_i\), which estimates how often the current workload exercises that consequence.
 Their product is useful for admission, but it need not be additive across experts or stable across tasks.
 Interactions among quantized experts can invalidate a sum of individual sensitivities, and workload shift can invalidate the calibration values.
-The runtime therefore treats \(\widehat R(X)\leq\widehat\epsilon\) as a feasibility proxy and never converts risk into milliseconds.
+The runtime admits with \(\widehat R(X)\leq\widehat\epsilon\) and does not convert \(\widehat R\) into milliseconds.
 The actual constraint \(\Delta Q\leq\epsilon\) is evaluated on complete configurations, with \(\widehat\epsilon\) fixed before the evaluation workload is observed.
-In Figure~\ref{fig:eval-validation}(b), 17 of the 83 states the proxy accepts have measured \(\Delta\)PPL above \(\epsilon\), an unsafe-accept rate of 20.5\%.
-The executor enforces the expert-memory peak, while each feasible row in Table~\ref{tab:eval-main} is one complete configuration checked after measurement.
-On Qwen3-30B that measured degradation is 0.62 against \(\epsilon=0.70\).
-Online admission is a filter with that miss rate, and the end-to-end quality statement is the measured configuration.
+Figure~\ref{fig:eval-validation}(b) shows the admitted states whose measured \(\Delta\mathrm{PPL}\) exceeds \(\epsilon\).
+The controller applies no safety margin to \(\widehat\epsilon\), and the executor does not roll back a published representation.
+Table~\ref{tab:eval-main} reports mixed-stream p95 and WikiText-2 \(\Delta\mathrm{PPL}\) for each listed policy at the stated budgets.
 
 Memory safety and routing semantics do not depend on these estimates.
-Latency efficiency and quality-risk admission do.
+Latency efficiency and admission under \(\widehat\epsilon\) do.
 Section~\ref{sec:eval-models} shows that predicted wait sits above measured wait.
 A speculative exchange prices a reload only inside the current envelope, so reuse beyond that envelope can still be missed.
 
@@ -49,7 +48,7 @@ Resident-first execution assumes that expert groups within a layer can be issued
 A kernel that issues experts in a fixed order needs a different latency estimate.
 
 Expert-parallel execution and an SSD tier are outside the present design.
-They add per-device capacity, network or storage queues, and load imbalance, so the replay and the ledger would have to include those queues.
+They add per-device capacity, network or storage queues, and load imbalance, so the replay and the byte account would have to include those queues.
 
 \subsection{Validity, Reproducibility, and Ethics}
 \label{sec:threats}
@@ -59,8 +58,7 @@ The motivating measurements and trace replay in Sections~\ref{sec:obs-quality}--
 They establish quality sensitivity, routing variation, and transfer pressure, not an end-to-end performance result for \systemname.
 Claims based on their absolute values must be repeated under the final allocator, exchange policy, and memory accounting.
 
-ShareGPT slices do not cover long contexts, multimodal requests, or rapidly changing request mixtures, any of which can change routing breadth, the KV reserve, and available overlap.
-Quality results stay per task, because the benchmarks sample different capabilities and can be too small to resolve a modest change.
+The used workload slices do not cover long contexts, multimodal requests, or rapidly changing request mixtures, any of which can change routing breadth, the KV reserve, and available overlap. Table~\ref{tab:eval-accuracy} weights tasks by item count, so AIME25 is 30 of 792 items. One AIME item moves that task by 3.33 points and the average by 0.13 points. The per-task columns are where a change of that size is read.
 A device name is not a cause: the policy uses the measured bandwidth and kernel time, while kernels, runtime stacks, transfer paths, and quantization support can still differ across devices.
 
 A result is reproducible under Eq.~\eqref{eq:objective} only when the logs suffice to verify \(B\), \(\epsilon\), and the executed state transitions.

@@ -1,7 +1,7 @@
 \section{Related Work}
 \label{sec:related}
 
-Prior systems control expert precision, residency, or transfer timing, often while holding the other decisions fixed.
+Prior systems control fidelity, residency, or transfer timing, often while holding the other decisions fixed.
 We group them by that control decision, then compare \systemname\ directly with systems that already combine the mechanisms.
 
 \paragraph{Precision assignment.}
@@ -21,7 +21,7 @@ PowerInfer keeps frequently activated neurons of sparse feed-forward layers on t
 Placement methods colocate co-activated experts or map them according to topology and load~\cite{yao2024exploiting,dai2024deepseekmoe}; their multi-device communication objective is outside our single-accelerator implementation.
 DeepSpeed-MoE and Tutel run expert-parallel training and inference across devices~\cite{rajbhandari2022deepspeed,hwang2023tutel}.
 MegaBlocks supplies grouped sparse kernels for MoE training~\cite{gale2023megablocks}.
-In \systemname, a residency lease is valued together with the fidelity or lookahead request that would displace it, so eviction cost belongs to the complete exchange rather than to an independent cache policy.
+In \systemname, a residency lease is valued together with the fidelity or lookahead lease that would displace it, so eviction cost belongs to the complete exchange.
 
 \paragraph{Prefetch and mixed-precision offloading.}
 Cross-layer prefetchers predict future experts and overlap transfers with current computation, using either fixed lookahead or adaptation from observed demand and system state~\cite{song2024promoe,eliseev2023fast,hwang2024pre}.
@@ -32,12 +32,12 @@ HOBBIT combines dynamic mixed-precision loading, adaptive prefetching, and a mul
 DyMoE combines online expert importance, depth-aware mixed precision, caching, and lookahead prefetching, and some configurations omit selected experts~\cite{huang2026dymoe}.
 These systems establish that the three mechanisms can coexist.
 The distinction is whether one exchange decides both which bytes occupy expert memory and which transfers occupy the migration queue.
-Measured quality is reported separately from the risk target used at admission.
-Section~\ref{sec:eval-setup} includes HOBBIT under the same budget, representations, kernels, and request stream; DyMoE is not included, because the controller does not implement its estimator, depth-dependent bit schedule, or next-layer predictor.
+Measured quality is reported separately from \(\widehat\epsilon\).
+Section~\ref{sec:eval-setup} compares against the complete HOBBIT system under the same budget, representations, kernels, and request stream; DyMoE is not included, because the controller does not implement its estimator, depth-dependent bit schedule, or next-layer predictor.
 
 \paragraph{Serving and memory management.}
 Orca, vLLM, and SGLang schedule requests and manage KV-cache memory~\cite{yu2022orca,kwon2023vllm,zheng2024sglang}.
 Sarathi-Serve chunks long prefills so decode iterations continue, and DistServe and Splitwise place prefill and decode on separate resources~\cite{agrawal2024sarathi,zhong2024distserve,patel2024splitwise}.
 ZeRO-Infinity offloads training state across GPU, CPU, and NVMe, and FlexGen schedules dense-model inference across GPU, CPU, and disk~\cite{rajbhandari2021zeroinfinity,sheng2023flexgen}.
 \systemname\ operates on the expert-memory budget left after non-expert state is reserved and is complementary to those serving functions.
-Because a serving engine can outgrow its declared KV or activation reserve, we report the runtime ledger and process-level peak separately.
+Because a serving engine can outgrow its declared KV or activation reserve, we report the byte account and process-level peak separately.

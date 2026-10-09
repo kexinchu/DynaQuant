@@ -39,7 +39,7 @@
   \node[lab, anchor=north west, align=left] at (0.2,6.15) {%
     routing demand\\
     deadlines\\
-    quality risk $\widehat R$\\
+    $\widehat R$\\
     bandwidth $C$\\
     stall, pollution\\
     byte state};
@@ -78,7 +78,7 @@
   \node[title] at (9.3,6.42) {Exchange Coordinator};
 
   \draw[look] (9.35,5.66) rectangle (9.8,5.91);
-  \node[lab, anchor=north] at (9.575,5.62) {request};
+  \node[lab, anchor=north] at (9.575,5.62) {lease};
   \draw[res]  (11.1,5.66) rectangle (11.55,5.91);
   \draw[fid]  (11.55,5.66) rectangle (12.0,5.91);
   \node[lab, anchor=north] at (11.55,5.62) {donors};
@@ -87,7 +87,7 @@
   \node[lab, anchor=north west, align=left] at (9.3,5.12) {%
     admit by $\eta=G/b^{\mathrm{req}}$ while\\[1pt]
     $\widehat R(X)\le\widehat\epsilon$ \enspace and\\[1pt]
-    $M_{\mathrm{live}}+M_{\mathrm{reserved}}\le B$};
+    $M_{\mathrm{published}}+M_{\mathrm{reserved}}\le B$};
 
   % ------------------------------------------------------- host memory
   \draw[region] (0,0.9) rectangle (2.4,2.6);
@@ -127,13 +127,13 @@
   \draw[control, black!75] (7.90,2.07) to[out=50, in=130] (8.70,2.07);
   \node[lab, anchor=north west] at (6.35,1.42) {shared expert arena; donors fund \(e_4\)};
 
-  % byte ledger
+  % byte account
   \draw[res, draw=black!55] (6.35,0.62) rectangle (10.23,0.82);
   \draw[look] (10.23,0.62) rectangle (10.85,0.82);
   \draw[black!55, line width=0.4pt] (10.85,0.62) rectangle (11.25,0.82);
   \draw[line width=0.8pt] (11.25,0.55) -- (11.25,0.89);
-  \node[lab, anchor=east] at (6.28,0.72) {ledger};
-  \node[lab, anchor=north] at (8.4,0.58) {live $+$ reserved $\le B$};
+  \node[lab, anchor=east] at (6.28,0.72) {byte account};
+  \node[lab, anchor=north] at (8.4,0.58) {published $+$ reserved $\le B$};
   \node[lab, anchor=south] at (11.25,0.88) {$B$};
 
   % forward path

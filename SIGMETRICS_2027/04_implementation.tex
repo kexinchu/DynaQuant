@@ -16,12 +16,10 @@ returns a prefix of configured width.
 Low confidence lengthens this prefix and leaves \(S_t\) unchanged.
 When the forecast is late for the layer that is about to run, the generator
 uses recent routing history and the forward path continues.
-An optional CPU model may revise the probabilities after this step.
 The admission rule reads the forecast from the steps above.
 
 \paragraph{Envelope and representations.}
-\(S_t\) is a depth in routed layers.
-At startup it is the number of layer intervals required to copy one layer of
+At startup \(S_t\) is the number of layer intervals required to copy one layer of
 absent-expert bytes at the copy rate \(C\), clipped to the configured bounds.
 Section~\ref{sec:coordinator} then updates that depth from observed stall and
 pollution.

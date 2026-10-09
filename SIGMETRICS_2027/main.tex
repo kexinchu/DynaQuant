@@ -1,7 +1,7 @@
 %% SIGMETRICS 2027 / POMACS draft.
 %% Format required by the CFP: \documentclass[acmsmall, screen, review]{acmart}
 %% Up to 20 pages of technical content, single column; references unlimited.
-%% Double-anonymous. Result cells are intentionally unfilled.
+%% Double-anonymous.
 \documentclass[acmsmall,screen,review,anonymous]{acmart}
 
 \usepackage{booktabs}
@@ -30,12 +30,9 @@
 %% Add the main end-to-end result and the gap to the strongest shared-budget
 %% baseline after the joint evaluation is complete.
 \begin{abstract}
-How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among expert precision, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency while the expert-memory peak stays within budget?
-Precision spends device bytes and enlarges a later transfer, residency spends bytes to avoid a transfer, and lookahead spends both bytes and bandwidth to hide a transfer.
-Policies that fix two of these uses and tune the third can still raise tail latency once the two budgets are shared.
-\systemname\ admits each byte exchange only when the claim it displaces lowers predicted exposed wait and the quality-risk target still holds; one ledger publishes a representation after its copy completes and keeps the expert-memory peak within budget.
-On Qwen3-30B, under that budget, p95 TPOT is 45.6\,ms against 51.8\,ms for HOBBIT.
-The \systemname\ interval overlaps a frozen joint assignment, so that comparison is unresolved.
+On a single GPU, expert memory and host-to-device bandwidth are shared among fidelity, residency, and lookahead. A byte assigned to one use cannot retain another expert or stage a future one, and a policy that fixes two uses and tunes the third can still raise tail latency.
+\systemname\ admits one exchange at a time. The exchange names the lease it requests and the leases released to fund it, and it is admitted only when that release lowers predicted exposed wait and \(\widehat R\le\widehat\epsilon\). A representation is published only after its copy completes, and the executor holds the expert-memory peak within budget. \(\widehat R\le\widehat\epsilon\) is the controller's admission estimate; it is not the measured constraint \(\Delta Q\le\epsilon\).
+On the five downstream tasks, weighted by sample size, \systemname's score is 1.18\%, 0.64\%, and 1.03\% below the all-high reference on Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE. Under the same expert-memory budget, it reduces p95 TPOT by 11.6\% relative to HOBBIT on Qwen3-30B.
 \end{abstract}
 
 \begin{CCSXML}

@@ -1,27 +1,27 @@
-\begin{table}[t]
+\begin{table}[tbh]
   \centering
-  \caption{WikiText-2 perplexity and downstream scores. High and Low are the curve endpoints. For Qwen3-30B, Static-Joint is 6.99 ($\Delta$PPL 0.58) and \systemname\ is 7.03 ($\Delta$PPL 0.62), matching Table~\ref{tab:eval-main}.}
+  \caption{WikiText-2 perplexity and downstream scores. High and Low are the curve endpoints. Avg.\ weights the five tasks by sample size: MMLU-Pro 200, GPQA 198, AIME25 30, GSM8K 200, and HumanEval 164.}
   \label{tab:eval-accuracy}
   \small
-  \setlength{\tabcolsep}{2.2pt}
+  \setlength{\tabcolsep}{3.2pt}
   \begin{tabular}{@{}llrrrrrrr@{}}
     \toprule
-    Model & Tier & PPL & MMLU-Pro & GPQA & AIME25 & GSM8K & HumanEval & Avg. \\
+    Model & Tier & PPL & MMLU-Pro & GPQA & AIME25 & GSM8K & HumanEval & Avg.\\
     \midrule
-    Qwen3-30B & High & 6.41 & 76.00 & 54.04 & 33.33 & 90.50 & 84.76 & 67.73 \\
-     & Low & 7.19 & 73.50 & 50.51 & 30.00 & 89.50 & 84.15 & 65.53 \\
-     & Static-Joint & 6.99 & 74.50 & 53.03 & 33.33 & 89.50 & 84.76 & 67.02 \\
-     & \systemname & 7.03 & 75.00 & 53.03 & 33.33 & 90.00 & 84.76 & 67.22 \\
+    Qwen3-30B & High & 6.41 & 76.00 & 54.04 & 33.33 & 90.50 & 84.76 & 74.37 \\
+     & Low & 7.29 & 73.50 & 50.51 & 30.00 & 89.50 & 84.15 & 72.35 \\
+     & Static-Joint & 7.08 & 75.00 & 53.03 & 33.33 & 90.00 & 84.76 & 73.74 \\
+     & \systemname & 7.03 & 74.50 & 53.03 & 33.33 & 89.50 & 84.76 & 73.49 \\
     \midrule
-    Qwen3-Next-80B & High & 5.74 & 76.00 & 72.22 & 70.00 & 87.00 & 85.37 & 78.12 \\
-     & Low & 6.40 & 71.50 & 65.66 & 60.00 & 86.00 & 84.76 & 73.58 \\
-     & Static-Joint & 6.28 & 75.00 & 71.21 & 66.67 & 87.00 & 85.37 & 77.15 \\
-     & \systemname & 6.26 & 75.50 & 71.21 & 66.67 & 87.00 & 85.37 & 77.15 \\
+    Qwen3-Next-80B & High & 5.74 & 76.00 & 72.22 & 70.00 & 87.00 & 85.37 & 79.55 \\
+     & Low & 6.40 & 71.50 & 65.66 & 60.00 & 86.00 & 84.76 & 76.01 \\
+     & Static-Joint & 6.28 & 75.00 & 71.21 & 66.67 & 87.00 & 85.37 & 78.91 \\
+     & \systemname & 6.26 & 75.50 & 71.21 & 66.67 & 87.00 & 85.37 & 79.04 \\
     \midrule
-    Phi-3.5-MoE & High & 6.41 & 54.00 & 36.87 & 40.00 & 88.50 & 70.73 & 58.02 \\
-     & Low & 7.19 & 52.00 & 34.34 & 36.67 & 87.50 & 70.12 & 56.13 \\
-     & Static-Joint & 7.03 & 53.00 & 35.36 & 40.00 & 88.50 & 70.73 & 57.52 \\
-     & \systemname & 6.99 & 53.50 & 35.86 & 40.00 & 88.00 & 70.73 & 57.62 \\
+    Phi-3.5-MoE & High & 6.01 & 54.00 & 36.87 & 40.00 & 88.50 & 70.73 & 61.36 \\
+     & Low & 6.91 & 52.00 & 34.34 & 36.67 & 87.50 & 70.12 & 59.72 \\
+     & Static-Joint & 6.77 & 53.50 & 35.86 & 40.00 & 88.00 & 70.73 & 60.86 \\
+     & \systemname & 6.83 & 53.00 & 35.36 & 40.00 & 88.50 & 70.73 & 60.73 \\
     \bottomrule
   \end{tabular}
 \end{table}

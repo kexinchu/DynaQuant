@@ -1,6 +1,5 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-\systemname\ allocates expert memory and host-to-device bandwidth among fidelity, residency, and lookahead on one byte ledger.
-One byte ledger and a publish-after-copy protocol keep the expert-memory peak within budget during a transition.
-In Figure~\ref{fig:eval-mechanisms}, a separate quota is slower than \systemname. The gain over the offline oracle is unresolved in Table~\ref{tab:eval-main}, and at the marked copy rate in Figure~\ref{fig:eval-robustness} the two p95 TPOT values differ by 4\,ms.
+\systemname\ allocates expert memory and host-to-device bandwidth among fidelity, residency, and lookahead on one byte account and publishes a representation only after its copy completes.
+Figure~\ref{fig:eval-mechanisms} shows a separate quota is slower than \systemname, and Independent-value's center stays with \systemname. Its dashed line is the \textsc{Static-Joint} center in Table~\ref{tab:eval-main}. The marked point of Figure~\ref{fig:eval-necessity}(c) is that same comparison; the other caps vary host-to-device bandwidth around it and are point estimates.
