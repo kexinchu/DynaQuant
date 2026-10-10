@@ -16,13 +16,12 @@ returns a prefix of configured width.
 Low confidence lengthens this prefix and leaves \(S_t\) unchanged.
 When the forecast is late for the layer that is about to run, the generator
 uses recent routing history and the forward path continues.
-The admission rule reads the forecast from the steps above.
+Admission uses this forecast as the predicted use in Section~\ref{sec:leases}.
 
 \paragraph{Envelope and representations.}
 At startup \(S_t\) is the number of layer intervals required to copy one layer of
 absent-expert bytes at the copy rate \(C\), clipped to the configured bounds.
-Section~\ref{sec:coordinator} then updates that depth from observed stall and
-pollution.
+Section~\ref{sec:coordinator} then updates that depth from the prefetch hit rate.
 Before a timed run, both tiers of each layer are packed into pinned host
 memory, and that layer's source weights are released once both packs exist.
 The checkpoint fixes the tier pair, so the two representations stay the same
@@ -39,3 +38,14 @@ buffer, and every extent is taken from a single segment.
 The allocator rounds a request up to a multiple of 256 bytes and selects the
 smallest free range, among all segments, that can hold the rounded size.
 When a range is returned, adjacent free ranges in the same segment are merged.
+
+\paragraph{Operating point.}
+The Qwen3-30B runs instantiate Algorithm~\ref{alg:period} with \(T_{\mathrm{fast}}=32\) routed layers, \(T_{\mathrm{slow}}=50\) forward steps, \(S_{\min}=0\), \(S_{\max}=3\), and prefetch-hit thresholds \(0.25\) and \(0.60\).
+The expert-score EMA coefficient is \(0.9\), minimum fidelity tenure is 100 steps, and the replacement margin is \(0.01\).
+Each layer's counterfactual state keeps its 8 highest positive scores.
+Figure~\ref{fig:eval-validation}(c) replays \(K\) exchange candidates; the marked point is \(K=8\) and \(W=32\).
+INT4 groups are 128. The Qwen3-Next-80B low tier uses INT2 groups of 64.
+Sensitivity calibration uses 256 WikiText prompts: \(619\)\,s on Qwen3-30B, \(2743\)\,s on Qwen3-Next-80B, and \(423\)\,s on Phi-3.5-MoE.
+On these prompts, and with the \(\epsilon\) values from Section~\ref{sec:obs-joint}, the maximum of \((\Delta\mathrm{PPL}/\epsilon)/(\widehat R/\widehat\epsilon)\) is \(1.09\), \(1.07\), and \(1.05\). \(\kappa\) is that maximum rounded up to the next hundredth, so \(\kappa=1.10\), \(1.08\), and \(1.06\). These three values are fixed before the evaluation prompts are read.
+The probe in Algorithm~\ref{alg:period} runs only at a slow boundary, and only when the candidate would change the published fidelity set. Fidelity tenure is 100 steps, so a new probe does not start before that tenure ends. It does not run on a fast event. Each probe is 4 sequences of 16 tokens, batched together. One step is charged at that model's Table~\ref{tab:eval-main} p95 TPOT, so 16 steps take \(16\times 45.8=732.8\,\mathrm{ms}\), \(16\times 141=2256\,\mathrm{ms}\), and \(16\times 53.8=860.8\,\mathrm{ms}\). The 256-prompt sensitivity pass scores ablated assignments. This probe scores one candidate. These 4 sequences are not among the 256 calibration prompts and are not evaluation prompts. Their all-high log-probabilities are stored before serving. The probe scores the candidate on these sequences, turns that score and the stored score into perplexity, and takes \(\Delta\mathrm{PPL}\) as the candidate perplexity minus the stored all-high perplexity. On the Table~\ref{tab:eval-main} streams the fidelity set stays fixed, and the probe finishes before those timed requests.
+The host is an Intel Xeon Gold 6338 with 1\,TB of memory; the GPU is an RTX A6000 (48\,GB), on PCIe, with PyTorch 2.10.0+cu128 and Transformers 5.12.1.

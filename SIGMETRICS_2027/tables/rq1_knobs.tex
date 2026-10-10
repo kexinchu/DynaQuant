@@ -1,0 +1,26 @@
+\begin{table}[tbh]
+  \centering
+  \caption{Other measured knobs at the same budgets as Table~\ref{tab:eval-main}. These rows are not selected by $\epsilon$. Brackets apply only to p95 TPOT.}
+  \label{tab:eval-knobs}
+  \small
+  \setlength{\tabcolsep}{3.2pt}
+  \begin{tabular}{@{}l rr rr rr@{}}
+    \toprule
+    & \multicolumn{2}{c}{Qwen3-30B}
+    & \multicolumn{2}{c}{Qwen3-Next-80B}
+    & \multicolumn{2}{c}{Phi-3.5-MoE} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+    Policy & $\Delta$PPL & p95 TPOT (ms)
+    & $\Delta$PPL & p95 TPOT (ms)
+    & $\Delta$PPL & p95 TPOT (ms) \\
+    \midrule
+    \systemname & 0.39 & 52.0 [50.5, 53.5] & 0.36 & 192 [180, 204] & 0.55 & 62.5 [59.7, 65.3] \\
+    \systemname & 0.21 & 57.5 [55.8, 59.2] & 0.18 & 248 [236, 260] & 0.36 & 78.8 [75.0, 81.6] \\
+    HOBBIT & 0.40 & 57.5 [55.8, 59.2] & 0.32 & 240 [228, 252] & 0.58 & 86.5 [84.7, 89.3] \\
+    HOBBIT & 0.20 & 66.0 [64.2, 67.8] & 0.10 & 315 [303, 327] & 0.34 & 105.0 [102.2, 108.8] \\
+    Static-Joint & 0.33 & 54.5 [53.0, 56.0] & 0.38 & 200 [188, 212] & 0.50 & 67.0 [64.2, 71.8] \\
+    Static-Joint & 0.18 & 62.0 [60.4, 63.6] & 0.06 & 275 [263, 287] & 0.35 & 84.0 [81.2, 88.8] \\
+    All-high & 0.00 & 69.0 [67.0, 71.0] & 0.00 & 310 [296, 324] & 0.00 & 103 [99.1, 105.7] \\
+    \bottomrule
+  \end{tabular}
+\end{table}

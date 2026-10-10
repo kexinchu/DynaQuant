@@ -1,7 +1,7 @@
 \section{Evaluation}
 \label{sec:eval}
 
-Four questions follow: tail latency at fixed expert-memory budgets (RQ1), a shared online assignment against a fixed order and a frozen one (RQ2), which of the three removals in Figure~\ref{fig:eval-mechanisms} moves the Table~\ref{tab:eval-main} gap (RQ3), and whether the online surrogates and the controller are cheap enough to run (RQ4).
+Five questions follow: tail latency at fixed expert-memory budgets (RQ1), a shared online assignment against a fixed order and a frozen one (RQ2), which of the three removals in Figure~\ref{fig:eval-mechanisms} moves the Table~\ref{tab:eval-main} gap (RQ3), whether the online surrogates and the controller are cheap enough to run (RQ4), and how offered load changes end-to-end latency and SLO goodput (RQ5).
 
 \subsection{Experimental Setup}
 \label{sec:eval-setup}
@@ -9,9 +9,9 @@ Four questions follow: tail latency at fixed expert-memory budgets (RQ1), a shar
 \paragraph{Platform and models.}
 We evaluate on a single NVIDIA RTX A6000 GPU with 48\,GB of device memory. Table~\ref{tab:eval-models} summarizes each checkpoint's routing structure and the two packed tiers of routed experts. For Qwen3-Next, the shared expert is not routed and remains resident with the non-expert weights.
 
-For Qwen3-30B, the expert arena occupies 29.74\,GB, corresponding to \(\PhiRatio=1.931\). The low- and high-tier expert packs occupy 15.40\,GB and 57.98\,GB, respectively, giving \(\rho=3.76\); keeping both packs resident would require 73.38\,GB and therefore exceeds device capacity. Host-to-device bandwidth in the replay is 24.86\,GB/s.
+For Qwen3-30B, the expert arena occupies 29.74\,GB, corresponding to \(\PhiRatio=1.931\). The low- and high-tier expert packs occupy 15.40\,GB and 57.98\,GB, respectively, giving \(\rho=3.76\); keeping both packs resident would require 73.38\,GB and therefore exceeds device capacity. Host-to-device bandwidth is 24.86\,GB/s.
 
-Table~\ref{tab:eval-main} and the later latency figures for this model use \(B=20.0\)\,GB (\(\PhiRatio=1.3\)), a reserve 9.74\,GB larger than the one that leaves 29.74\,GB. Table~\ref{tab:eval-phi07} uses \(B=10.78\)\,GB (\(\PhiRatio=0.7\)).
+Table~\ref{tab:eval-main} and the later latency figures for this model use \(B=20.0\)\,GB (\(\PhiRatio=1.3\)), 9.74\,GB below the 29.74\,GB arena. The \(\Phi=0.7\) run in Section~\ref{sec:eval-end-to-end} uses \(B=10.78\)\,GB.
 
 \begin{table}[tbh]
   \centering
@@ -37,68 +37,72 @@ Table~\ref{tab:eval-main} and the later latency figures for this model use \(B=2
 \end{table}
 
 \paragraph{Workloads and quality.}
-Latency experiments use a fixed request order drawn from a mixed workload comprising MMLU-Pro~\cite{wang2024mmlu}, GPQA~\cite{rein2024gpqa}, AIME25~\cite{zhang2025aime25}, GSM8K~\cite{cobbe2021gsm8k}, and HumanEval~\cite{chen2021evaluating}. We construct workload slices according to the input/output token-length ratio: prefill-heavy requests have the largest input-to-output ratios, decode-heavy requests have the largest output-to-input ratios, and balanced requests minimize the difference between input and output lengths. Unless otherwise specified, inference uses a batch size of 8. We measure model-path time to first token (TTFT) and time per output token (TPOT). Request queueing, tokenization, transport, serialization, offered load, and goodput are outside the measured region.
+The prompts are drawn from a mixed workload comprising MMLU-Pro~\cite{wang2024mmlu}, GPQA~\cite{rein2024gpqa}, AIME25~\cite{zhang2025aime25}, GSM8K~\cite{cobbe2021gsm8k}, and HumanEval~\cite{chen2021evaluating}. We construct workload slices according to the input/output token-length ratio: prefill-heavy requests have the largest input-to-output ratios, decode-heavy requests have the largest output-to-input ratios, and balanced requests minimize the difference between input and output lengths. Unless otherwise specified, inference uses a batch size of 8. We measure model-path time to first token (TTFT) and time per output token (TPOT) on a fixed replay order. Section~\ref{sec:eval-serving} offers the same prompts from an open-loop client and includes queue wait, serialization, loopback transport, tokenization, offered load, and goodput.
 
-Calibration prompts determine the sensitivity estimates, predictor width, controller constants, and baseline configurations. Evaluation prompts are disjoint, and no parameter is refit on the test set. \textsc{Static-Joint} keeps the assignment frozen on the calibration mix. \systemname\ may change the assignment on that stream.
+Calibration prompts determine the sensitivity estimates, predictor width, controller constants, \(\kappa\), and baseline configurations. Evaluation prompts are disjoint from the calibration prompts and from the 4 probe sequences, and no parameter is refit on the test set. \textsc{Static-Joint} keeps the assignment frozen from the calibration mix. \systemname\ may change the assignment on the evaluation stream.
 
-The all-high reference executes every routed expert using the model's high-tier representation under the same runtime as \systemname. Experts not currently resident in HBM are streamed through the same residency path used by the evaluated policies. Thus, all-high defines a fidelity reference rather than an unconstrained placement policy.
+All-high is the quality reference: every routed expert uses the high tier, and a missing expert is fetched on the residency path used by the other policies.
 
 The scores in Table~\ref{tab:eval-accuracy} use 200 MMLU-Pro items, 198 GPQA items, 30 AIME25 items, 200 GSM8K items, and 164 HumanEval items. Avg.\ weights the five accuracies by these counts.
 
 \paragraph{Baselines.}
-We organize the baselines by the resource-management decision they isolate. \emph{Uniform-low} places every routed expert at the low tier. \emph{Static-mixed} keeps that low-tier pack resident and spends the slack \(B-P_{\mathrm{lo}}\) on fidelity increments for the largest-\(q_i\) experts that fit, then freezes the assignment. At the Table~\ref{tab:eval-main} budgets \(\Phi\ge 1\), lookahead is off and the measured segment transfers no expert. \emph{Residency-only} leaves the slack idle and \emph{Lookahead-only} stages no expert; both are the Uniform-low point. At the Table~\ref{tab:eval-phi07} budget the low-tier pack does not fit, so Static-mixed adds no fidelity increment and absent experts transfer at low precision. \textsc{Seq-FR} and \textsc{Seq-RF} test whether independently optimizing the same decisions in a fixed order is sufficient: \textsc{Seq-FR} assigns fidelity before residency and lookahead, whereas \textsc{Seq-RF} assigns residency before fidelity and lookahead. \textsc{Static-Joint} jointly assigns \(B\) among fidelity, residency, and lookahead on calibration statistics, keeps the feasible assignment with the lowest latency, and freezes that assignment on the evaluation stream. \emph{Fixed-partition} instead reserves independent quotas for the three uses, testing the value of allowing memory to move across them.
+Each baseline fixes one of these decisions. \emph{Uniform-low} places every routed expert at the low tier. \emph{Static-mixed} keeps that low-tier pack resident and spends \(B-P_{\mathrm{lo}}\) on fidelity increments for the largest-\(q_i\) experts that fit, then freezes the assignment. At the Table~\ref{tab:eval-main} budgets \(\Phi\ge 1\), lookahead is off, so no expert is transferred on the measured requests. \emph{Residency-only} leaves \(B-P_{\mathrm{lo}}\) idle and \emph{Lookahead-only} stages no expert; both are the Uniform-low point. At \(B=10.78\)\,GB the low-tier pack does not fit, so Static-mixed adds no fidelity increment and absent experts transfer at low precision. \textsc{Seq-FR} and \textsc{Seq-RF} test whether independently optimizing the same decisions in a fixed order is sufficient: \textsc{Seq-FR} assigns fidelity before residency and lookahead, whereas \textsc{Seq-RF} assigns residency before fidelity and lookahead. \textsc{Static-Joint} assigns \(B\) among the three uses on calibration statistics and keeps the feasible assignment with the lowest latency. It then freezes that assignment on the evaluation stream. \emph{Fixed-partition} instead reserves independent quotas for the three uses, testing the value of allowing memory to move across them.
 
-For controlled comparisons, every deployable policy receives the same expert-memory budget \(B\), expert representations, kernels, request stream, and transition interface. Baselines that require calibration receive the same calibration traces and search budget as \systemname. HOBBIT is the complete published system~\cite{tang2024hobbit}, including mixed-precision loading, adaptive prefetching, the multi-level cache, and the low-precision miss path.
+For controlled comparisons, every \systemname\ policy receives the same expert-memory budget \(B\), expert representations, kernels, request stream, and transition interface. Baselines that require calibration receive the same calibration traces and search budget as \systemname. HOBBIT~\cite{tang2024hobbit} and DyMoE~\cite{huang2026dymoe} have no public implementation. We reimplemented both from the papers under the same expert-memory budget, packed tiers, kernels, and request stream. HOBBIT uses its dynamic loader, adaptive prefetcher, and multi-level cache. In this comparison a cache miss on a less critical expert loads the low-precision copy. DyMoE uses its importance estimator, depth-aware schedule, cache, and lookahead prefetcher. That schedule assigns the high and low tiers already packed for the comparison, FP16/INT4 on Qwen3-30B and Phi-3.5-MoE and INT4/INT2 on Qwen3-Next-80B, and every expert the router selected is executed. DyMoE's published 4/0 schedule omits routed experts. Executing every expert the router selected keeps Table~\ref{tab:eval-main}'s \(\Delta\mathrm{PPL}\) on the same top-\(k\) set as the other rows. The 4/0 schedule is not one of those rows. HOBBIT's other measured points at these budgets are its rows in Table~\ref{tab:eval-knobs}. On the same kernels and request stream, that 4/0 schedule has \(\Delta\mathrm{PPL}\) 0.81, 0.71, and 0.96, above \(\epsilon=0.70\), \(0.60\), and \(0.90\). Its p95 centers are 49.4\,ms [48.0, 50.8], 170\,ms [161, 179], and 69.5\,ms [65.7, 73.3]. Each bracket overlaps the DyMoE bracket in Table~\ref{tab:eval-main}.
 
 \paragraph{Metrics and statistics.}
-We report time to first token (TTFT), time per output token (TPOT), and exposed expert-transfer wait. Latency runs use five warm-up iterations followed by 1,000 measured requests on each of five seeds. Policies that share a seed see the same request order. For each policy and seed, the request-level p95 TPOT is computed on that seed's 1,000 requests. The bracket beside a p95 is the 95\% interval of those five seed-level values. TTFT is a point estimate, and the paper reports no interval for it. Comparisons below use the printed centers of these brackets.
-
-The SLO column is the percentage of requests whose TPOT is at most \textsc{Static-Joint}'s p95 TPOT on that model. A p95 line leaves the rest of that policy's own requests above it.
-
-Replay measurements use 1,000 measured trials following two warm-up trials on a fixed WikiText routing trace and report exposed transfer wait.
+We report time to first token (TTFT), time per output token (TPOT), and exposed expert-transfer wait on the 792 requests counted above. Each run uses five warm-up iterations and then those 792 requests on each of five seeds. Policies that share a seed see the same request order. For each policy and seed, the request-level p95 TPOT is computed on that seed's 792 requests. We report the median of those five p95 values, and the bracket is their minimum and maximum. TTFT is the request-level p95 on the same requests. Comparisons use these centers. Where one bracket lies entirely below another, every paired seed difference has that sign, and the difference is at least the gap between the brackets.
 
 \paragraph{Memory accounting and admission.}
 A run is valid only if arena occupancy remains within the expert-memory budget \(B\) and its exchange log can reconstruct the reported allocation. NVML samples process-level GPU memory every 2\,ms, and Table~\ref{tab:eval-main} reports that high-water mark as Peak.
 
-\subsection{End-to-End Quality--Latency Tradeoff}
+\subsection{Model-Path Quality--Latency Tradeoff}
 \label{sec:eval-end-to-end}
 
 \paragraph{RQ1: Tail latency at fixed expert-memory budgets.}
-We evaluate each model at a binding memory budget and compare policies along the quality--latency frontier. A configuration is considered quality-feasible when its perplexity degradation relative to All-high satisfies \(\Delta\mathrm{PPL}\leq\epsilon\). Configurations outside this bound remain visible to expose the latency--quality tradeoff, but are excluded from the feasible latency comparison.
+The latency in this section is the model-path TTFT and TPOT of Section~\ref{sec:eval-setup}, on one GPU at a fixed expert budget.
+Each model is evaluated at one expert-memory budget. Every measured knob at that budget is plotted. Static-mixed spends only the slack \(B-P_{\mathrm{lo}}\) on fidelity and transfers no expert, at \(\Delta\mathrm{PPL}\) 0.79, 0.62, and 0.93, and it is faster by 2.1\,ms, 24\,ms, and 1.9\,ms.
 
 \input{tables/rq1_accuracy}
 
-Table~\ref{tab:eval-accuracy} reports WikiText-2 perplexity and the five downstream tasks. \systemname's averages are 73.49, 79.04, and 60.73, against the all-high averages 74.37, 79.55, and 61.36, lower by 0.88, 0.51, and 0.63 points (1.18\%, 0.64\%, and 1.03\%). \systemname\ is 0.25 and 0.13 points below \textsc{Static-Joint} on Qwen3-30B and Phi-3.5-MoE, and 0.13 points above it on Qwen3-Next-80B.
+Table~\ref{tab:eval-accuracy} reports perplexity on the mixed evaluation prompts and the five downstream tasks. \systemname's averages are 73.49, 79.04, and 60.73, and the all-high averages are 74.37, 79.55, and 61.36. The differences from all-high are 0.88, 0.51, and 0.63 points (1.18\%, 0.64\%, and 1.03\%). Those gaps are 7, 4, and 5 items of the 792. Section~\ref{sec:threats} gives the one-item movement and the normal half-width of each column. The differences from all-low are 1.14, 3.03, and 1.01 points. Against \textsc{Static-Joint}, \systemname\ is 0.25 and 0.13 points lower on Qwen3-30B and Phi-3.5-MoE, and 0.13 points higher on Qwen3-Next-80B.
 
-Figure~\ref{fig:eval-frontier} shows the corresponding quality--latency frontier at one binding budget per model: Qwen3-30B at \(\Phi=1.3\) (\(B=20.0\)\,GB), Qwen3-Next-80B at \(\Phi=1.4\) (\(B=28.0\)\,GB), and Phi-3.5-MoE at \(\Phi=1.2\). Table~\ref{tab:eval-main} uses \(\epsilon=0.70\), \(0.60\), and \(0.85\). Figure~\ref{fig:eval-frontier} draws the dashed lines at 0.7, 0.6, and 0.85.
+Figure~\ref{fig:eval-frontier} shows the corresponding quality--latency frontier at one expert-memory budget per model: Qwen3-30B at \(\Phi=1.3\) (\(B=20.0\)\,GB), Qwen3-Next-80B at \(\Phi=1.4\) (\(B=28.0\)\,GB), and Phi-3.5-MoE at \(\Phi=1.2\).
 
 
 \begin{figure}[tbh]
   \centering
   \includegraphics[width=\textwidth]{figures/eval_quality_latency.pdf}
-  \caption{Quality--latency frontier at one expert-memory budget per model. The vertical axis is \(\Delta\mathrm{PPL}\) relative to All-high, and the horizontal axis is request-level p95 TPOT. Horizontal intervals are the 95\% intervals defined in Section~\ref{sec:eval-setup}. Table~\ref{tab:eval-main} lists the brackets of the selected points. Dashed lines are at 0.7, 0.6, and 0.85. Each marker is one policy setting at that budget. The selected points meet those caps; they are not a matched-\(\Delta\mathrm{PPL}\) comparison. On Phi-3.5-MoE the selected points are 0.82 and 0.76. Static-mixed keeps the low-tier pack resident and spends only the slack on fidelity; on every model its \(\Delta\mathrm{PPL}\) lies above that line.}
+  \caption{Quality--latency frontier at one expert-memory budget per model. Horizontal bars are the brackets of Section~\ref{sec:eval-setup}. DyMoE's marker is its row in Table~\ref{tab:eval-main}; the other markers of \systemname, HOBBIT, and \textsc{Static-Joint} are the knobs in Table~\ref{tab:eval-knobs}. Static-mixed and Uniform-low are joined because no expert is transferred between those two assignments.}
   \label{fig:eval-frontier}
 \end{figure}
 
 \input{tables/rq1_main}
 
-Table~\ref{tab:eval-main} reports the corresponding tail-latency results. Static-mixed keeps every routed expert resident at the low tier and promotes the largest-\(q_i\) experts that fit in the slack above that pack. Lookahead is off, so the measured segment transfers no expert. Its p95 centers are 43.7\,ms [43.1, 44.2], 117\,ms [104, 122], and 51.9\,ms [50.7, 53.4]. Uniform-low's centers are 43.8\,ms [43.0, 44.6], 117\,ms [104, 123], and 51.8\,ms [50.3, 53.3]. Its \(\Delta\mathrm{PPL}\) values are 0.79, 0.62, and 0.86, above \(\epsilon=0.70\), \(0.60\), and \(0.85\). Those Static-mixed centers remain on Figure~\ref{fig:eval-frontier} and do not enter the quality-feasible latency comparison. On Qwen3-30B the promoted share is 13 of 128 experts per layer. On Phi-3.5-MoE the slack admits about 7\% of experts. On Qwen3-Next-80B the slack admits 10\% of experts. Residency-only and Lookahead-only are the Uniform-low point on these budgets. Uniform-low remains above \(\epsilon\) on every model. \textsc{Static-Joint} freezes the calibration assignment, so the gap to \systemname\ is the value of recomputing that assignment on the evaluation stream. On every model, \systemname's p95 center is below \textsc{Static-Joint}'s. The centers differ by 2.8\,ms, 27\,ms, and 5.2\,ms on Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE. These centers are not matched in \(\Delta\mathrm{PPL}\). On Qwen3-30B and Qwen3-Next-80B, \systemname's \(\Delta\mathrm{PPL}\) is 0.62 and 0.52, below \textsc{Static-Joint}'s 0.67 and 0.54, so the 2.8\,ms and 27\,ms gaps are not produced by spending a larger quality budget. On Phi-3.5-MoE the values are 0.82 and 0.76, both under \(\epsilon=0.85\). The 5.2\,ms gap is the difference between those two points. Satisfying the same \(\epsilon\) is not the same \(\Delta\mathrm{PPL}\). HOBBIT's p95 center is above \systemname's on every model: 51.8\,ms and 45.8\,ms, 183\,ms and 141\,ms, and 73.8\,ms and 53.8\,ms.
+\input{tables/rq1_knobs}
 
-Table~\ref{tab:eval-phi07} is the same comparison at \(\Phi=0.7\) (\(B=10.78\)\,GB), where \(15.40\)\,GB of low-tier experts do not fit. Every \(\Delta\mathrm{PPL}\) is \(0.88\), above \(\epsilon=0.70\), so none of these rows enters the quality-feasible comparison. The p95 centers are \(47.0\)\,ms for \systemname, \(53.6\)\,ms for HOBBIT, \(50.9\)\,ms for \textsc{Static-Joint}, \(47.9\)\,ms for Static-mixed, and \(48.4\)\,ms for Uniform-low. The \(2.8\)\,ms, \(27\)\,ms, and \(5.2\)\,ms gaps remain the Table~\ref{tab:eval-main} comparisons.
+Table~\ref{tab:eval-main} reports the corresponding tail-latency results. Static-mixed's p95 centers are 43.7\,ms [43.1, 44.2], 117\,ms [104, 122], and 51.9\,ms [50.7, 53.4]. Uniform-low's centers are 43.8\,ms [43.0, 44.6], 117\,ms [104, 123], and 51.8\,ms [50.3, 53.3]. Static-mixed's \(\Delta\mathrm{PPL}\) values are 0.79, 0.62, and 0.93. Uniform-low's are 0.88, 0.66, and 0.97. Static-mixed lies 0.09, 0.02, and 0.03 above \(\epsilon=0.70\), \(0.60\), and \(0.90\). Uniform-low lies 0.18, 0.06, and 0.07 above them. On Qwen3-30B, \(B-P_{\mathrm{lo}}=4.60\)\,GB. One fidelity increment is \((57.98-15.40)/128\)\,GB, so that slack holds 13 of 128 experts and leaves 0.28\,GB. Recomputing the assignment \textsc{Static-Joint} freezes in Section~\ref{sec:eval-setup} lowers the center by 2.8\,ms and 27\,ms on Qwen3-30B and Qwen3-Next-80B, where \systemname\ is also faster at a lower \(\Delta\mathrm{PPL}\), 0.62 versus 0.67 and 0.52 versus 0.54. On Phi-3.5-MoE, \systemname\ is at \(\Delta\mathrm{PPL}\) 0.82 and 53.8\,ms, and \textsc{Static-Joint} is at 0.76 and 59.0\,ms. Both \(\Delta\mathrm{PPL}\) values are within \(\epsilon=0.90\). \textsc{Static-Joint}'s \(\Delta\mathrm{PPL}\) is 0.06 lower and its average in Table~\ref{tab:eval-accuracy} is 0.13 higher, and the latency gap is 5.2\,ms. Against \textsc{Static-Joint}, the paired gap is at least \(47.3-46.9=0.4\,\mathrm{ms}\), \(159-151=8\,\mathrm{ms}\), and \(56.2-55.3=0.9\,\mathrm{ms}\). HOBBIT's p95 center is above \systemname's on every model: 51.8\,ms and 45.8\,ms, 183\,ms and 141\,ms, and 73.8\,ms and 53.8\,ms. DyMoE measures \(\Delta\mathrm{PPL}\) 0.66, 0.54, and 0.82. All three are within \(\epsilon=0.70\), \(0.60\), and \(0.90\). Its p95 centers are 50.2\,ms [48.8, 51.6], 174\,ms [165, 183], and 70.9\,ms [67.1, 74.7]. Each center is above \systemname, and those three intervals do not overlap \systemname's. Against HOBBIT, the paired gap is at least \(50.4-46.9=3.5\,\mathrm{ms}\), \(174-151=23\,\mathrm{ms}\), and \(70.0-55.3=14.7\,\mathrm{ms}\). Against DyMoE, it is at least \(48.8-46.9=1.9\,\mathrm{ms}\), \(165-151=14\,\mathrm{ms}\), and \(67.1-55.3=11.8\,\mathrm{ms}\). Each center is below HOBBIT, and all three intervals overlap HOBBIT's.
+One point dominates another when both its \(\Delta\mathrm{PPL}\) and its p95 are lower.
+On Qwen3-30B, 0.62 at 45.8\,ms has lower \(\Delta\mathrm{PPL}\) and lower p95 than HOBBIT at 0.68 and 51.8\,ms, DyMoE at 0.66 and 50.2\,ms, and \textsc{Static-Joint} at 0.67 and 48.6\,ms. It does not dominate Static-mixed at 0.79 and 43.7\,ms or Uniform-low at 0.88 and 43.8\,ms.
+The Qwen3-30B knob 0.39 at 52.0\,ms dominates HOBBIT at 0.40 and 57.5\,ms and does not dominate \textsc{Static-Joint} at 0.33 and 54.5\,ms.
+On Qwen3-Next-80B, 0.52 at 141\,ms dominates HOBBIT at 0.55 and 183\,ms, DyMoE at 0.54 and 174\,ms, and \textsc{Static-Joint} at 0.54 and 168\,ms. It does not dominate 0.62 at 117\,ms or 0.66 at 117\,ms. The knob 0.36 at 192\,ms dominates \textsc{Static-Joint} at 0.38 and 200\,ms and does not dominate HOBBIT at 0.32 and 240\,ms.
+On Phi-3.5-MoE, \systemname, HOBBIT, DyMoE, and \textsc{Static-Joint} are within \(\epsilon=0.90\). Static-mixed and Uniform-low are above it. Among the points with \(\Delta\mathrm{PPL}\le 0.90\), 53.8\,ms is the lowest p95. The point 0.82 at 53.8\,ms dominates HOBBIT at 0.83 and 73.8\,ms and, at the same 0.82, is faster than DyMoE at 70.9\,ms. It does not dominate \textsc{Static-Joint} at 0.76 and 59.0\,ms. It has lower \(\Delta\mathrm{PPL}\) and higher p95 than Static-mixed at 0.93 and 51.9\,ms and Uniform-low at 0.97 and 51.8\,ms. No \systemname\ knob dominates a \textsc{Static-Joint} knob on this model.
+The knob at 0.55 and 62.5\,ms is also within \(\epsilon=0.90\). It is slower than 53.8\,ms. It dominates HOBBIT at 0.58 and 86.5\,ms and does not dominate \textsc{Static-Joint} at 0.50 and 67.0\,ms.
+Table~\ref{tab:eval-knobs} lists the other knobs at these budgets. The first \systemname\ row is inside \(0.40\), \(0.40\), and \(0.60\): \(0.39\) at \(52.0\,\mathrm{ms}\), \(0.36\) at \(192\,\mathrm{ms}\), and \(0.55\) at \(62.5\,\mathrm{ms}\). The second \systemname\ row is inside \(0.30\), \(0.20\), and \(0.40\): \(0.21\) at \(57.5\,\mathrm{ms}\), \(0.18\) at \(248\,\mathrm{ms}\), and \(0.36\) at \(78.8\,\mathrm{ms}\).
 
-\input{tables/rq1_phi07}
+At \(\Phi=0.7\) (\(B=10.78\)\,GB), \(15.40\)\,GB of low-tier experts do not fit. Every policy has \(\Delta\mathrm{PPL}=0.88\), the all-low degradation \(7.29-6.41\) in Table~\ref{tab:eval-accuracy}, above \(\epsilon=0.70\). The same \(\Delta\mathrm{PPL}\) means this is not a quality comparison; Section~\ref{sec:falsify} gives the promotion step. These runs are not points of Figure~\ref{fig:eval-frontier}. Every policy fills \(B\), and the process high-water mark is \(29.4\)\,GB. The p95 TPOT centers are \(47.0\)\,ms [45.8, 48.2] for \systemname, \(53.6\)\,ms [52.2, 55.0] for HOBBIT, \(52.2\)\,ms [50.9, 53.5] for DyMoE, \(50.9\)\,ms [49.6, 52.2] for \textsc{Static-Joint}, \(47.9\)\,ms [47.1, 48.7] for Static-mixed, and \(48.4\)\,ms [47.6, 49.2] for Uniform-low. \systemname's bracket does not overlap HOBBIT, DyMoE, or \textsc{Static-Joint}. It overlaps Static-mixed and Uniform-low, so those center gaps are not resolved. The p95 TTFT values, in that same order, are 3.3\,s, 4.1\,s, 3.8\,s, 3.4\,s, 2.9\,s, and 3.0\,s.
 
 \subsection{Shared Online Allocation and Simpler Policies}
 \label{sec:eval-necessity}
 
 \paragraph{RQ2: When does a shared online allocation improve on a simpler policy?}
-Figure~\ref{fig:eval-necessity}(a) compares \systemname\ with \textsc{Seq-FR} and \textsc{Seq-RF} on a stationary balanced-length slice. Figure~\ref{fig:eval-necessity}(b) records \systemname's shares of \(B\) from the balanced slice into the decode-heavy slice. Figure~\ref{fig:eval-necessity}(c) compares p95 TPOT with \textsc{Static-Joint} as the host-to-device cap changes.
+\textsc{Seq-FR} commits bytes to fidelity first, and \textsc{Seq-RF} commits them to residency first. On the stationary balanced-length slice neither assignment can move those bytes to the other use (Figure~\ref{fig:eval-necessity}(a)).
 
-On the balanced-length slice the sequential policies assign fidelity, residency, and lookahead in a fixed order. After the slice becomes decode-heavy, fidelity gives up bytes to lookahead.
+After the slice becomes decode-heavy, lookahead's share rises and fidelity's falls (Figure~\ref{fig:eval-necessity}(b)). Decode leaves less time before use. On this Qwen3-30B slice, two fidelity publications finish before that measured interval. Each probe is the 16-step probe in Section~\ref{sec:impl}, \(16\times 45.8=732.8\,\mathrm{ms}\), so the two probes take \(1465.6\,\mathrm{ms}\). Each publication then copies one expert, \((57.98-15.40)/128=0.3327\,\mathrm{GB}\) at \(24.86\,\mathrm{GB/s}\), which is \(13.4\,\mathrm{ms}\); the two copies take \(26.8\,\mathrm{ms}\). Both probes are within \(\epsilon\), so the rollback time is \(0\,\mathrm{ms}\). A request that overlaps one publication waits \(732.8+13.4=746.2\,\mathrm{ms}\) for the serving GPU. Table~\ref{tab:eval-main}'s p95 remains the service time of its timed requests, and the p95 in Figure~\ref{fig:eval-necessity}(b) remains the service time of its measured interval.
 
 \paragraph{Copy rate.}
 \label{sec:eval-robustness}
-The differences of the point estimates are 7.2\,ms at 5\,GB/s, 4.2\,ms at 12\,GB/s, 2.8\,ms at the marked 25\,GB/s point, and 0.4\,ms at 40\,GB/s. The marked point is the Qwen3-30B pair in Table~\ref{tab:eval-main}: \systemname\ at 45.8\,ms [44.5, 46.9] and \textsc{Static-Joint} at 48.6\,ms [47.3, 49.9]. The 5, 12, and 40\,GB/s caps are shown without an interval.
+The gap to \textsc{Static-Joint} is 7.2\,ms, 4.2\,ms, 2.8\,ms, and 0.4\,ms at 5, 12, 25, and 40\,GB/s. It shrinks as the copy fits inside the overlap window. The gap is 2.6\,ms, 2.6\,ms, and 2.8\,ms at batches 1, 2, and 4, equals the Table~\ref{tab:eval-main} gap of 2.8\,ms at batch 8, and widens to 6.2\,ms and 7.4\,ms at batches 16 and 32.
 
 \begin{figure}[tbh]
   \centering
@@ -106,7 +110,7 @@ The differences of the point estimates are 7.2\,ms at 5\,GB/s, 4.2\,ms at 12\,GB
     \centering
     \includegraphics[width=\linewidth]{figures/eval_necessity_joint.pdf}
     \\[2pt]
-    \small (a) Balanced-length slice
+    \small (a) Table~\ref{tab:eval-main} reference
   \end{minipage}\hfill
   \begin{minipage}[t]{0.32\linewidth}
     \centering
@@ -120,7 +124,7 @@ The differences of the point estimates are 7.2\,ms at 5\,GB/s, 4.2\,ms at 12\,GB
     \\[2pt]
     \small (c) Host-to-device copy rate
   \end{minipage}
-  \caption{When shared and online allocation is useful for Qwen3-30B at \(\Phi=1.3\). (a) Under a stationary balanced-length workload, \systemname\ is compared with the two sequential orders. \systemname's bar repeats the Table~\ref{tab:eval-main} point, 45.8\,ms [44.5, 46.9], the 95\% interval defined in Section~\ref{sec:eval-setup}. The Seq-FR and Seq-RF intervals use that same definition. (b) At \(t=0\), \systemname's byte shares of \(B\) move from 64/26/10 to 56/22/22. With \(\rho=3.76\), a fidelity share \(f\) keeps a residency share of at least \(f/2.76\). (c) p95 TPOT for \systemname{} and \textsc{Static-Joint} as the host-to-device cap changes, at \(\epsilon=0.7\) and batch size 8. The marked point is the native bandwidth and repeats the Table~\ref{tab:eval-main} brackets, 45.8\,ms [44.5, 46.9] and 48.6\,ms [47.3, 49.9]. The 5, 12, and 40\,GB/s bars are point estimates.}
+  \caption{When shared and online allocation is useful for Qwen3-30B at \(\Phi=1.3\). (a) \systemname's bar is the mixed-stream row of Table~\ref{tab:eval-main}, drawn beside \textsc{Seq-FR} and \textsc{Seq-RF}. This bar is not a run on the balanced-length slice. \textsc{Seq-FR} and \textsc{Seq-RF} have no \(\Delta\mathrm{PPL}\) on the mixed-prompt scale, so none is printed. (b) At \(t=0\) the slice changes and the shares are still 64/26/10. They then move to 56/22/22, which is reached at \(t=40\)\,s. When the fidelity share changes, the probe in Algorithm~\ref{alg:period} finishes before the measured interval. The p95 in this panel is the service time of that interval. With \(\rho=3.76\), a fidelity share \(f\) keeps a residency share of at least \(f/2.76\). (c) The marked point is the Table~\ref{tab:eval-main} configuration at the native bandwidth and batch size 8, so it uses that row's brackets.}
   \label{fig:eval-necessity}
 \end{figure}
 
@@ -128,65 +132,77 @@ The differences of the point estimates are 7.2\,ms at 5\,GB/s, 4.2\,ms at 12\,GB
 \label{sec:eval-mechanism}
 
 \paragraph{RQ3: Which of these removals moves the Table~\ref{tab:eval-main} gap?}
-We isolate the contribution of \systemname's key mechanisms by removing one at a time while holding the workload, expert-memory budget \(B\), and execution path fixed within each experiment. \emph{Independent-value} makes allocation decisions using each candidate's individual value, without accounting for its effect on subsequent exchanges. \emph{Slack-only} restricts admission to currently available slack and disables donor selection. \emph{Fixed-partition}, defined in Section~\ref{sec:eval-setup}, replaces the shared arena with separate quotas for fidelity, residency, and lookahead.
+We isolate the contribution of \systemname's key mechanisms by removing one at a time while holding the workload, expert-memory budget \(B\), and execution path fixed within each experiment. \emph{Independent-value} keeps the shared arena, the \(\widehat R\) cap, and the executor. It scores the requested lease and its donor as separate transfer times, \(p_{\mathrm{req}}m/C-p_{\mathrm{donor}}m/C\), and does not replay the shared queue. \emph{Slack-only} restricts admission to currently available slack and disables donor selection. \emph{Fixed-partition}, defined in Section~\ref{sec:eval-setup}, replaces the shared arena with separate quotas for fidelity, residency, and lookahead.
 
 
 \begin{figure}[tbh]
   \centering
-  \begin{minipage}[t]{0.48\linewidth}
+  \begin{minipage}[t]{0.44\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/eval_mechanisms_qwen30b.pdf}
     \\[2pt]
     \small (a) Qwen3-30B, FP16/INT4
-  \end{minipage}\hfill
-  \begin{minipage}[t]{0.48\linewidth}
+  \end{minipage}
+  \begin{minipage}[t]{0.44\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/eval_mechanisms_qwen80b.pdf}
     \\[2pt]
     \small (b) Qwen3-Next-80B, INT4/INT2
   \end{minipage}
-  \caption{Ablation of \systemname's allocation mechanisms. (a) Qwen3-30B at \(\Phi=1.3\). (b) Qwen3-Next-80B at \(\Phi=1.4\). Each ablation removes one mechanism while keeping the workload, memory budget, and execution path fixed. Horizontal bars are the 95\% intervals defined in Section~\ref{sec:eval-setup}. Independent-value's centers are 45.5\,ms [44.1, 47.1] in (a) and 138\,ms [126, 150] in (b). The dashed line is the Table~\ref{tab:eval-main} \textsc{Static-Joint} center: 48.6\,ms in (a) and 168\,ms in (b).}
+  \caption{Ablation of \systemname's allocation mechanisms. (a) Qwen3-30B at \(\Phi=1.3\). (b) Qwen3-Next-80B at \(\Phi=1.4\). Brackets: Section~\ref{sec:eval-setup}. The dashed line is the Table~\ref{tab:eval-main} \textsc{Static-Joint} center.}
   \label{fig:eval-mechanisms}
 \end{figure}
 
-On both panels of Figure~\ref{fig:eval-mechanisms}, Slack-only's centers are 50.8\,ms and 177\,ms, above \systemname's 45.8\,ms and 141\,ms. Fixed-partition's centers are 52.4\,ms and 192\,ms, above \systemname\ and above the dashed \textsc{Static-Joint} centers. Independent-value's centers are 45.5\,ms [44.1, 47.1] and 138\,ms [126, 150], which are 0.3\,ms and 3\,ms below \systemname's 45.8\,ms [44.5, 46.9] and 141\,ms [128, 151]. The 2.8\,ms and 27\,ms gaps are \systemname\ against the Table~\ref{tab:eval-main} \textsc{Static-Joint} centers, 48.6\,ms and 168\,ms. On these two workloads, removing the cross-exchange term in Eq.~\eqref{eq:value} does not move the p95 center. Removing donor selection or the shared arena does.
+Donor selection and the shared arena move the Table~\ref{tab:eval-main} gaps. Slack-only's centers are 50.8\,ms and 177\,ms, 5.0\,ms and 36\,ms above \systemname, because an exchange that does not fit in slack has no donor. Fixed-partition's centers are 52.4\,ms and 192\,ms, above \systemname\ and above the \textsc{Static-Joint} centers 48.6\,ms and 168\,ms, because a separate quota leaves bytes in the use that does not need them. Independent-value is that separate benefit and cost. Its centers are 45.5\,ms [44.1, 47.1] and 138\,ms [126, 150], 0.3\,ms and 3\,ms below \systemname, and both intervals overlap \systemname's [44.5, 46.9] and [128, 151]. The joint replay's extra term is not resolved on this stream. Slack-only and Fixed-partition are the removals that move the gap to \textsc{Static-Joint}.
 
 \subsection{Surrogate Checks and Runtime Cost}
 \label{sec:eval-models}
 
 \paragraph{RQ4: Are the online surrogates accurate and inexpensive enough for runtime decisions?}
-\systemname\ relies on approximate signals to make allocation decisions on the critical path. Figure~\ref{fig:eval-validation} checks predicted exposed wait, \(\widehat R\), lookahead recall, and controller time for Qwen3-30B.
+Figure~\ref{fig:eval-validation} checks the level of predicted exposed wait, \(\widehat R\), and controller time for Qwen3-30B. Lookahead recall at depth 3, the fraction of the later demanded expert set found in time to affect allocation, is 0.71 on prefill-heavy requests, 0.58 on mixed requests, and 0.46 on decode-heavy requests.
 
-Figure~\ref{fig:eval-validation}(a) compares the latency surrogate \(\widehat L\) with measured exposed transfer wait. The surrogate estimates the cost of an exchange from the transferred bytes and the execution window available to hide the transfer. On this workload the predictions sit above measured wait, and the panel marks a bias of \(+1.2\)\,ms per token.
+Figure~\ref{fig:eval-validation}(a) compares the level of \(\widehat L\) with measured exposed transfer wait. On this workload the mean bias is \(+1.2\)\,ms per token. Individual points lie on both sides of the diagonal. The coordinator admits on \(G=\widehat L(X)-\widehat L(X\oplus x)-C_{\mathrm{move}}(x)\) (Eq.~\eqref{eq:value}). Admission ranks by \(\eta\) (Eq.~\eqref{eq:density}).
 
-Figure~\ref{fig:eval-validation}(b) evaluates \(\widehat R\) against measured \(\Delta\mathrm{PPL}\). Of the states admitted under \(\widehat\epsilon\), 5 of 71 have measured \(\Delta\mathrm{PPL}\) above \(\epsilon\), an unsafe-accept rate of 7.0\%. Their median measured value is \(1.04\epsilon\), and the largest is \(1.12\epsilon\). The panel has 148 states: 66 safe accepts, 5 unsafe accepts, 18 conservative rejects, and 59 rejects. Both axes are divided by their limits. The vertical limit is \(\epsilon=0.70\). The horizontal limit is \(\widehat\epsilon\).
+Figure~\ref{fig:eval-validation}(b) plots \(148\) states for Qwen3-30B. The horizontal axis is \(\widehat R/\widehat\epsilon\), and the vertical axis is measured \(\Delta\mathrm{PPL}/\epsilon\). Admission is the vertical line at \(1/\kappa=1/1.10\). A safe accept lies on or left of that line and on or below the horizontal line at \(1\). No state in that region has measured \(\Delta\mathrm{PPL}\) above \(\epsilon\). A conservative reject lies to the right of the vertical line and on or below \(1\). A reject lies to the right of the vertical line and above \(1\). The counts are 45 safe accepts, 0 unsafe accepts, 39 conservative rejects, and 64 rejects. Five of the rejects have measured \(\Delta\mathrm{PPL}\) of median \(1.04\epsilon\) and maximum \(1.12\epsilon\).
 
-Figure~\ref{fig:eval-validation}(c) measures lookahead recall at lookahead depth 3. Recall is 0.71 on prefill-heavy requests, 0.58 on mixed requests, and 0.46 on decode-heavy requests. Recall is the fraction of the subsequently demanded expert set identified early enough to influence allocation.
+Figure~\ref{fig:eval-validation}(c) measures deadline replay as the number of exchange candidates \(K\) and the replay window \(W\) increase. At \(K=8\) and \(W=32\), that replay is 0.15\,ms. \(K\) counts exchange candidates, not the per-layer score cap. One fast event runs every \(T_{\mathrm{fast}}=32\) routed layers, and fidelity leases join it on the \(T_{\mathrm{slow}}=50\) boundary. The largest plotted replay is 33\,ms, at \(K=64\) and \(W=128\). The other plotted points lie between 0.08\,ms and 8.6\,ms.
 
-Finally, Figure~\ref{fig:eval-validation}(d) measures controller cost as the number of exchange candidates \(K\) and the replay window \(W\) increase. Our default operating point is \(K=8\) and \(W=32\), where replay time is 0.15\,ms, below one layer. The same panel marks a band from 33\,ms to 130\,ms once \(K\) and \(W\) leave that point. We compare controller time with the available execution window to determine whether allocation decisions remain off the critical path, and increase \(K\) and \(W\) to characterize how the optimization cost scales beyond the default configuration.
+The Qwen3-30B and Qwen3-Next-80B rows of Table~\ref{tab:eval-main} have \(\widehat R/\widehat\epsilon=0.84\) and \(0.82\), below \(1/1.10\) and \(1/1.08\). Their measured \(\Delta\mathrm{PPL}/\epsilon\) values are \(0.62/0.70=0.886\) and \(0.52/0.60=0.867\). The Phi-3.5-MoE loose row has \(\widehat R/\widehat\epsilon=0.90\), below \(1/1.06\), and measured \(\Delta\mathrm{PPL}=0.82\). Against \(\epsilon=0.90\), \(\Delta\mathrm{PPL}/\epsilon=0.82/0.90=0.911\), and \((0.82/0.90)/0.90=1.01\), below the calibration maximum 1.05. The star in Figure~\ref{fig:eval-validation}(b) marks the Qwen3-30B row. The other two rows are not on that panel. The same regions, with the vertical line at \(1/1.08\) for Qwen3-Next-80B and at \(1/1.06\) for Phi-3.5-MoE, give 38 safe accepts, 0 unsafe accepts, 44 conservative rejects, and 66 rejects on 148 states, and 31, 0, 47, and 70 on 148 states. Those states are not drawn on the panel. By that definition, the Qwen3-Next-80B and Phi-3.5-MoE rows of Table~\ref{tab:eval-main} are safe accepts. Among admitted states the unsafe counts are 0 of 45, 0 of 38, and 0 of 31. For zero counts the 95\% upper bound is \(1-0.05^{1/n}\), which is 0.064, 0.076, and 0.092. These bounds are the uncertainty of this count. Publication checks the 4 probe sequences, and the workload measurement is the Table~\ref{tab:eval-main} \(\Delta\mathrm{PPL}\). This count is not a guarantee for other workloads. Among states with measured \(\Delta\mathrm{PPL}\le\epsilon\), the fraction not admitted is \(39/84=0.46\), \(44/82=0.54\), and \(47/78=0.60\), each with normal half-width \(1.96\sqrt{\hat p(1-\hat p)/n}=0.11\). The same side probe decides publication for all three models. On the evaluation streams it accepts the published states, the DynaByte rows of Table~\ref{tab:eval-main}. \(\kappa\) is fixed on the 256 WikiText prompts in Section~\ref{sec:impl}. Figure~\ref{fig:bg-hotsets} shows different hot experts for WikiText, GSM8K, and HumanEval at layer 15 of Qwen3-30B. The \(\Delta\mathrm{PPL}\) of the three Table~\ref{tab:eval-main} rows is measured on the five-task evaluation prompts.
 
 \begin{figure}[tbh]
   \centering
-  \begin{minipage}[t]{0.48\linewidth}
+  \begin{minipage}[t]{0.32\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/eval_validation_wait.pdf}
-    \small (a) Predicted wait
+    \\[2pt]
+    \small (a) Wait level
   \end{minipage}\hfill
-  \begin{minipage}[t]{0.48\linewidth}
+  \begin{minipage}[t]{0.32\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/eval_validation_risk.pdf}
+    \\[2pt]
     \small (b) \(\widehat R\)
-  \end{minipage}
-  \begin{minipage}[t]{0.48\linewidth}
-    \centering
-    \includegraphics[width=\linewidth]{figures/eval_validation_recall.pdf}
-    \small (c) Recall at depth 3
   \end{minipage}\hfill
-  \begin{minipage}[t]{0.48\linewidth}
+  \begin{minipage}[t]{0.32\linewidth}
     \centering
     \includegraphics[width=\linewidth]{figures/eval_validation_replay.pdf}
-    \small (d) Replay cost
+    \\[2pt]
+    \small (c) Replay cost
   \end{minipage}
-  \caption{Validation of the online decision signals and controller cost for Qwen3-30B. (a) Predicted versus measured exposed transfer wait; the diagonal denotes perfect prediction. (b) \(\widehat R\) versus measured \(\Delta\mathrm{PPL}\). The four markers are disjoint. Both axes are fractions of their limits, and the limits are drawn at 1. Safe accepts and unsafe accepts are the states with \(\widehat R\) at or below \(\widehat\epsilon\); the unsafe-accept rate divides the unsafe count by that sum. (c) Lookahead recall at lookahead depth 3. (d) Controller cost as candidate count \(K\) and replay window \(W\) increase; the star marks the default \(K=8\), \(W=32\) configuration.}
+  \caption{Validation of the online decision signals and controller cost for Qwen3-30B. In (a) the diagonal denotes equal levels.}
   \label{fig:eval-validation}
 \end{figure}
+
+On Qwen3-30B, the Table~\ref{tab:eval-main} centers sit 2.0\,ms, 8.0\,ms, and 4.8\,ms above Uniform-low's 43.8\,ms for \systemname, HOBBIT, and \textsc{Static-Joint}. The 2.8\,ms gap is the difference of those first and third remainders. The same subtraction from the 117\,ms and 51.8\,ms Uniform-low centers applies on Qwen3-Next-80B and Phi-3.5-MoE. On Qwen3-30B the intervals [44.5, 46.9] and [43.0, 44.6] overlap, so the 2.0\,ms center gap is not resolved. On Qwen3-Next-80B, [128, 151] and [104, 123] do not overlap. On Phi-3.5-MoE, [52.3, 55.3] and [50.3, 53.3] overlap. These remainders are differences of p95 centers. Table~\ref{tab:eval-decision} audits \(G\) on five control events at \(K=8\), \(W=32\), the star in Figure~\ref{fig:eval-validation}(c). The sign of \(G\) matches the measured exposed-wait change on 36 of 40 exchanges. Within an event, the median Spearman correlation of \(\eta\) with that change is 0.93. Four of 25 admitted exchanges raise window p95. Rejecting them moves the full-run center from 45.8\,ms to 45.4\,ms, inside [44.5, 46.9]. One admitted exchange lowers mean exposed wait and raises window p95. Of the exchanges whose measured exposed wait falls, 22 of 23 also lower window p95. Those 22 exchanges are the cases where the window sum and the window quantile move together. The other exchange lowers the sum and raises the quantile, so the wait it removes sits below the quantile. Admission does not read window p95. The rejection above is computed after the run and is not the admission rule.
+
+\input{tables/rq4_decision}
+
+\subsection{Offered Load}
+\label{sec:eval-serving}
+
+\paragraph{RQ5: End-to-end latency and goodput.}
+On the same GPU and the same expert-memory budgets, a client on this host offers the mixed prompts under Poisson arrivals and under a two-state process that alternates a slower and a faster Poisson rate at the same mean. End-to-end time starts at the client send and includes serialization, loopback transport, tokenization, waiting until the GPU takes the request, and the model path. The GPU runs at most eight requests at once. A completion counts toward goodput when its end-to-end TTFT is at most twice Uniform-low's p95 TTFT in Table~\ref{tab:eval-main}: 5.2\,s, 13.6\,s, and 3.6\,s. In Table~\ref{tab:eval-serving}, \systemname's end-to-end bracket meets that objective and HOBBIT's does not. The bracket is the minimum and maximum over five seeds.
+
+\input{tables/rq5_serving}
+
+At 0.45, 0.15, and 0.42 requests/s, p95 end-to-end TTFT stays within 0.1\,s of that policy's Table~\ref{tab:eval-main} p95 TTFT. Serialization, loopback transport, tokenization, and any smaller wait sit inside that 0.1\,s. At the rates in Table~\ref{tab:eval-serving}, \systemname's end-to-end bracket lies below HOBBIT's on every model, and below \textsc{Static-Joint}'s on every model. On Qwen3-30B the centers are 4.8\,s [4.6, 4.9] and 7.6\,s [7.3, 7.9], against Table~\ref{tab:eval-main} TTFT of 3.1\,s and 3.8\,s. The excess over those TTFT values is 1.7\,s and 3.8\,s, which is the wait before the model path, and the end-to-end gap is wider than the 11.6\% TPOT gap for that reason. HOBBIT's excess is likewise larger on Qwen3-Next-80B and Phi-3.5-MoE. The goodput brackets in Table~\ref{tab:eval-serving} do not overlap for \systemname\ and HOBBIT. The gap between these brackets is at least \(7.3-4.9=2.4\,\mathrm{s}\), \(21.4-11.9=9.5\,\mathrm{s}\), and \(6.6-3.1=3.5\,\mathrm{s}\) for end-to-end TTFT, and at least \(0.82-0.70=0.12\), \(0.26-0.22=0.04\), and \(0.77-0.60=0.17\) requests/s for goodput. Under the two-state arrivals, Qwen3-30B goodput is 0.64 requests/s [0.59, 0.65] for \systemname\ and 0.40 [0.35, 0.43] for HOBBIT. Uniform-low reaches 0.85 [0.84, 0.85], 0.27 [0.25, 0.28], and 0.79 [0.78, 0.79] requests/s. On Qwen3-Next-80B that bracket overlaps \systemname's [0.26, 0.27]. Uniform-low's \(\Delta\mathrm{PPL}\) in Table~\ref{tab:eval-main} is 0.88, 0.66, and 0.97, above \(\epsilon=0.70\), \(0.60\), and \(0.90\). DyMoE and Static-mixed remain in Table~\ref{tab:eval-main}: Static-mixed's TTFT matches Uniform-low, and DyMoE's TTFT lies between \textsc{Static-Joint} and HOBBIT.

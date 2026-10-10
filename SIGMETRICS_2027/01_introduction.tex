@@ -7,30 +7,25 @@ Models from Mixtral and Qwen3 to DeepSeek-V2 and GLaM keep tens to hundreds of b
 On one GPU those weights compete with non-expert parameters, the KV cache, activations, and runtime workspaces.
 When the experts cannot all remain at the desired precision, the system has to compress them and move them across the host-to-device link.
 
-How should a limited GPU allocate its expert memory and host-to-device transfer bandwidth among fidelity, residency, and lookahead, so that Mixture-of-Experts inference reduces tail latency, keeps measured quality within \(\epsilon\), and holds the expert-memory peak within budget?
-These two budgets meet in three uses, defined in Section~\ref{sec:serving}.
-A byte assigned to fidelity cannot also retain another expert or stage a future one, and host-to-device bandwidth decides whether that early transfer finishes before its deadline.
+How should one GPU spend its expert bytes and its host-to-device link so that Mixture-of-Experts inference lowers tail latency, keeps measured \(\Delta\mathrm{PPL}\) within \(\epsilon\), and never holds more expert bytes than the budget?
 
-Prior work has effective policies for parts of this problem.
-Quantization and mixed-precision methods choose expert representations under a memory or accuracy target~\cite{lin2024awq,frantar2022gptq,duanmu2025mxmoe}.
-Expert caches and prefetchers decide which experts to keep and when to transfer missing experts, commonly under a fixed representation size~\cite{song2024promoe,eliseev2023fast,xue2024moe,shen2025expertflow}.
-Mixed-precision offloading shows that lower-precision transfers, caching, and prefetching can run in one system~\cite{tang2024hobbit,huang2026dymoe}.
+Quantization fixes each expert's precision before serving~\cite{frantar2022gptq,lin2024awq}.
+Mixed-precision methods choose that precision under a memory or accuracy target~\cite{duanmu2025mxmoe}, and expert caches and prefetchers then decide which experts stay on the GPU and when a missing expert is copied, usually for one fixed precision~\cite{eliseev2023fast,song2024promoe,xue2024moe}.
+HOBBIT and DyMoE already run the low-precision copy, the cache, and the prefetch in one system~\cite{tang2024hobbit,huang2026dymoe}.
 
-Section~\ref{sec:bg} measures four facts that a fixed policy does not absorb.
-Perplexity rises as more experts move to the lower tier, and the higher tier is the larger copy.
-WikiText, GSM8K, and HumanEval dispatch different experts at the same layer.
-Prefill and decode push the traffic that lookahead cannot hide in opposite directions.
-Raising the high-precision share changes both how many experts can stay resident and which staging depth hides their transfers.
-
-These measurements are one allocation.
-Fidelity, residency, and lookahead spend the same expert-memory bytes and the same host-to-device queue.
-Section~\ref{sec:design} specifies the controller that allocates them.
+Four measurements show why a fixed split of those bytes fails.
+Perplexity rises as more experts move to the smaller, low-precision copy, so keeping an expert at high precision both spends bytes and makes a later transfer larger.
+WikiText, GSM8K, and HumanEval at the same layer call different experts, so a precision map or a resident set taken from one task misses the next.
+In prefill the bytes that can overlap compute grow with the batch while the selected bytes stay nearly flat; in decode the selected bytes grow and the overlap window does not.
+Raising the high-precision share from 25\% to 40\% also changes how many experts can stay on the GPU and how many layers ahead a copy can be staged.
+Section~\ref{sec:bg} reports these measurements.
+Section~\ref{sec:design} spends the same bytes by demoting or evicting experts already on the GPU and using the freed bytes for the copy it is about to admit.
 
 We make three contributions.
 \begin{itemize}
-  \item We observe that expert memory and host-to-device bandwidth form one budget with three uses. A byte spent on fidelity cannot retain another expert or stage a future one, and a transfer that lookahead starts still has to finish before it is used (Section~\ref{sec:bg}). A fixed partition or a fixed priority cannot compare these costs as the routed experts and the prefill--decode mix change, and systems that already combine quantization, caching, and prefetching still admit the three uses separately.
-  \item We design \systemname, which allocates this budget by admitting one exchange at a time. The executor holds every transition's expert-memory peak within a hard budget \(B\). The exchange names the lease it requests and the leases released to fund it, and the controller admits it only when that release lowers predicted exposed wait and \(\widehat R\le\widehat\epsilon\). That quality test estimates \(\Delta Q\le\epsilon\); it is not a measured-quality guarantee. Fidelity, residency, and lookahead share that path and one byte account, and a representation is published only after its copy completes.
-  \item We evaluate \systemname\ on one GPU with Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE. Latency replays a fixed order of MMLU-Pro, GPQA, AIME25, GSM8K, and HumanEval, split by input/output length, at batch size 8. Quality uses WikiText-2 together with the same five tasks, weighted by sample size (200, 198, 30, 200, and 164). \systemname's score is 1.18\%, 0.64\%, and 1.03\% below the all-high reference on Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE (Table~\ref{tab:eval-accuracy}). Under the same expert-memory budget, p95 TPOT is 11.6\% lower than HOBBIT on Qwen3-30B, 23\% lower on Qwen3-Next-80B, and 27.1\% lower on Phi-3.5-MoE (Table~\ref{tab:eval-main}).
+  \item We measure one expert-memory budget and one host-to-device queue with three spends: a larger high-precision copy, keeping an expert on the GPU, and copying an expert before it is used (Section~\ref{sec:bg}). A fixed split cannot compare these spends when the routed experts and the prefill--decode mix change, and systems that already quantize, cache, and prefetch still decide the three spends separately.
+  \item We design \systemname\ to demote or evict experts already on the GPU to free bytes for the copy it admits, as specified in Section~\ref{sec:design}. The executor holds every transition's expert-memory peak within \(B\). Admission requires \(\widehat R\le\widehat\epsilon/\kappa\), with \(\kappa>1\) fixed on the calibration prompts. A state is published only when a side probe measures \(\Delta\mathrm{PPL}\le\epsilon\).
+  \item We evaluate \systemname\ on one GPU with Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE. Latency replays a fixed order of MMLU-Pro, GPQA, AIME25, GSM8K, and HumanEval, split by input/output length, at batch size 8. The feasibility cap is \(\Delta\mathrm{PPL}\) on the mixed evaluation prompts. Downstream scores use the same five tasks, weighted by item count. \systemname's \(\Delta\mathrm{PPL}\) on those prompts is 0.62, 0.52, and 0.82. These three values are within \(\epsilon=0.70\), \(0.60\), and \(0.90\). Its averages on the five tasks are 73.49, 79.04, and 60.73 against the all-high averages 74.37, 79.55, and 61.36, lower by 0.88, 0.51, and 0.63 points (1.18\%, 0.64\%, and 1.03\%) (Table~\ref{tab:eval-accuracy}). Under the same expert-memory budget, p95 TPOT is 11.6\% lower than HOBBIT on Qwen3-30B, 23\% lower on Qwen3-Next-80B, and 27.1\% lower on Phi-3.5-MoE (Table~\ref{tab:eval-main}). The lowest p95 centers in Table~\ref{tab:eval-main} are 43.7\,ms, 117\,ms, and 51.8\,ms. The rows at those centers have \(\Delta\mathrm{PPL}\) above \(\epsilon=0.70\), \(0.60\), and \(0.90\). Under Poisson arrivals from a client on the same host, SLO goodput is 0.82 requests/s against HOBBIT's 0.69 on Qwen3-30B (Table~\ref{tab:eval-serving}).
 \end{itemize}
 
 % Upon acceptance, we will release the controller, runtime, routing-trace tools, and configurations for the reported experiments in a long-lived archive.

@@ -1,30 +1,33 @@
 \begin{table}[tbh]
   \centering
-  \caption{Selected points in Figure~\ref{fig:eval-frontier}. The quality lines are $\epsilon=0.70$, $0.60$, and $0.85$. Brackets are the 95\% intervals defined in Section~\ref{sec:eval-setup} and apply only to p95 TPOT. TTFT is a point estimate. Peak is the NVML process high-water mark. It includes non-expert weights, the KV cache, and activations, and is not the expert-memory budget $B$. HOBBIT and Static-Joint list the \systemname\ sample at the same budget. p95 TPOT is measured on the mixed stream. $\Delta$PPL is WikiText-2 perplexity relative to All-high for that policy.}
+  \caption{Loose setting of each policy in Figure~\ref{fig:eval-frontier}. No row is removed for exceeding its bound. Brackets apply only to p95 TPOT (Section~\ref{sec:eval-setup}). Peak includes non-expert weights, the KV cache, and activations, and is not the expert-memory budget $B$.}
   \label{tab:eval-main}
   \small
   \setlength{\tabcolsep}{2.4pt}
-  \begin{tabular}{@{}llrrrrrr@{}}
+  \begin{tabular}{@{}llrrrr@{}}
     \toprule
-    Model & Policy & $\Delta$PPL & p95 TPOT (ms) & p95 TTFT (s) & Within SJ p95 (\%) & Peak (GB)\\
+    Model & Policy & $\Delta$PPL & p95 TPOT (ms) & p95 TTFT (s) & Peak (GB)\\
     \midrule
-    Qwen3-30B & \systemname & 0.62 & 45.8 [44.5, 46.9] & 3.1 & 97 & 38.6 \\
-     & HOBBIT & 0.68 & 51.8 [50.4, 53.2] & 3.8 & 91 & 38.6 \\
-     & Static-Joint & 0.67 & 48.6 [47.3, 49.9] & 3.2 & 96 & 38.6 \\
-     & Static-mixed & 0.79 & 43.7 [43.1, 44.2] & 2.6 & 99 & 38.6 \\
-     & Uniform-low & 0.88 & 43.8 [43.0, 44.6] & 2.6 & 99 & 34.0 \\
+    Qwen3-30B & \systemname & 0.62 & 45.8 [44.5, 46.9] & 3.1 & 38.6 \\
+     & HOBBIT & 0.68 & 51.8 [50.4, 53.2] & 3.8 & 38.6 \\
+     & DyMoE & 0.66 & 50.2 [48.8, 51.6] & 3.6 & 38.6 \\
+     & Static-Joint & 0.67 & 48.6 [47.3, 49.9] & 3.2 & 38.6 \\
+     & Static-mixed & 0.79 & 43.7 [43.1, 44.2] & 2.6 & 38.6 \\
+     & Uniform-low & 0.88 & 43.8 [43.0, 44.6] & 2.6 & 34.0 \\
     \midrule
-    Qwen3-Next-80B & \systemname & 0.52 & 141 [128, 151] & 8.2 & 97 & 43.8 \\
-     & HOBBIT & 0.55 & 183 [174, 190] & 10.4 & 94 & 43.8 \\
-     & Static-Joint & 0.54 & 168 [159, 181] & 8.6 & 96 & 43.8 \\
-     & Static-mixed & 0.62 & 117 [104, 122] & 6.8 & 99 & 43.8 \\
-     & Uniform-low & 0.66 & 117 [104, 123] & 6.8 & 99 & 35.8 \\
+    Qwen3-Next-80B & \systemname & 0.52 & 141 [128, 151] & 8.2 & 43.8 \\
+     & HOBBIT & 0.55 & 183 [174, 190] & 10.4 & 43.8 \\
+     & DyMoE & 0.54 & 174 [165, 183] & 9.9 & 43.8 \\
+     & Static-Joint & 0.54 & 168 [159, 181] & 8.6 & 43.8 \\
+     & Static-mixed & 0.62 & 117 [104, 122] & 6.8 & 43.8 \\
+     & Uniform-low & 0.66 & 117 [104, 123] & 6.8 & 35.8 \\
     \midrule
-    Phi-3.5-MoE & \systemname & 0.82 & 53.8 [52.3, 55.3] & 2.2 & 96 & 47.1 \\
-     & HOBBIT & 0.83 & 73.8 [70.0, 78.6] & 2.9 & 74 & 47.1 \\
-     & Static-Joint & 0.76 & 59.0 [56.2, 61.8] & 2.3 & 95 & 47.1 \\
-     & Static-mixed & 0.86 & 51.9 [50.7, 53.4] & 1.8 & 99 & 47.1 \\
-     & Uniform-low & 0.90 & 51.8 [50.3, 53.3] & 1.8 & 99 & 43.8 \\
+    Phi-3.5-MoE & \systemname & 0.82 & 53.8 [52.3, 55.3] & 2.2 & 47.1 \\
+     & HOBBIT & 0.83 & 73.8 [70.0, 78.6] & 2.9 & 47.1 \\
+     & DyMoE & 0.82 & 70.9 [67.1, 74.7] & 2.8 & 47.1 \\
+     & Static-Joint & 0.76 & 59.0 [56.2, 61.8] & 2.3 & 47.1 \\
+     & Static-mixed & 0.93 & 51.9 [50.7, 53.4] & 1.8 & 47.1 \\
+     & Uniform-low & 0.97 & 51.8 [50.3, 53.3] & 1.8 & 43.8 \\
     \bottomrule
   \end{tabular}
 \end{table}

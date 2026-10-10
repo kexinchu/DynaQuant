@@ -1,0 +1,23 @@
+\begin{table}[tbh]
+  \centering
+  \caption{Open-loop end-to-end TTFT and SLO goodput. The objective is twice Uniform-low's p95 TTFT in Table~\ref{tab:eval-main}. Brackets are the minimum and maximum over five seeds.}
+  \label{tab:eval-serving}
+  \footnotesize
+  \setlength{\tabcolsep}{2.6pt}
+  \begin{tabular}{@{}l rr rr rr@{}}
+    \toprule
+    & \multicolumn{2}{c}{Qwen3-30B}
+    & \multicolumn{2}{c}{Qwen3-Next-80B}
+    & \multicolumn{2}{c}{Phi-3.5-MoE} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+    Policy & \begin{tabular}{@{}c@{}}p95 e2e\\TTFT (s)\end{tabular} & \begin{tabular}{@{}c@{}}Goodput\\(req/s)\end{tabular}
+    & \begin{tabular}{@{}c@{}}p95 e2e\\TTFT (s)\end{tabular} & \begin{tabular}{@{}c@{}}Goodput\\(req/s)\end{tabular}
+    & \begin{tabular}{@{}c@{}}p95 e2e\\TTFT (s)\end{tabular} & \begin{tabular}{@{}c@{}}Goodput\\(req/s)\end{tabular} \\
+    \midrule
+    \systemname & 4.8 [4.6, 4.9] & 0.82 [0.82, 0.83] & 11.0 [11.0, 11.9] & 0.27 [0.26, 0.27] & 2.9 [2.8, 3.1] & 0.77 [0.77, 0.78] \\
+    HOBBIT & 7.6 [7.3, 7.9] & 0.69 [0.67, 0.70] & 23.0 [21.4, 23.9] & 0.21 [0.21, 0.22] & 7.0 [6.6, 7.4] & 0.59 [0.56, 0.60] \\
+    Static-Joint & 5.3 [5.2, 5.6] & 0.80 [0.79, 0.81] & 14.7 [14.0, 15.6] & 0.26 [0.25, 0.26] & 3.5 [3.3, 3.8] & 0.76 [0.75, 0.77] \\
+    Uniform-low & 3.4 [3.3, 3.6] & 0.85 [0.84, 0.85] & 6.8 [6.8, 7.0] & 0.27 [0.25, 0.28] & 1.9 [1.9, 2.5] & 0.79 [0.78, 0.79] \\
+    \bottomrule
+  \end{tabular}
+\end{table}

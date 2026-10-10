@@ -1,5 +1,5 @@
 % One closed exchange on a shared timeline.
-% Arena width is B = 9 units at every time; published+reserved stays at 8.
+% Arena width is B = 9 units at every time; one cell is free, so published bytes are 7.
 % Geometry stays inside x in [0, 13.6] cm.
 \begin{tikzpicture}[
     x=1cm, y=1cm,
@@ -27,7 +27,7 @@
 
   % ------------------------------------------------------- panel (a)
   \node[title] at (0,6.42) {(a) Expert memory over time};
-  \node[lab, anchor=east] at (13.55,6.42) {width \(=B\), published \(+\) reserved \(=8\)};
+  \node[lab, anchor=east] at (13.55,6.42) {width \(=B\), one cell free};
 
   \node[font=\footnotesize\bfseries] at (2.375,6.08) {\(t_0\)};
   \node[font=\footnotesize\bfseries] at (5.525,6.08) {\(t_1\)};
@@ -104,6 +104,6 @@
   \draw[fill=black!3, draw=black!28, rounded corners=1.4pt]
     (0.90,0.08) rectangle (13.35,0.68);
   \node[lab] at (7.12,0.38)
-    {\(G=\Delta L_4-\Delta L_1-C_{\mathrm{move}}>0\)
-     \quad \(\widehat R+w_2q_2\le\widehat\epsilon\)};
+    {\(G=4-1-1=2>0\)
+     \quad \(\widehat R+w_2q_2\le\widehat\epsilon/\kappa\)};
 \end{tikzpicture}

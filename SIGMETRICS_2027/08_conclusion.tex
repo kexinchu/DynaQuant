@@ -1,5 +1,16 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-\systemname\ allocates expert memory and host-to-device bandwidth among fidelity, residency, and lookahead on one byte account and publishes a representation only after its copy completes.
-Figure~\ref{fig:eval-mechanisms} shows a separate quota is slower than \systemname, and Independent-value's center stays with \systemname. Its dashed line is the \textsc{Static-Joint} center in Table~\ref{tab:eval-main}. The marked point of Figure~\ref{fig:eval-necessity}(c) is that same comparison; the other caps vary host-to-device bandwidth around it and are point estimates.
+On one GPU, under the same expert-memory budget, \systemname\ reduces p95 TPOT by 11.6\%, 23\%, and 27.1\% relative to HOBBIT on Qwen3-30B, Qwen3-Next-80B, and Phi-3.5-MoE.
+The lowest p95 centers in Table~\ref{tab:eval-main} are 43.7\,ms, 117\,ms, and 51.8\,ms. The rows at those centers have \(\Delta\mathrm{PPL}\) above \(\epsilon=0.70\), \(0.60\), and \(0.90\).
+Its \(\Delta\mathrm{PPL}\) on the mixed evaluation prompts is 0.62, 0.52, and 0.82. These lie within \(\epsilon=0.70\), \(0.60\), and \(0.90\).
+Weighted by item count, its averages are 73.49, 79.04, and 60.73 against 74.37, 79.55, and 61.36, lower by 0.88, 0.51, and 0.63 points (1.18\%, 0.64\%, and 1.03\%).
+
+At equal or better \(\Delta\mathrm{PPL}\), the gaps to \textsc{Static-Joint} are 2.8\,ms and 27\,ms on Qwen3-30B and Qwen3-Next-80B.
+On Qwen3-30B the gap is 0.4\,ms at 40\,GB/s, and at \(\PhiRatio=1.931\) both centers are 43.8\,ms.
+On Phi-3.5-MoE the 5.2\,ms difference is 53.8\,ms against 59.0\,ms, at \(\Delta\mathrm{PPL}\) 0.82 against 0.76. Both values are within \(\epsilon=0.90\), and \systemname\ does not dominate \textsc{Static-Joint}. Uniform-low is at \(\Delta\mathrm{PPL}\) 0.97 and 51.8\,ms, above \(\epsilon=0.90\).
+Demoting or evicting experts inside the one shared budget accounts for the 2.8\,ms and 27\,ms gaps.
+Scoring the requested copy and the released expert separately leaves the center 0.3\,ms and 3\,ms lower, inside \systemname's interval.
+At \(\PhiRatio=0.7\), every policy has \(\Delta\mathrm{PPL}=0.88\), above \(\epsilon=0.70\).
+Under Poisson arrivals from a client on the same host, SLO goodput is 0.82 requests/s against HOBBIT's 0.69 on Qwen3-30B.
+The runtime is one GPU with host memory as the only backing store.

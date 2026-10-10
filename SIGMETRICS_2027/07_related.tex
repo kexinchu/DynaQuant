@@ -1,43 +1,45 @@
 \section{Related Work}
 \label{sec:related}
 
-Prior systems control fidelity, residency, or transfer timing, often while holding the other decisions fixed.
-We group them by that control decision, then compare \systemname\ directly with systems that already combine the mechanisms.
+Prior systems choose a precision, choose which experts stay on the GPU, or choose when a copy starts, often while holding the other two fixed.
+We group them by that choice, then compare \systemname\ directly with systems that already combine the mechanisms.
 
-\paragraph{Precision assignment.}
-GPTQ, AWQ, SmoothQuant, LLM.int8(), OmniQuant, and SqueezeLLM fix representations before serving~\cite{frantar2022gptq,lin2024awq,xiao2023smoothquant,dettmers2022gptint8,shao2024omniquant,kim2024squeezellm}.
-ZeroQuant and AQLM are further offline compressors for transformer weights~\cite{yao2022zeroquant,egiazarian2024aqlm}.
+\paragraph{Which precision is stored.}
+LLM.int8()~\cite{dettmers2022gptint8}, GPTQ~\cite{frantar2022gptq}, SqueezeLLM~\cite{kim2024squeezellm}, AWQ~\cite{lin2024awq}, OmniQuant~\cite{shao2024omniquant}, and SmoothQuant~\cite{xiao2023smoothquant} fix representations before serving.
+AQLM~\cite{egiazarian2024aqlm} and ZeroQuant~\cite{yao2022zeroquant} are further offline compressors for transformer weights.
 QMoE compresses MoE weights below one bit per parameter~\cite{frantar2023qmoepracticalsub1bitcompression}.
-MoE-specific methods use expert sensitivity, activation frequency, or router statistics to assign precision under a memory or quality target~\cite{kim2023mixturequantizedexpertsmoqe,duanmu2025mxmoe,zhang2025moqe,chitty2025mopeq,chowdhury2026efficient}.
-Such methods improve fidelity for a chosen footprint but commonly evaluate the assignment under fixed placement and transfer policies.
-\systemname\ can use their packed representations and offline sensitivities; its additional question is whether a fidelity increment is worth the residency or lookahead displaced at runtime.
-Mixed-precision kernels such as MxMoE remain complementary~\cite{duanmu2025mxmoe}: they determine the compute cost of a selected representation, not which state should occupy expert memory.
+MoE-specific methods use expert sensitivity, activation frequency, or router statistics to assign precision under a memory or quality target~\cite{kim2023mixturequantizedexpertsmoqe,chitty2025mopeq,chowdhury2026efficient}.
+Such methods improve quality for a chosen footprint but commonly evaluate the assignment while which experts stay on the GPU and when copies start stay fixed.
+\systemname\ uses their packed representations and offline sensitivities, and decides at runtime whether a larger high-precision copy is worth the resident experts or early copies it displaces.
 
-\paragraph{Residency and placement.}
-Expert caches retain recently or frequently used experts and select victims using routing history, layer position, or co-activation~\cite{xue2024moe,li2023adaptive,yi2023edgemoe,zhong2024adapmoe,kong2024swapmoe,cao2024moe}.
-These caches primarily estimate residency value with a fixed expert representation.
-Fiddler evaluates experts that are absent from GPU memory on the CPU, and SiDA builds a data-aware plan for serving large MoE models in limited accelerator memory~\cite{kamahori2025fiddler,du2024sida}.
+\paragraph{Which experts stay on the GPU.}
+SwapMoE~\cite{kong2024swapmoe}, MoE-Infinity~\cite{xue2024moe}, EdgeMoE~\cite{yi2023edgemoe}, and AdapMoE~\cite{zhong2024adapmoe} decide which experts stay and which are evicted from routing history, layer position, or co-activation, and the expert's precision stays fixed.
+
+MoE-Lightning~\cite{cao2024moe}, SiDA~\cite{du2024sida}, and Fiddler~\cite{kamahori2025fiddler} compute experts that are absent from GPU memory on the CPU when GPU memory is short.
 PowerInfer keeps frequently activated neurons of sparse feed-forward layers on the GPU and evaluates the remaining neurons on the CPU~\cite{song2024powerinfer}.
-Placement methods colocate co-activated experts or map them according to topology and load~\cite{yao2024exploiting,dai2024deepseekmoe}; their multi-device communication objective is outside our single-accelerator implementation.
-DeepSpeed-MoE and Tutel run expert-parallel training and inference across devices~\cite{rajbhandari2022deepspeed,hwang2023tutel}.
-MegaBlocks supplies grouped sparse kernels for MoE training~\cite{gale2023megablocks}.
-In \systemname, a residency lease is valued together with the fidelity or lookahead lease that would displace it, so eviction cost belongs to the complete exchange.
 
-\paragraph{Prefetch and mixed-precision offloading.}
-Cross-layer prefetchers predict future experts and overlap transfers with current computation, using either fixed lookahead or adaptation from observed demand and system state~\cite{song2024promoe,eliseev2023fast,hwang2024pre}.
-ExpertFlow coordinates expert scheduling and movement under offload~\cite{shen2025expertflow}; a separate work with the same name changes token assignment to improve activation efficiency~\cite{he2024expertflow}.
-Their principal control variable is transfer timing for a given expert size and quality policy.
+Yao et al.\ place co-activated experts by inter-layer affinity; that communication objective is outside this single-accelerator implementation~\cite{yao2024exploiting}.
+DeepSeekMoE specializes experts in the model, and it is not a placement policy~\cite{dai2024deepseekmoe}.
+Tutel~\cite{hwang2023tutel}, DeepSpeed-MoE~\cite{rajbhandari2022deepspeed}, and MegaBlocks~\cite{gale2023megablocks} run expert-parallel training and inference across devices.
+In \systemname, keeping an expert on the GPU is scored together with the high-precision copy or early copy that would take its bytes, so the cost of evicting it is part of the same decision.
+
+\paragraph{When the copy starts.}
+Cross-layer prefetchers predict future experts and overlap their copies with current computation, using either a fixed depth or a depth adapted from observed demand~\cite{song2024promoe,eliseev2023fast,hwang2024pre}.
+Shen et al.\ schedule that movement for a given expert size~\cite{shen2025expertflow}, and He et al., under the same name, combine a predicted cache with token scheduling~\cite{he2024expertflow}.
 
 HOBBIT combines dynamic mixed-precision loading, adaptive prefetching, and a multi-level cache; its low-precision miss path reduces transfer cost for experts judged less critical~\cite{tang2024hobbit}.
 DyMoE combines online expert importance, depth-aware mixed precision, caching, and lookahead prefetching, and some configurations omit selected experts~\cite{huang2026dymoe}.
-These systems establish that the three mechanisms can coexist.
-The distinction is whether one exchange decides both which bytes occupy expert memory and which transfers occupy the migration queue.
-Measured quality is reported separately from \(\widehat\epsilon\).
-Section~\ref{sec:eval-setup} compares against the complete HOBBIT system under the same budget, representations, kernels, and request stream; DyMoE is not included, because the controller does not implement its estimator, depth-dependent bit schedule, or next-layer predictor.
+HOBBIT and DyMoE already quantize, cache, and prefetch in one system.
+\systemname\ admits a new copy only together with the experts demoted or evicted to free its bytes, and that decision includes the released expert's later reload.
+Table~\ref{tab:eval-main} reports both reimplementations at the same GPU capacity.
+In that table a HOBBIT miss loads the low-precision copy, and DyMoE keeps every expert the router selected, placing it in one of the two packed tiers.
+DyMoE's published schedule that drops experts is outside the table.
+Slack-only and Fixed-partition in Section~\ref{sec:eval-mechanism} drop donor selection and the shared arena, and those removals move the gap to \textsc{Static-Joint}. Table~\ref{tab:eval-main} is the model-path gap to the two reimplementations.
 
 \paragraph{Serving and memory management.}
-Orca, vLLM, and SGLang schedule requests and manage KV-cache memory~\cite{yu2022orca,kwon2023vllm,zheng2024sglang}.
-Sarathi-Serve chunks long prefills so decode iterations continue, and DistServe and Splitwise place prefill and decode on separate resources~\cite{agrawal2024sarathi,zhong2024distserve,patel2024splitwise}.
+vLLM~\cite{kwon2023vllm} and SGLang~\cite{zheng2024sglang} manage KV-cache memory, and Orca~\cite{yu2022orca} schedules requests at iteration granularity.
+Sarathi-Serve~\cite{agrawal2024sarathi} chunks long prefills so decode iterations continue.
+DistServe~\cite{zhong2024distserve} and Splitwise~\cite{patel2024splitwise} place prefill and decode on separate resources.
 ZeRO-Infinity offloads training state across GPU, CPU, and NVMe, and FlexGen schedules dense-model inference across GPU, CPU, and disk~\cite{rajbhandari2021zeroinfinity,sheng2023flexgen}.
-\systemname\ operates on the expert-memory budget left after non-expert state is reserved and is complementary to those serving functions.
-Because a serving engine can outgrow its declared KV or activation reserve, we report the byte account and process-level peak separately.
+\systemname\ allocates the expert-memory budget left after those systems reserve non-expert state.
+Table~\ref{tab:eval-main} reports that budget and the NVML peak separately.

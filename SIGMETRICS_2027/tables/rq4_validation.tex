@@ -4,8 +4,8 @@
   Numbers read from Figure~\ref{fig:eval-validation}.
   Wait error is the mean over the plotted points.
   Risk counts are the points in panel (b).
-  Recall is panel (c), at envelope depth 3.
-  The starred replay is the implemented point in panel (d).}
+  Recall is stated in Section~\ref{sec:eval-models} and is not a panel.
+  The starred replay is the star in panel (c).}
   \label{tab:eval-rq4}
   \footnotesize
   \setlength{\tabcolsep}{3pt}
@@ -15,8 +15,8 @@
     \midrule
     Wait MAE / bias (ms/tok) & 4.1 / +1.2 \\
     Decisions & 148 \\
-    Unsafe accepts & 5 \\
-    Conservative rejects & 18 \\
+    Unsafe accepts & 0 \\
+    Conservative rejects & 39 \\
     Recall prefill / mixed / decode & 0.71 / 0.58 / 0.46 \\
     \midrule
     Replay $K{=}8$, $W{=}16$ & 0.08 ms \\

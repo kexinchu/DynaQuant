@@ -1,0 +1,18 @@
+\begin{table}[tbh]
+  \centering
+  \caption{Decision audit of \(G\) for Qwen3-30B at \(K=8\), \(W=32\), the star in Figure~\ref{fig:eval-validation}(c). Rejecting the harmful admissions is one counterfactual on the same stream.}
+  \label{tab:eval-decision}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{@{}lr@{}}
+    \toprule
+    Quantity & Value \\
+    \midrule
+    Sign agreement & 36/40 \\
+    Median Spearman of \(\eta\) & 0.93 \\
+    Harmful admissions & 4/25 \\
+    Full-run p95 if those are rejected (ms) & 45.4 \\
+    Mean falls and window p95 rises & 1/25 \\
+    \bottomrule
+  \end{tabular}
+\end{table}

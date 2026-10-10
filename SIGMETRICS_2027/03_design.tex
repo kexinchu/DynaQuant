@@ -5,20 +5,20 @@
 \label{sec:model}
 
 \systemname\ answers the allocation question with one admission procedure, shown in Figure~\ref{fig:arch}.
-The procedure chooses each expert's representation, residency, and transfer issue time, then commits those choices as one exchange.
+The procedure chooses each expert's precision, whether it stays on the GPU, and when its copy starts, then commits those choices together: the copies being requested, the experts demoted or evicted to free their bytes, and the transfer schedule.
 
 \begin{figure}[t]
   \centering
   \input{figures/dynabyte_overview.tex}
-  \caption{\systemname\ architecture. The State Monitor builds one snapshot (step~1); the Lease Generator emits fidelity, residency, and lookahead leases (step~2); the valuator scores a closed exchange with one deadline replay (step~3); and the Exchange Coordinator admits it when \(\widehat R\le\widehat\epsilon\) (step~4). The Safe Executor holds the byte peak within \(B\) and commits the schedule on one host-to-device queue and one expert arena (step~5).}
+  \caption{Admission path. Numbered arrows are the five steps in this section.}
   \label{fig:arch}
 \end{figure}
 
-The State Monitor builds one snapshot of routing demand, deadlines, \(\widehat R\), bandwidth, and byte state (step~1).
-The Lease Generator emits fidelity, residency, and lookahead leases inside the envelope \(S_t\) (step~2).
-The coordinator attaches donor leases, and the valuator replays the migration queue before and after the resulting exchange (step~3).
-The coordinator admits the exchange when predicted exposed wait falls and \(\widehat R\le\widehat\epsilon\) (step~4). The executor holds the byte peak within \(B\).
-The Safe Executor reserves, copies, publishes, and reclaims according to the admitted schedule (step~5).
+The State Monitor records routing demand, deadlines, \(\widehat R\), bandwidth, and which bytes are on the GPU (step~1).
+The generator proposes high-precision copies, resident experts, and early copies within the next \(S_t\) layers (step~2).
+The coordinator chooses which resident experts to demote or evict to free those bytes, and the valuator replays the copy queue before and after that choice (step~3).
+The coordinator admits the choice when predicted exposed wait falls and \(\widehat R\le\widehat\epsilon/\kappa\) (step~4).
+The executor reserves, copies, and reclaims on that schedule, keeps the byte peak within \(B\), and publishes the new handle only when the side probe measures \(\Delta\mathrm{PPL}\le\epsilon\) (step~5).
 The return path updates the next snapshot and \(S_t\).
 
 The object passed from step~4 to step~5 is
@@ -26,13 +26,9 @@ The object passed from step~4 to step~5 is
   x=(Z^{+},D,\mathcal{T}),
   \label{eq:exchange}
 \end{equation}
-where \(Z^{+}\) denotes the requested leases, \(D\) the donor leases released to fund them, and \(\mathcal{T}\) the transition schedule.
-The coordinator scores the state after the whole exchange, so the value of one use includes its effect on the other two.
-Peak expert memory tests whether the transition fits.
-\(\widehat R\) tests the admission proxy.
+The coordinator scores the GPU state after the demotions, evictions, and new copies have all been applied. The replay charges the shared queue for a demoted or evicted expert's later reload and does not credit one avoided transfer twice. Scoring the new copy's transfer time minus the released expert's transfer time prices the same two copies without that replay.
 
-A runtime policy \(\pi\) chooses the representation, resident set, and transfer issue time of every expert.
-The budget \(B\) is the expert memory remaining after non-expert weights, the KV cache, activations, and fixed workspaces are reserved, and \(C\) is the measured host-to-device copy rate defined in Section~\ref{sec:serving}.
+A policy \(\pi\) assigns every expert a representation, a residency decision, and a transfer issue time.
 The allocation problem is
 \begin{equation}
   \min_{\pi}\; \operatorname{P95}(\mathrm{TPOT};\pi)
@@ -42,31 +38,42 @@ The allocation problem is
   \Delta Q(\pi) \le \epsilon.
   \label{eq:objective}
 \end{equation}
-\systemname\ treats Eq.~\eqref{eq:objective} as that problem.
+Eq.~\eqref{eq:objective} is the offline problem reported in Section~\ref{sec:eval}.
 The executor enforces \(M_{\mathrm{peak}}(\pi)\le B\) on every transition.
-The controller admits with \(\widehat R(X)\le\widehat\epsilon\) in place of the \(\Delta Q(\pi)\le\epsilon\) test.
+One control step does not observe the request-level p95.
+Admission does not read measured \(\Delta\mathrm{PPL}\).
+It admits the copies, demotions, and evictions when predicted exposed wait falls and \(\widehat R\le\widehat\epsilon/\kappa\).
+Section~\ref{sec:impl} sets \(\kappa>1\) to the maximum of \((\Delta\mathrm{PPL}/\epsilon)/(\widehat R/\widehat\epsilon)\) on the calibration prompts, rounded up to the next hundredth.
+Algorithm~\ref{alg:period} probes the candidate after its extents are reserved inside \(B\) and copied on the serving GPU. The previous handles keep serving until that probe measures \(\Delta\mathrm{PPL}\le\epsilon\).
+The state is published only when that reading is within \(\epsilon\).
+If it exceeds \(\epsilon\), the last admitted exchange is rolled back and promotions run until the probe is within \(\epsilon\) or no promotion fits in \(B\).
+Section~\ref{sec:eval-models} checks the Qwen3-30B states in Figure~\ref{fig:eval-validation}(b).
 The deadline replay charges \(C\) for the migration-queue time occupied by each exchange.
-The runtime consults a calibrated risk estimate while making decisions; Section~\ref{sec:quality-boundary} explains why this estimate is not a per-request quality guarantee.
 
 An expert is absent, resident in the low-precision representation, resident in the high-precision representation, or in transition toward a resident state.
 Its packed footprints are \(m_i^{\mathrm{lo}}\) and \(m_i^{\mathrm{hi}}\).
 A resident high-precision representation is the packed low-precision representation plus the fidelity increment \(\delta m_i^{\mathrm{fid}}\) in Table~\ref{tab:glossary}, and it remains one packed block.
-Lookahead copies an absent expert before its deadline and becomes residency at the selected tier once the copy is published.
+Once its copy is published, a lookahead lease becomes residency at the selected tier.
 The low- and high-precision representations of one absent expert are mutually exclusive.
 Section~\ref{sec:admit} specifies when a reserved representation may be published and when donor bytes may be reclaimed.
 
 Figure~\ref{fig:exchange} traces one exchange through both budgets.
 Lookahead \(e_4\) does not fit in the one free unit, and \(e_1\)'s residency still leaves it short, so the coordinator also releases \(e_2\)'s fidelity increment.
-The replay admits the exchange only when \(e_4\)'s saved wait exceeds the cost of \(e_1\)'s later reload and \(e_2\)'s low-precision copy, while the added \(\widehat R\) remains within \(\widehat\epsilon\).
+The replay admits the exchange only when \(e_4\)'s saved wait exceeds the cost of \(e_1\)'s later reload and \(e_2\)'s low-precision copy, while the added \(\widehat R\) remains within \(\widehat\epsilon/\kappa\).
 
 \begin{figure}[t]
   \centering
   \input{figures/dynabyte_exchange.tex}
-  \Description{Two panels share times t0 through t3. Panel a shows the expert arena at each time, drawn to the same budget width. At t0, low-precision e1, high-precision e2, and low-precision e3 are resident, with one free unit. At t1, e1 is reclaimed and a low-precision copy of e2 is reserved. At t2, that copy is published, e2's high-precision block is released, and e4 is reserved in the freed extent. At t3, e4 is published at high precision. A meter under every arena shows published plus reserved bytes equal to 8, below budget B. Panel b shows the migration queue. Without the exchange, e4 starts on demand and misses deadline d4. With the exchange, e2's low-precision copy and e4's early copy finish before d4, while e1's reload crosses deadline d1. The settlement is G equals saved wait minus reload minus move cost, and R-hat plus w2 q2 stays within epsilon-hat.}
+  \Description{Two panels share times t0 through t3. Panel a shows the expert arena at each time, drawn to the same budget width. At t0, low-precision e1, high-precision e2, and low-precision e3 are resident, with one free unit, so published bytes start at 7 inside a budget of 8. At t1, e1 is reclaimed and a low-precision copy of e2 is reserved. At t2, that copy is published, e2's high-precision block is released, and e4 is reserved in the freed extent. At t3, e4 is published at high precision. Releasing e1's 2 and e2's fidelity increment of 2 makes 5 available, and reserving e4's 4 restores one free cell, so published plus reserved returns to 7. Panel b shows the migration queue. Without the exchange, e4 starts on demand and misses deadline d4. With the exchange, e2's low-precision copy and e4's early copy finish before d4, while e1's reload crosses deadline d1. The illustration sets G to 4 minus 1 minus 1, which equals 2, and R-hat plus w2 q2 stays within epsilon-hat divided by kappa.}
   \caption{A closed exchange on one timeline.
-  (a)~Every bar has the same width \(B\). Live plus reserved bytes stay at 8 while \(e_1\)'s residency and \(e_2\)'s fidelity increment are released to reserve \(e_4\).
+  (a)~Every bar has the same width \(B\).
+  The budget is 8 and one cell is free, so published bytes start at 7.
+  \(e_4\) needs 4.
+  Releasing \(e_1\)'s 2 and \(e_2\)'s fidelity increment of 2 makes \(1+2+2=5\) available.
+  Reserving \(e_4\)'s 4 restores the free cell to 1, so published plus reserved returns to 7.
   (b)~On that timeline, \(X\) misses \(d_4\), and \(X\oplus x\) pays for \(e_2\)'s copy and \(e_1\)'s reload.
-  The exchange is admitted because \(G>0\) and \(\widehat R+w_2q_2\le\widehat\epsilon\).}
+  The exchange is admitted because \(G>0\) and \(\widehat R+w_2q_2\le\widehat\epsilon/\kappa\).
+  The saved wait of \(e_4\) is 4, \(e_1\)'s reload wait is 1, and \(C_{\mathrm{move}}=1\), so \(G=4-1-1=2>0\).}
   \label{fig:exchange}
 \end{figure}
 
@@ -74,7 +81,6 @@ The replay admits the exchange only when \(e_4\)'s saved wait exceeds the cost o
 \label{sec:monitor}
 
 The State Monitor performs step~1 in Figure~\ref{fig:arch}: it turns observed runtime facts into one immutable snapshot.
-It neither predicts future uses nor constructs or admits an exchange.
 The snapshot contains demand and timing, quality, and execution and byte state.
 
 \paragraph{Demand and timing.}
@@ -93,8 +99,7 @@ The monitor provides
   =\sum_i w_i q_i\bigl(1-h_i(X)\bigr).
   \label{eq:risk}
 \end{equation}
-The coordinator admits against \(\widehat R(X)\leq\widehat\epsilon\).
-It does not convert risk into milliseconds.
+The coordinator admits against \(\widehat R(X)\leq\widehat\epsilon/\kappa\).
 
 \paragraph{Execution and byte state.}
 The monitor separates the published state used by dispatch from the reserved bytes of an accepted transition, and reports their locations and byte counts separately.
@@ -102,23 +107,20 @@ It also records measured bandwidth, exposed wait, late bytes, unused lookahead b
 Stall \(s_t\) is the fraction of routed-layer time spent waiting for expert transfers.
 Pollution \(p_t\) is unused lookahead bytes plus reload bytes, divided by the lookahead traffic admitted in that period.
 The monitor reports the exponentially smoothed values \(\widetilde s_t\) and \(\widetilde p_t\).
-Section~\ref{sec:coordinator} uses them to change \(S_t\); the monitor does not.
+Section~\ref{sec:coordinator} changes \(S_t\) from the prefetch hit rate. Section~\ref{sec:coordinator} admits the exchange.
 
 The resulting snapshot is the only interface from the monitor to the Lease Generator.
 
-\subsection{Lease Generator and Valuator}
+\subsection{Which Copies Are Proposed}
 \label{sec:leases}
 \label{sec:actions}
 
-The Lease Generator performs step~2 in Figure~\ref{fig:arch}: it turns the
-monitor snapshot into leases.  The Valuator performs step~3, but only
-after the coordinator has attached donors and thereby closed a lease into
-an exchange.  Neither component admits an exchange.
+The generator performs step~2 in Figure~\ref{fig:arch}: it turns the monitor snapshot into the copies proposed for admission.
+The valuator performs step~3 only after the coordinator has attached the experts to demote or evict, closing that proposal into one exchange \(x=(Z^{+},D,\mathcal{T})\).
 
 \paragraph{Bound the candidate set.}
-The envelope \(S_t\) is the maximum routed-layer depth from which the generator may produce leases (Table~\ref{tab:glossary}).
-It also reserves no lookahead quota.
-Section~\ref{sec:coordinator} adjusts \(S_t\) from observed stall and pollution.
+The envelope \(S_t\) is the maximum routed-layer depth for candidate generation and allocates no bytes (Table~\ref{tab:glossary}).
+Section~\ref{sec:coordinator} adjusts \(S_t\) from the prefetch hit rate.
 For a resident set \(R\) and predicted expert set \(\hat U(S)\), the generator retains a prefix depth only when
 \begin{equation}
   \sum_{i\in\hat U(S)\setminus R}m_i\le S T_{\ell}C.
@@ -134,10 +136,10 @@ The deadline is the latest ready time that introduces no transfer wait.
 
 A lease is the record in Table~\ref{tab:glossary}.
 The interval guides valuation: an early use may shorten a lookahead lease, whereas a late copy retains its bytes until completion or cancellation.
-Table~\ref{tab:lease-fields} shows how all three leases enter the byte account, the quality account \(\widehat R\), and migration-queue replay.
+Table~\ref{tab:lease-fields} shows how all three leases enter the byte account, \(\widehat R\) (Eq.~\eqref{eq:risk}), and migration-queue replay.
 
 \begin{table}[t]
-  \caption{How the three uses modify the same byte account, quality account \(\widehat R\), and migration-queue replay.
+  \caption{How the three uses modify the same byte account, \(\widehat R\) (Eq.~\eqref{eq:risk}), and migration-queue replay.
   Fidelity is refreshed every \(T_{\mathrm{slow}}\) forward steps.
   Residency is refreshed every \(T_{\mathrm{fast}}\) routed layers.
   ``Queue effect'' is the quantity changed in the replay of Eq.~\eqref{eq:value}.}
@@ -174,8 +176,8 @@ The predicted exposed wait is
   =\sum_j \omega_j\,[r_j(X)-d_j]_+.
   \label{eq:predicted-wait}
 \end{equation}
-This scheduling surrogate is calibrated against measured tail latency.
-It is not a direct estimate of the P95 quantile in Eq.~\eqref{eq:objective}.
+\(\widehat L\) sums probability-weighted exposed wait inside one replay window; Eq.~\eqref{eq:objective} is the request-level p95.
+Section~\ref{sec:eval-models} checks both.
 
 The valuator returns
 \begin{equation}
@@ -186,32 +188,31 @@ The valuator returns
 where \(X\oplus x\) applies the lease, donors, and transition schedule, and \(C_{\mathrm{move}}\) is exposed transition cost.
 One replay prevents a retained expert and its lookahead from both receiving credit for the same avoided transfer, and it charges every released donor for its later reload.
 
-\subsection{Exchange Coordinator}
+\subsection{Which Copies Are Admitted}
 \label{sec:coordinator}
 \label{sec:alg}
 
-The Exchange Coordinator attaches donors before valuation and makes the only admission decision.
-One control event has three stages: close a lease, value and admit the exchange, and refresh the next candidate set.
+The coordinator decides which experts to release before it makes the only admission decision.
+One control step has three stages: attach the experts to release, admit by \(G\), and refresh the next candidate set.
 
 \paragraph{Close.}
 The coordinator initializes provisional state \(X\) from the monitor snapshot.
-Slack, \(B-M_{\mathrm{published}}-M_{\mathrm{reserved}}\), funds a lease directly when it is sufficient.
-Otherwise \(D\) is built from fidelity leases eligible for demotion, residency leases eligible for eviction, and lookahead leases eligible for cancellation.
-Reclaimable leases come first: a copy that has not started or is no longer useful, and a resident whose predicted reuse lies beyond \(S_t\).
-A resident that is still needed can become a donor only when the replay charges its later reload.
-Donor construction scans leases in increasing counterfactual loss, the extra predicted wait and move cost caused by releasing the lease.
-In Figure~\ref{fig:exchange}, lookahead \(e_4\) is closed with \(e_1\)'s residency lease and \(e_2\)'s fidelity increment.
+Free bytes, \(B-M_{\mathrm{published}}-M_{\mathrm{reserved}}\), pay for the requested copy when they are sufficient.
+Otherwise \(D\) is built from high-precision copies that can be demoted, resident experts that can be evicted, and early copies that can be cancelled.
+Copies that have not started, copies that are no longer useful, and residents whose predicted reuse lies beyond \(S_t\) are released first.
+A resident that is still needed is released only when the replay charges its later reload.
+The scan follows increasing counterfactual loss, the extra predicted wait and move cost caused by the release.
+In Figure~\ref{fig:exchange}, the early copy of \(e_4\) is funded by releasing \(e_1\)'s residency and the extra high-precision bytes of \(e_2\).
 
-A closed exchange is feasible only when the lease and its donors do not conflict, its resulting \(\widehat R\) remains within \(\widehat\epsilon\), and its complete transition satisfies
+A closed exchange is feasible only when the lease and its donors do not conflict, its resulting \(\widehat R\) remains within \(\widehat\epsilon/\kappa\), and its complete transition satisfies
 \begin{equation}
   M_{\mathrm{published}}(t)+M_{\mathrm{reserved}}(t)\le B
   \qquad \forall t.
   \label{eq:fit}
 \end{equation}
-A release enters the byte account only at its scheduled reclaim time.
-Two exchanges therefore cannot spend the same donor, and future bytes cannot be spent as current slack.
+A release enters the byte account only at its scheduled reclaim time, so the same bytes cannot pay for two copies, and bytes that become free only later cannot be spent as free bytes now.
 
-If \(\widehat R\) of the published state exceeds \(\widehat\epsilon\), the coordinator first restores feasibility through promotion exchanges with the smallest replayed latency cost per unit of \(\widehat R\) removed.
+If \(\widehat R\) of the published state exceeds \(\widehat\epsilon/\kappa\), the coordinator first restores feasibility through promotion exchanges with the smallest replayed latency cost per unit of \(\widehat R\) removed.
 This repair uses the same close and valuation steps.
 Once the state is feasible, a demotion can fund another lease only when the complete resulting exchange remains feasible.
 
@@ -225,38 +226,38 @@ The coordinator ranks feasible exchanges with positive \(G\) by
 After each admission it updates both provisional accounts, invalidates conflicting requests, and asks the valuator to replay the affected exchanges.
 Retaining an expert can remove its lookahead lease, and changing a representation can alter several completion times.
 The search stops when no feasible exchange has positive \(G\).
-Eq.~\eqref{eq:objective} is the offline problem. \textsc{Static-Joint} freezes one feasible assignment chosen on calibration statistics. Each control event admits the feasible exchange with the largest \(\eta=G/b_x^{\mathrm{req}}\), where \(G\) is the drop in predicted exposed wait after the replay of the closed exchange. Because \(G\) depends on exchanges already admitted, and Eq.~\eqref{eq:objective} is a tail over requests, \(\eta\) is a snapshot heuristic. Admission still requires \(\widehat R\le\widehat\epsilon\).
+Each control event admits the feasible exchange with the largest \(\eta=G/b_x^{\mathrm{req}}\), where \(G\) is the drop in predicted exposed wait after the replay of the closed exchange. \(G\) depends on exchanges already admitted. \(\eta\) ranks exchanges by the drop in weighted exposed wait inside the current window, per requested byte. Section~\ref{sec:eval-models} reports when that drop moves window p95. Removing the admissions that raise window p95 is computed after the run and is not the admission rule. Section~\ref{sec:eval-setup} freezes one calibration assignment as \textsc{Static-Joint}. Admission still requires \(\widehat R\le\widehat\epsilon/\kappa\).
 
 \paragraph{Refresh.}
 Every \(T_{\mathrm{fast}}\) routed layers, the generator refreshes residency and lookahead leases.
 Every \(T_{\mathrm{slow}}\) forward steps, it adds fidelity leases to the same set.
 Minimum fidelity tenure and replacement hysteresis suppress changes too short to repay their copies.
-At a fast event, the coordinator increases \(S_t\) by one layer when \(\widetilde s_t-\lambda\widetilde p_t>\theta_h\), decreases it by one layer when the difference falls below \(-\theta_h\), and leaves it unchanged otherwise.
-This changes only which future experts the generator may propose.
-Closure, replay, and \(\eta\) still determine admission.
+Algorithm~\ref{alg:period} adjusts \(S_t\), and Section~\ref{sec:impl} states the Qwen3-30B constants.
+Refresh changes the candidate set.
+Admission remains closure, replay, and \(\eta\).
 
 \begin{algorithm}[tbh]
 \caption{One \systemname\ control event.}
 \label{alg:period}
 \begin{algorithmic}[1]
 \Require snapshot, published and reserved leases, envelope \(S_t\)
-\If{\(\widetilde s_t-\lambda\widetilde p_t>\theta_h\)}
-  \State \(S_t\gets\min(S_t+1,S_{\max})\)
-\ElsIf{\(\widetilde s_t-\lambda\widetilde p_t<-\theta_h\)}
+\If{prefetch hit rate \(< 0.25\)}
   \State \(S_t\gets\max(S_t-1,S_{\min})\)
+\ElsIf{prefetch hit rate \(> 0.60\) and a demand miss is outstanding}
+  \State \(S_t\gets\min(S_t+1,S_{\max})\)
 \EndIf
 \State \(Z\gets\) residency and lookahead leases with depth \(\le S_t\)
 \If{this event is a slow boundary}
   \State add fidelity leases to \(Z\)
 \EndIf
-\If{\(\widehat R(X)>\widehat\epsilon\)}
+\If{\(\widehat R(X)>\widehat\epsilon/\kappa\)}
   \State close promotions of minimum replayed cost per unit of \(\widehat R\)
-  \State admit them until \(\widehat R(X)\le\widehat\epsilon\)
+  \State admit them until \(\widehat R(X)\le\widehat\epsilon/\kappa\)
 \EndIf
 \ForAll{lease \(z\in Z\)}
   \State attach donors \(D\) in increasing counterfactual loss
   \State close \(x=(z,D,\mathcal T)\)
-  \If{\(x\) violates \(\widehat R\), Eq.~\eqref{eq:fit}, or deadlines}
+  \If{\(x\) violates \(\widehat R\le\widehat\epsilon/\kappa\), Eq.~\eqref{eq:fit}, or deadlines}
     \State discard \(x\)
   \Else
     \State compute \(G(x\mid X)\) and \(\eta(x\mid X)\) by deadline replay
@@ -267,11 +268,31 @@ Closure, replay, and \(\eta\) still determine admission.
   \State apply \(x^\star\) to provisional \(X\) and both accounts
   \State drop conflicting exchanges and replay the rest
 \EndWhile
-\State submit the admitted schedules \((Z^+,D,\mathcal T)\)
+\If{this event is a slow boundary and the candidate would change the published fidelity set and the 100-step fidelity tenure has ended}
+  \State reserve the candidate extents inside \(B\) and copy them on the serving GPU
+  \If{the reservation would exceed \(B\)}
+    \State discard the schedule and leave the published state unchanged
+  \Else
+    \State score the side probe on provisional \(X\)
+    \If{the probe measures \(\Delta\mathrm{PPL}>\epsilon\)}
+      \State roll back the last admitted exchange
+      \State promote until the probe is within \(\epsilon\) or no promotion fits
+      \If{the probe still exceeds \(\epsilon\)}
+        \State discard the schedule and leave the published state unchanged
+      \Else
+        \State submit the admitted schedules \((Z^+,D,\mathcal T)\)
+      \EndIf
+    \Else
+      \State submit the admitted schedules \((Z^+,D,\mathcal T)\)
+    \EndIf
+  \EndIf
+\Else
+  \State submit the admitted schedules \((Z^+,D,\mathcal T)\)
+\EndIf
 \end{algorithmic}
 \end{algorithm}
 
-The coordinator's only output is this set of admitted schedules.
+On a fast event the coordinator submits the surrogate-admitted schedule without a probe. On a slow boundary it submits only when the probe measures \(\Delta\mathrm{PPL}\le\epsilon\). Otherwise it leaves the published state unchanged.
 
 \subsection{Safe Executor}
 \label{sec:admit}
@@ -279,7 +300,7 @@ The coordinator's only output is this set of admitted schedules.
 The Safe Executor performs step~5 in Figure~\ref{fig:arch}.
 Its input is an admitted schedule \((Z^+,D,\mathcal T)\).
 Its output is a new published state and telemetry for the next snapshot.
-It does not choose among fidelity, residency, and lookahead.
+The executor runs the admitted schedule.
 
 \paragraph{Reserve.}
 The executor reserves every extent in \(\mathcal T\) in one transaction and checks the transition peak in Eq.~\eqref{eq:fit}.
@@ -291,8 +312,7 @@ If no compatible extent can be bound, or the peak exceeds \(B\), the executor di
 Copies run on the migration stream.
 A demotion keeps serving the high representation until the low replacement is published.
 An eviction-only donor is reclaimed after its readers finish.
-The executor atomically publishes the new handle only after the destination copy completes.
-Until then the forward path continues to use the old representation.
+The candidate copies reside in the reserved extents and count toward \(B\). Algorithm~\ref{alg:period} probes those copies on the serving GPU. The executor publishes the new handle only after that probe measures \(\Delta\mathrm{PPL}\le\epsilon\). Until then the forward path uses the old representation.
 
 \paragraph{Reclaim and ready work.}
 The executor reclaims an old extent only after its reader count reaches zero and its recorded uses complete.
@@ -302,4 +322,4 @@ A speculative exchange may displace a protected resident only when the replay of
 
 \paragraph{Telemetry.}
 The executor returns the measurements defined in Section~\ref{sec:monitor}.
-They update the next snapshot and do not roll back a published representation.
+They update the next snapshot. If that probe measures \(\Delta\mathrm{PPL}>\epsilon\), Algorithm~\ref{alg:period} rolls back the last admitted exchange. The published handles stay until a later probe is within \(\epsilon\).
